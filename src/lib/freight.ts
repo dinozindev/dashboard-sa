@@ -29,8 +29,10 @@ export interface WeightBand {
   we: number | null;
   amc: number | null;
   pew: number | null;
-  loja: string;
 }
+
+/** Chave de associação GeoJSON <-> planilha: aba (loja) + PolygonName. */
+export const ruleKey = (loja: string, polygonId: string) => `${loja}|${polygonId}`;
 
 export type PricingTable = Record<string, WeightBand[]>;
 
@@ -76,8 +78,8 @@ export interface PriceBreakdown {
 }
 
 /** Sorted, sanitized bands for a polygon. Returns null when no rule exists. */
-export function getBands(pricing: PricingTable, polygonId: string): WeightBand[] | null {
-  const raw = pricing[polygonId];
+export function getBands(pricing: PricingTable, loja: string, polygonId: string): WeightBand[] | null {
+  const raw = pricing[ruleKey(loja, polygonId)];
   if (!raw || raw.length === 0) return null;
   const valid = raw.filter((b) => b.ws !== null && b.we !== null && b.amc !== null);
   if (valid.length === 0) return null;
@@ -114,10 +116,11 @@ export function computePrice(bands: WeightBand[], weight: number): PriceBreakdow
 /** Price for a polygon at a given weight, or null when no rule matches. */
 export function priceForPolygon(
   pricing: PricingTable,
+  loja: string,
   polygonId: string,
   weight: number,
 ): PriceBreakdown | null {
-  const bands = getBands(pricing, polygonId);
+  const bands = getBands(pricing, loja, polygonId);
   if (!bands) return null;
   return computePrice(bands, weight);
 }

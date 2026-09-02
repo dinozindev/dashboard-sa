@@ -36,7 +36,7 @@ export function DetailsPanel({ feature, pricing, weight }: Props) {
   }
 
   const p = feature.properties;
-  const bands = getBands(pricing, p.id);
+  const bands = getBands(pricing, p.loja, p.id);
   const current = bands ? computePrice(bands, weight) : null;
 
   return (

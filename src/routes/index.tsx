@@ -13,6 +13,7 @@ import {
   freightQueryOptions,
   kg,
   priceForPolygon,
+  ruleKey,
   type PolygonFeature,
 } from "@/lib/freight";
 
@@ -82,7 +83,7 @@ function Dashboard() {
       if (p.faixa && !filters.faixas.includes(p.faixa)) return false;
       if (q && !`${p.id} ${p.distrito ?? ""}`.toLowerCase().includes(q)) return false;
       if (min !== null || max !== null) {
-        const price = priceForPolygon(pricing, p.id, filters.weight)?.total;
+        const price = priceForPolygon(pricing, p.loja, p.id, filters.weight)?.total;
         if (price === undefined) return false;
         if (min !== null && Number.isFinite(min) && price < min) return false;
         if (max !== null && Number.isFinite(max) && price > max) return false;
@@ -97,10 +98,10 @@ function Dashboard() {
     let area = 0;
     const bandCounts = new Set<string>();
     for (const f of filtered) {
-      const bd = priceForPolygon(pricing, f.properties.id, filters.weight);
+      const bd = priceForPolygon(pricing, f.properties.loja, f.properties.id, filters.weight);
       if (bd) {
         prices.push(bd.total);
-        const bands = pricing[f.properties.id] ?? [];
+        const bands = pricing[ruleKey(f.properties.loja, f.properties.id)] ?? [];
         bands.forEach((b) => bandCounts.add(`${b.ws}-${b.we}`));
       } else semRegra++;
       area += featureAreaKm2(f);
@@ -124,7 +125,7 @@ function Dashboard() {
 
   const tooltipHtml = (f: PolygonFeature) => {
     const p = f.properties;
-    const bd = priceForPolygon(pricing, p.id, filters.weight);
+    const bd = priceForPolygon(pricing, p.loja, p.id, filters.weight);
     const esc = (s: string) => s.replace(/[<>&]/g, "");
     const rows = bd
       ? `<div>Faixa de peso: <b>${kg(bd.band.ws ?? 0)} – ${kg(bd.band.we ?? 0)}</b></div>
