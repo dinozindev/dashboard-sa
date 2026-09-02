@@ -159,7 +159,8 @@ export function boundsOf(features: PolygonFeature[]): [[number, number], [number
   let minLat = Infinity, minLon = Infinity, maxLat = -Infinity, maxLon = -Infinity;
   const visit = (c: unknown) => {
     if (Array.isArray(c) && typeof c[0] === "number" && typeof c[1] === "number") {
-      const [lon, lat] = c as number[];
+      const arr = c as number[];
+      const lon = arr[0] as number, lat = arr[1] as number;
       if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
       minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
       minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
