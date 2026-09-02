@@ -91,8 +91,9 @@ export function getBands(pricing: PricingTable, polygonId: string): WeightBand[]
 export function computePrice(bands: WeightBand[], weight: number): PriceBreakdown | null {
   if (!bands.length || !Number.isFinite(weight) || weight < 0) return null;
   let index = bands.findIndex((b) => weight >= (b.ws ?? 0) && weight <= (b.we ?? 0));
-  if (index === -1) index = weight > (bands[bands.length - 1].we ?? 0) ? bands.length - 1 : 0;
-  const band = bands[index];
+  const last = bands[bands.length - 1]!;
+  if (index === -1) index = weight > (last.we ?? 0) ? bands.length - 1 : 0;
+  const band = bands[index]!;
   const base = band.amc ?? 0;
   const start = band.ws ?? 0;
   const extraPerKg = band.pew ?? 0;
