@@ -232,7 +232,7 @@ function Dashboard() {
               onSelect={setSelectedId}
               tooltipHtml={tooltipHtml}
             />
-            )
+            )}
           </Suspense>
         </Card>
 
