@@ -17,4 +17,4 @@ export const FAIXA_OPACITY: Record<string, number> = {
 };
 
 export const faixaOpacity = (faixa: string | null | undefined) =>
-  (faixa && FAIXA_OPACITY[faixa]) ?? 0.35;
+  (faixa ? FAIXA_OPACITY[faixa] : undefined) ?? 0.35;
