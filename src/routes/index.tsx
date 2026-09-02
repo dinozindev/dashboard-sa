@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { Suspense, lazy, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { KpiCards } from "@/components/dashboard/KpiCards";
 import { Filters, type FilterState } from "@/components/dashboard/Filters";
 import { DetailsPanel } from "@/components/dashboard/DetailsPanel";
@@ -21,7 +21,6 @@ const FreightMap = lazy(() =>
 );
 
 export const Route = createFileRoute("/")({
-  loader: ({ context }) => context.queryClient.ensureQueryData(freightQueryOptions),
   component: Dashboard,
   errorComponent: ({ error }) => (
     <div role="alert" className="p-8 text-sm text-destructive">
@@ -62,9 +61,14 @@ const initialFilters: FilterState = {
 };
 
 function Dashboard() {
-  const { data } = useSuspenseQuery(freightQueryOptions);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  const { data, isLoading, error } = useQuery({ ...freightQueryOptions, enabled: hydrated });
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const features = data?.features ?? [];
+  const pricing = data?.pricing ?? {};
 
   const patch = (p: Partial<FilterState>) => setFilters((f) => ({ ...f, ...p }));
 
@@ -72,20 +76,20 @@ function Dashboard() {
     const min = filters.priceMin === "" ? null : Number(filters.priceMin);
     const max = filters.priceMax === "" ? null : Number(filters.priceMax);
     const q = filters.search.trim().toLowerCase();
-    return data.features.filter((f) => {
+    return features.filter((f) => {
       const p = f.properties;
       if (filters.loja !== "Ambas" && p.loja !== filters.loja) return false;
       if (p.faixa && !filters.faixas.includes(p.faixa)) return false;
       if (q && !`${p.id} ${p.distrito ?? ""}`.toLowerCase().includes(q)) return false;
       if (min !== null || max !== null) {
-        const price = priceForPolygon(data.pricing, p.id, filters.weight)?.total;
+        const price = priceForPolygon(pricing, p.id, filters.weight)?.total;
         if (price === undefined) return false;
         if (min !== null && Number.isFinite(min) && price < min) return false;
         if (max !== null && Number.isFinite(max) && price > max) return false;
       }
       return true;
     });
-  }, [data, filters]);
+  }, [features, pricing, filters]);
 
   const stats = useMemo(() => {
     const prices: number[] = [];
@@ -93,10 +97,10 @@ function Dashboard() {
     let area = 0;
     const bandCounts = new Set<string>();
     for (const f of filtered) {
-      const bd = priceForPolygon(data.pricing, f.properties.id, filters.weight);
+      const bd = priceForPolygon(pricing, f.properties.id, filters.weight);
       if (bd) {
         prices.push(bd.total);
-        const bands = data.pricing[f.properties.id] ?? [];
+        const bands = pricing[f.properties.id] ?? [];
         bands.forEach((b) => bandCounts.add(`${b.ws}-${b.we}`));
       } else semRegra++;
       area += featureAreaKm2(f);
@@ -111,16 +115,16 @@ function Dashboard() {
       area,
       semRegra,
     };
-  }, [filtered, data.pricing, filters.weight]);
+  }, [filtered, pricing, filters.weight]);
 
   const selected: PolygonFeature | null =
     filtered.find((f) => f.properties.id === selectedId) ??
-    data.features.find((f) => f.properties.id === selectedId) ??
+    features.find((f) => f.properties.id === selectedId) ??
     null;
 
   const tooltipHtml = (f: PolygonFeature) => {
     const p = f.properties;
-    const bd = priceForPolygon(data.pricing, p.id, filters.weight);
+    const bd = priceForPolygon(pricing, p.id, filters.weight);
     const esc = (s: string) => s.replace(/[<>&]/g, "");
     const rows = bd
       ? `<div>Faixa de peso: <b>${kg(bd.band.ws ?? 0)} – ${kg(bd.band.we ?? 0)}</b></div>
@@ -213,17 +217,27 @@ function Dashboard() {
           <Suspense
             fallback={<div className="grid h-full place-items-center text-sm text-muted-foreground">Carregando mapa…</div>}
           >
+            {error ? (
+              <div className="grid h-full place-items-center p-6 text-sm text-destructive">
+                Não foi possível carregar os dados: {(error as Error).message}
+              </div>
+            ) : isLoading || !hydrated ? (
+              <div className="grid h-full place-items-center text-sm text-muted-foreground">
+                Carregando áreas e regras de frete…
+              </div>
+            ) : (
             <FreightMap
               features={filtered}
               selectedId={selectedId}
               onSelect={setSelectedId}
               tooltipHtml={tooltipHtml}
             />
+            )
           </Suspense>
         </Card>
 
         <div className="lg:max-h-[calc(100vh-14rem)] lg:overflow-auto">
-          <DetailsPanel feature={selected} pricing={data.pricing} weight={filters.weight} />
+          <DetailsPanel feature={selected} pricing={pricing} weight={filters.weight} />
         </div>
       </div>
     </main>
