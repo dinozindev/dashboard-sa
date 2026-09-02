@@ -135,8 +135,9 @@ export function featureAreaKm2(feature: PolygonFeature): number {
     if (ring.length < 3) return 0;
     let total = 0;
     for (let i = 0; i < ring.length; i++) {
-      const [lon1, lat1] = ring[i];
-      const [lon2, lat2] = ring[(i + 1) % ring.length];
+      const a = ring[i]!;
+      const b = ring[(i + 1) % ring.length]!;
+      const lon1 = a[0] ?? 0, lat1 = a[1] ?? 0, lon2 = b[0] ?? 0, lat2 = b[1] ?? 0;
       total +=
         ((lon2 - lon1) * Math.PI) / 180 *
         (2 + Math.sin((lat1 * Math.PI) / 180) + Math.sin((lat2 * Math.PI) / 180));
