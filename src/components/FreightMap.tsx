@@ -29,9 +29,11 @@ export function FreightMap({ features, selectedId, onSelect, tooltipHtml }: Prop
         zoomControl: true,
         preferCanvas: true,
       });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      // Mapa-base de ruas OpenStreetMap. Para usar o Google Maps como base,
+      // basta conectar uma API Key e trocar esta camada por gridlayer-googlemutant.
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       }).addTo(map);
       mapRef.current = map;
