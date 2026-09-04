@@ -1,0 +1,304 @@
+{
+ "source": "Simulação.xlsx",
+ "modalities": [
+  "Status Gestão de Capacidade",
+  "Status Retira EC Estado",
+  "Ecommerce entrega sábado",
+  "Pequenos volumes Aresta (CM)",
+  "Capacidade EC",
+  "Capacidade VA/TLV",
+  "Pequenos Volumes Custo Frete",
+  "Retira Fácil na Loja (VA)",
+  "Retira Televendas (TLV)",
+  "Retira Autosserviço (VA)",
+  "Clique & Retira (EC)",
+  "Saldo Borderô",
+  "Retira H+4 Ecommerce",
+  "Entrega Normal (EC)",
+  "Transportadora padrão",
+  "Retira Fácil Locker (TLV)",
+  "ENTREGA CONFORTO MANHÃ (TLV / VA)",
+  "ENTREGA CONFORTO TARDE (TLV / VA)",
+  "Entrega Normal Norte (EC)",
+  "Entrega Normal Sul (EC)",
+  "ENTREGA CONFORTO NOITE (TLV / VA)",
+  "Entrega Normal Pesado (VA e TLV)",
+  "Entrega Normal Pesado (VA e TLV)_INTERIOR_LONGE",
+  "Entrega Agendada Norte (TLV_VA)",
+  "Entrega Agendada Sul (TLV_VA)",
+  "Entrega Agendada - Corte de Madeira",
+  "Entrega Rápida - Peq_Volumes",
+  "ENTREGA ESPECIAL",
+  "Entrega Longa Distância R1",
+  "Retira CredObra",
+  "ENTREGA TLV_VA_FRETE GRATIS"
+ ],
+ "stores": [
+  {
+   "centro": 1029,
+   "tipo": "Loja",
+   "nome": "Aricanduva",
+   "uf": "SP",
+   "cidade": "São Paulo",
+   "cells": {
+    "Status Gestão de Capacidade": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Status Retira EC Estado": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Ecommerce entrega sábado": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Pequenos volumes Aresta (CM)": {
+     "status": "—",
+     "note": "220"
+    },
+    "Capacidade EC": {
+     "status": "—",
+     "note": "20.0"
+    },
+    "Capacidade VA/TLV": {
+     "status": "—",
+     "note": "50"
+    },
+    "Pequenos Volumes Custo Frete": {
+     "status": "Ativa",
+     "note": "30,00"
+    },
+    "Retira Fácil na Loja (VA)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Retira Televendas (TLV)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Retira Autosserviço (VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Clique & Retira (EC)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Normal (EC)": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Transportadora padrão": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Retira Fácil Locker (TLV)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ (TLV / VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE (TLV / VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Normal Norte (EC)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Normal Sul (EC)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "ENTREGA CONFORTO NOITE (TLV / VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Normal Pesado (VA e TLV)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Entrega Normal Pesado (VA e TLV)_INTERIOR_LONGE": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Agendada Norte (TLV_VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Agendada Sul (TLV_VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Agendada - Corte de Madeira": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Rápida - Peq_Volumes": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "ENTREGA ESPECIAL": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Entrega Longa Distância R1": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Retira CredObra": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Em construção",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": 1008,
+   "tipo": "Loja",
+   "nome": "Suzano",
+   "uf": "SP",
+   "cidade": "Suzano",
+   "cells": {
+    "Status Gestão de Capacidade": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Status Retira EC Estado": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Ecommerce entrega sábado": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Pequenos volumes Aresta (CM)": {
+     "status": "—",
+     "note": "220"
+    },
+    "Capacidade EC": {
+     "status": "—",
+     "note": ""
+    },
+    "Capacidade VA/TLV": {
+     "status": "—",
+     "note": "44"
+    },
+    "Pequenos Volumes Custo Frete": {
+     "status": "Ativa",
+     "note": "30,00"
+    },
+    "Retira Fácil na Loja (VA)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Retira Televendas (TLV)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Retira Autosserviço (VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Clique & Retira (EC)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Entrega Normal (EC)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Transportadora padrão": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Retira Fácil Locker (TLV)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ (TLV / VA)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE (TLV / VA)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Entrega Normal Norte (EC)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Normal Sul (EC)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "ENTREGA CONFORTO NOITE (TLV / VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Normal Pesado (VA e TLV)": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "Entrega Normal Pesado (VA e TLV)_INTERIOR_LONGE": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Agendada Norte (TLV_VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Agendada Sul (TLV_VA)": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Agendada - Corte de Madeira": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Entrega Rápida - Peq_Volumes": {
+     "status": "Ativa",
+     "note": ""
+    },
+    "ENTREGA ESPECIAL": {
+     "status": "Inativa",
+     "note": ""
+    },
+    "Entrega Longa Distância R1": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "Retira CredObra": {
+     "status": "Em construção",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Inativa",
+     "note": ""
+    }
+   }
+  }
+ ]
+}
