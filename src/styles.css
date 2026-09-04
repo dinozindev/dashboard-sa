@@ -234,16 +234,32 @@
   font: inherit;
 }
 
-.map-store-pin {
+.map-store-marker {
   transform: translate(-50%, -120%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
   border-radius: 999px;
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
-  padding: 2px 8px;
+  background: var(--color-card);
+  color: var(--color-foreground);
+  padding: 3px 10px 3px 3px;
   font-size: 11px;
   font-weight: 700;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.22);
+  border: 1px solid var(--color-border);
+}
+
+.map-store-marker__icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.map-store-marker__label {
+  line-height: 1;
 }
 
 .freight-tooltip {

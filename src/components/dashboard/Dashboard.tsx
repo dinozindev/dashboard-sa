@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import { polygons, STORE_NAMES, tariffFor, hasSimulation, type Overrides } from "@/lib/freight/dataset";
 import { BAND_ORDER } from "@/lib/freight/palette";
@@ -29,7 +29,8 @@ export default function Dashboard() {
   const [bandIndex, setBandIndex] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<Overrides>({});
   const [point, setPoint] = useState<{ lng: number; lat: number } | null>(null);
-  const now = new Date();
+  const [now, setNow] = useState<Date>(() => new Date("2026-01-01T00:00:00Z"));
+  useEffect(() => setNow(new Date()), []);
   const isPickup = modality === "Retira";
 
   const visible = useMemo(() => {
