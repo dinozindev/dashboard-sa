@@ -33,7 +33,7 @@ export default function FreightMap({
 
   useEffect(() => {
     if (!elRef.current || mapRef.current) return;
-    const map = L.map(elRef.current, { zoomControl: true, preferCanvas: true }).setView(
+    const map = L.map(elRef.current, { zoomControl: true }).setView(
       [-23.55, -46.4],
       10,
     );
