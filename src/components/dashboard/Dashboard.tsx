@@ -29,7 +29,8 @@ export default function Dashboard() {
   const [bandIndex, setBandIndex] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<Overrides>({});
   const [point, setPoint] = useState<{ lng: number; lat: number } | null>(null);
-  const now = new Date();
+  const [now, setNow] = useState<Date>(() => new Date("2026-01-01T00:00:00Z"));
+  useEffect(() => setNow(new Date()), []);
   const isPickup = modality === "Retira";
 
   const visible = useMemo(() => {
