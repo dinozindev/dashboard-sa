@@ -51,7 +51,7 @@ export default function FreightMap({
       L.marker([s.center[1], s.center[0]], {
         icon: L.divIcon({
           className: "",
-          html: `<div class="map-store-marker"><img src="${logoMarker.url}" alt="" class="map-store-marker__icon"/><span class="map-store-marker__label">${s.name}</span></div>`,
+          html: `<div class="map-store-marker"><img src="/logo-marker.png" alt="" class="map-store-marker__icon"/><span class="map-store-marker__label">${s.name}</span></div>`,
           iconSize: [0, 0],
         }),
       })
