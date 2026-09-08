@@ -8,7 +8,7 @@ export interface CapacityInput {
   operatingDays: number;
 }
 
-export const CAPACITY_BASE: Record<StoreName, CapacityInput> = {
+export const CAPACITY_BASE: Partial<Record<StoreName, CapacityInput>> = {
   // 12 veículos x 5 entregas = 60/dia; demanda 52/dia; semanal 360 (6 dias operacionais)
   Aricanduva: { vehicles: 12, perVehicle: 5, dailyDemand: 52, operatingDays: 6 },
   // 8 veículos x 5 entregas = 40/dia; demanda 31/dia; semanal 240 (6 dias operacionais)
