@@ -34,6 +34,7 @@ export function StatusBadge({
 
 export function ScheduleGrid({ store, modality }: { store: StoreName; modality: Modality }) {
   const grid = SCHEDULES[modality][store];
+  if (!grid) return null;
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
       <table className="w-full text-xs">

@@ -1,17 +1,20 @@
 import { useState } from "react";
 import { CAPACITY_BASE, computeCapacity, UTILIZATION_ALERT } from "@/lib/freight/capacity";
 import type { CapacityInput } from "@/lib/freight/capacity";
-import { STORE_NAMES } from "@/lib/freight/dataset";
+import { OPS_STORES } from "@/lib/freight/dataset";
 import type { StoreName } from "@/lib/freight/types";
 
 const pct = (v: number) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
 export function CapacityPanel() {
-  const [inputs, setInputs] = useState<Record<StoreName, CapacityInput>>(() => ({
+  const [inputs, setInputs] = useState<Partial<Record<StoreName, CapacityInput>>>(() => ({
     ...CAPACITY_BASE,
   }));
   const [limit, setLimit] = useState(UTILIZATION_ALERT);
-  const results = STORE_NAMES.map((s) => ({ store: s, r: computeCapacity(inputs[s]) }));
+  const results = OPS_STORES.flatMap((s) => {
+    const input = inputs[s];
+    return input ? [{ store: s, r: computeCapacity(input) }] : [];
+  });
   const maxBar = Math.max(...results.map((x) => Math.max(x.r.daily, x.r.dailyDemand)), 1);
 
   const tone = (u: number) =>
@@ -54,11 +57,11 @@ export function CapacityPanel() {
                 <input
                   type="number"
                   className="input mt-1"
-                  value={inputs[store].vehicles}
+                  value={inputs[store]?.vehicles ?? 0}
                   onChange={(e) =>
                     setInputs({
                       ...inputs,
-                      [store]: { ...inputs[store], vehicles: Number(e.target.value) },
+                      [store]: { ...inputs[store]!, vehicles: Number(e.target.value) },
                     })
                   }
                 />
@@ -68,11 +71,11 @@ export function CapacityPanel() {
                 <input
                   type="number"
                   className="input mt-1"
-                  value={inputs[store].perVehicle}
+                  value={inputs[store]?.perVehicle ?? 0}
                   onChange={(e) =>
                     setInputs({
                       ...inputs,
-                      [store]: { ...inputs[store], perVehicle: Number(e.target.value) },
+                      [store]: { ...inputs[store]!, perVehicle: Number(e.target.value) },
                     })
                   }
                 />
