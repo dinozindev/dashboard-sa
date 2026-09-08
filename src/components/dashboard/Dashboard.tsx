@@ -116,8 +116,8 @@ export default function Dashboard() {
             Dashboard Interativo de Frete
           </h1>
           <p className="text-sm text-muted-foreground">
-            Áreas de entrega, tarifas por faixa de peso e capacidade operacional — Aricanduva e
-            Suzano.
+            Áreas de entrega, tarifas por faixa de peso e capacidade operacional — Aricanduva,
+            Suzano, Mooca, Praia Grande e Piracicaba (as três últimas ainda sem tabela de frete).
           </p>
         </div>
       </header>
