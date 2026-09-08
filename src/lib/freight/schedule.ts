@@ -76,8 +76,11 @@ export function getStatus(
   modality: Modality,
   now: Date,
   holidays: string[] = HOLIDAYS,
+): OpenStatus | null {
   const dayKey = currentDayKey(now, holidays);
-  const { open, close } = SCHEDULES[modality][store][dayKey];
+  const grid = SCHEDULES[modality][store];
+  if (!grid) return null;
+  const { open, close } = grid[dayKey];
   const mins = now.getHours() * 60 + now.getMinutes();
   return { dayKey, open, close, isOpen: mins >= toMin(open) && mins < toMin(close) };
 }

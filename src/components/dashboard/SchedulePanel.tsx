@@ -15,6 +15,14 @@ export function StatusBadge({
   showStore?: boolean;
 }) {
   const s = getStatus(store, modality, now, holidays);
+  if (!s) {
+    return (
+      <span className="badge-closed">
+        {showStore ? <><strong>{store}</strong> · </> : null}
+        Horário não cadastrado
+      </span>
+    );
+  }
   return (
     <span className={s.isOpen ? "badge-open" : "badge-closed"}>
       {showStore ? <><strong>{store}</strong> · </> : null}
