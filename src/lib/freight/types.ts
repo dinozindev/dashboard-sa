@@ -1,4 +1,9 @@
-export type StoreName = "Aricanduva" | "Suzano";
+export type StoreName =
+  | "Aricanduva"
+  | "Suzano"
+  | "Mooca"
+  | "Praia Grande"
+  | "Piracicaba";
 export type StoreSelection = StoreName | "Ambas";
 export type Modality = "Entrega" | "Retira";
 

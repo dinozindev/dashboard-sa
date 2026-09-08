@@ -6,7 +6,16 @@ export const dataset = raw as unknown as FreightDataset;
 export const polygons: PolygonRecord[] = dataset.polygons;
 export const stores = dataset.stores;
 
-export const STORE_NAMES: StoreName[] = ["Aricanduva", "Suzano"];
+export const STORE_NAMES: StoreName[] = [
+  "Aricanduva",
+  "Suzano",
+  "Mooca",
+  "Praia Grande",
+  "Piracicaba",
+];
+
+/** Lojas com tabela de frete, horários e capacidade cadastrados. */
+export const OPS_STORES: StoreName[] = ["Aricanduva", "Suzano"];
 
 /** Chave de simulação: `${polygonId}#${bandIndex}` -> faixa editada (memória apenas). */
 export type Overrides = Record<string, WeightBand>;

@@ -34,7 +34,7 @@ const g = (
 });
 
 /** Regra 15 — grade de horários (configuração, separada da lógica de preço). */
-export const SCHEDULES: Record<Modality, Record<StoreName, Grid>> = {
+export const SCHEDULES: Record<Modality, Partial<Record<StoreName, Grid>>> = {
   Retira: {
     Aricanduva: g(["07:00", "22:00"], ["07:00", "22:00"], ["09:00", "19:00"], ["09:00", "19:00"]),
     Suzano: g(["07:00", "21:00"], ["07:00", "21:00"], ["09:00", "17:00"], ["08:00", "20:00"]),
@@ -76,9 +76,11 @@ export function getStatus(
   modality: Modality,
   now: Date,
   holidays: string[] = HOLIDAYS,
-): OpenStatus {
+): OpenStatus | null {
   const dayKey = currentDayKey(now, holidays);
-  const { open, close } = SCHEDULES[modality][store][dayKey];
+  const grid = SCHEDULES[modality][store];
+  if (!grid) return null;
+  const { open, close } = grid[dayKey];
   const mins = now.getHours() * 60 + now.getMinutes();
   return { dayKey, open, close, isOpen: mins >= toMin(open) && mins < toMin(close) };
 }
