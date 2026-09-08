@@ -3,8 +3,16 @@ export type StoreName =
   | "Suzano"
   | "Mooca"
   | "Praia Grande"
-  | "Piracicaba";
+  | "Piracicaba"
+  | "Benfica"
+  | "Duque de Caxias"
+  | "Guadalupe"
+  | "Jacarepagua"
+  | "Mesquita"
+  | "Niteroi";
 export type StoreSelection = StoreName | "Ambas";
+export type Region = "SP" | "RJ";
+export type RegionSelection = Region | "Todas";
 export type Modality = "Entrega" | "Retira";
 
 /** Faixa de peso lida da planilha (somente leitura). */
