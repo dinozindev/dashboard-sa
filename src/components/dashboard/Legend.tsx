@@ -1,36 +1,41 @@
-import { BAND_ORDER, PALETTE, STORE_DASH } from "@/lib/freight/palette";
-import { STORE_NAMES } from "@/lib/freight/dataset";
-import type { StoreSelection } from "@/lib/freight/types";
+import { BAND_ORDER, BAND_COLORS, STORE_DASH, STORE_DASH_LABEL } from "@/lib/freight/palette";
+import type { StoreName } from "@/lib/freight/types";
 
-export function Legend({ selection }: { selection: StoreSelection }) {
-  const shown = STORE_NAMES.filter((s) => selection === "Ambas" || selection === s);
+export function Legend({ stores }: { stores: StoreName[] }) {
   return (
     <div className="rounded-xl border border-border bg-card p-3 text-xs shadow-sm">
       <p className="mb-2 font-semibold uppercase tracking-wide text-muted-foreground">Legenda</p>
-      <div className="space-y-3">
-        {shown.map((store) => (
-          <div key={store}>
-            <p className="mb-1 flex items-center gap-2 font-medium text-foreground">
-              {store}
-              <span className="text-[10px] font-normal text-muted-foreground">
-                {STORE_DASH[store] ? "(contorno tracejado)" : "(contorno sólido)"}
-              </span>
-            </p>
-            <div className="grid grid-cols-3 gap-1.5">
-              {BAND_ORDER.map((b) => (
-                <span key={b} className="flex items-center gap-1.5 text-muted-foreground">
-                  <span
-                    className="inline-block h-3 w-3 rounded-sm border"
-                    style={{
-                      backgroundColor: PALETTE[store][b],
-                      borderColor: PALETTE[store][b],
-                      borderStyle: STORE_DASH[store] ? "dashed" : "solid",
-                    }}
-                  />
-                  {b}
-                </span>
-              ))}
-            </div>
+
+      <p className="mb-1 font-medium text-foreground">Faixa de raio (cores iguais para todas as lojas)</p>
+      <div className="mb-3 grid grid-cols-3 gap-1.5">
+        {BAND_ORDER.map((b) => (
+          <span key={b} className="flex items-center gap-1.5 text-muted-foreground">
+            <span
+              className="inline-block h-3 w-3 rounded-sm"
+              style={{ backgroundColor: BAND_COLORS[b] }}
+            />
+            {b}
+          </span>
+        ))}
+      </div>
+
+      <p className="mb-1 font-medium text-foreground">Loja (padrão do contorno)</p>
+      <div className="space-y-1">
+        {stores.map((store) => (
+          <div key={store} className="flex items-center gap-2 text-muted-foreground">
+            <svg width="34" height="8" aria-hidden>
+              <line
+                x1="1"
+                y1="4"
+                x2="33"
+                y2="4"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeDasharray={STORE_DASH[store]}
+              />
+            </svg>
+            <span className="text-foreground">{store}</span>
+            <span className="text-[10px]">({STORE_DASH_LABEL[store]})</span>
           </div>
         ))}
       </div>
