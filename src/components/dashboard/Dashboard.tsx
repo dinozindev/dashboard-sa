@@ -1,11 +1,19 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
-import { polygons, STORE_NAMES, OPS_STORES, tariffFor, hasSimulation, type Overrides } from "@/lib/freight/dataset";
+import {
+  polygons,
+  STORE_NAMES,
+  OPS_STORES,
+  storesInRegion,
+  tariffFor,
+  hasSimulation,
+  type Overrides,
+} from "@/lib/freight/dataset";
 import { BAND_ORDER } from "@/lib/freight/palette";
 import { brl, calcPrice, kg } from "@/lib/freight/pricing";
 import { polygonsAtPoint } from "@/lib/freight/geo";
 import { HOLIDAYS } from "@/lib/freight/schedule";
-import type { Modality, PolygonRecord, StoreSelection } from "@/lib/freight/types";
+import type { Modality, PolygonRecord, RegionSelection, StoreName } from "@/lib/freight/types";
 import { Legend } from "./Legend";
 import { Kpis } from "./Kpis";
 import { TariffTable } from "./TariffTable";
@@ -20,7 +28,14 @@ const FreightMap = lazy(() => import("./FreightMap"));
 
 export default function Dashboard() {
   const [tab, setTab] = useState<"operacao" | "politicas">("operacao");
-  const [selection, setSelection] = useState<StoreSelection>("Ambas");
+  const [region, setRegion] = useState<RegionSelection>("Todas");
+  const [visibleStores, setVisibleStores] = useState<StoreName[]>([...STORE_NAMES]);
+  const [compareStores, setCompareStores] = useState<StoreName[]>([]);
+  const regionStores = useMemo(() => storesInRegion(region), [region]);
+  const shownStores = useMemo(
+    () => regionStores.filter((s) => visibleStores.includes(s)),
+    [regionStores, visibleStores],
+  );
   const [bands, setBands] = useState<string[]>([...BAND_ORDER]);
   const [search, setSearch] = useState("");
   const [weight, setWeight] = useState(10);
@@ -37,13 +52,13 @@ export default function Dashboard() {
     const q = search.trim().toLowerCase();
     return polygons.filter(
       (p) =>
-        (selection === "Ambas" || p.store === selection) &&
+        shownStores.includes(p.store) &&
         bands.includes(p.band) &&
         (q === "" ||
           p.id.toLowerCase().includes(q) ||
           (p.district ?? "").toLowerCase().includes(q)),
     );
-  }, [selection, bands, search]);
+  }, [shownStores, bands, search]);
 
   const selected = useMemo(
     () => visible.find((p) => p.id === selectedId) ?? null,
@@ -67,7 +82,10 @@ export default function Dashboard() {
       { label: "Área coberta", value: `${num(area, 1)} km²` },
       {
         label: "Lojas exibidas",
-        value: selection === "Ambas" ? `${STORE_NAMES.length} lojas` : selection,
+        value:
+          shownStores.length === 1
+            ? (shownStores[0] as string)
+            : `${shownStores.length} lojas`,
       },
       { label: "Peso simulado", value: kg(weight) },
       {
@@ -90,7 +108,7 @@ export default function Dashboard() {
             { label: "Frete médio", value: prices.length ? brl(avg) : "—" },
           ]),
     ];
-  }, [visible, weight, overrides, selection, isPickup]);
+  }, [visible, weight, overrides, shownStores, isPickup]);
 
   const tooltipFor = (rec: PolygonRecord) => {
     const r = calcPrice(tariffFor(rec, overrides), weight);
@@ -103,7 +121,16 @@ export default function Dashboard() {
     }`;
   };
 
-  const matches = point ? polygonsAtPoint(point.lng, point.lat, visible) : [];
+  const allMatches = point ? polygonsAtPoint(point.lng, point.lat, visible) : [];
+  const matches =
+    compareStores.length > 0
+      ? allMatches.filter((m) => compareStores.includes(m.store))
+      : allMatches;
+
+  const toggleStore = (s: StoreName) =>
+    setVisibleStores((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
+  const toggleCompare = (s: StoreName) =>
+    setCompareStores((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
 
   const toggleBand = (b: string) =>
     setBands((cur) => (cur.includes(b) ? cur.filter((x) => x !== b) : [...cur, b]));
@@ -149,20 +176,65 @@ export default function Dashboard() {
         {/* Filtros */}
         <section className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
           <label className="text-xs text-muted-foreground">
-            Loja
+            Regional
             <select
-              className="input mt-1 w-44"
-              value={selection}
-              onChange={(e) => setSelection(e.target.value as StoreSelection)}
+              className="input mt-1 w-32"
+              value={region}
+              onChange={(e) => {
+                const r = e.target.value as RegionSelection;
+                setRegion(r);
+                setVisibleStores(storesInRegion(r));
+                setCompareStores([]);
+                setSelectedId(null);
+              }}
             >
-              <option value="Ambas">Ambas</option>
-              {STORE_NAMES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
+              <option value="Todas">Todas</option>
+              <option value="SP">SP</option>
+              <option value="RJ">RJ</option>
             </select>
           </label>
+
+          <div className="text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span>Lojas (clique para exibir · marque para comparar)</span>
+              <button
+                className="btn-ghost text-[11px]"
+                onClick={() => setVisibleStores(regionStores)}
+              >
+                Todas
+              </button>
+              <button className="btn-ghost text-[11px]" onClick={() => setVisibleStores([])}>
+                Nenhuma
+              </button>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {regionStores.map((s) => {
+                const on = visibleStores.includes(s);
+                return (
+                  <span
+                    key={s}
+                    className={
+                      "flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors " +
+                      (on
+                        ? "border-transparent bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground")
+                    }
+                  >
+                    <button onClick={() => toggleStore(s)}>{s}</button>
+                    <label className="flex items-center gap-1 text-[10px] font-normal">
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3 accent-current"
+                        checked={compareStores.includes(s)}
+                        onChange={() => toggleCompare(s)}
+                      />
+                      comparar
+                    </label>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
 
           <div className="text-xs text-muted-foreground">
             Faixas de raio
@@ -221,7 +293,9 @@ export default function Dashboard() {
           <button
             className="btn-ghost text-xs"
             onClick={() => {
-              setSelection("Ambas");
+              setRegion("Todas");
+              setVisibleStores([...STORE_NAMES]);
+              setCompareStores([]);
               setBands([...BAND_ORDER]);
               setSearch("");
               setWeight(10);
@@ -250,20 +324,20 @@ export default function Dashboard() {
                     setBandIndex(null);
                   }}
                   onMapClick={(lng, lat) => setPoint({ lng, lat })}
-                  fitKey={`${selection}|${bands.join(",")}|${search}`}
+                  fitKey={`${region}|${shownStores.join(",")}|${bands.join(",")}|${search}`}
                 />
               </Suspense>
             </ClientOnly>
           </div>
 
           <div className="space-y-4">
-            <Legend selection={selection} />
+            <Legend stores={shownStores} />
             <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Status de atendimento
               </p>
               <div className="flex flex-wrap gap-2">
-                {OPS_STORES.filter((s) => selection === "Ambas" || selection === s).map((s) => (
+                {OPS_STORES.filter((s) => shownStores.includes(s)).map((s) => (
                   <StatusBadge
                     key={s}
                     store={s}
