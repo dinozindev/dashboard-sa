@@ -35,7 +35,7 @@ export function ComparePanel({ point, matches, weight, overrides, modality, now,
       <div className="space-y-2 rounded-xl border border-warning/50 bg-warning/10 p-3 text-sm">
         <p>
           Ponto {point.lat.toFixed(4)}, {point.lng.toFixed(4)} — <strong>fora da zona de entrega</strong>{" "}
-          das lojas Aricanduva e Suzano, porém dentro do estado de SP.
+          das lojas mapeadas, porém dentro do estado de SP.
         </p>
         <p>
           Política de envio disponível: <strong>Retira</strong>

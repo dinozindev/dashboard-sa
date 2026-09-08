@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
-import { polygons, STORE_NAMES, tariffFor, hasSimulation, type Overrides } from "@/lib/freight/dataset";
+import { polygons, STORE_NAMES, OPS_STORES, tariffFor, hasSimulation, type Overrides } from "@/lib/freight/dataset";
 import { BAND_ORDER } from "@/lib/freight/palette";
 import { brl, calcPrice, kg } from "@/lib/freight/pricing";
 import { polygonsAtPoint } from "@/lib/freight/geo";
@@ -67,9 +67,13 @@ export default function Dashboard() {
       { label: "Área coberta", value: `${num(area, 1)} km²` },
       {
         label: "Lojas exibidas",
-        value: selection === "Ambas" ? "2 (Aricanduva + Suzano)" : selection,
+        value: selection === "Ambas" ? `${STORE_NAMES.length} lojas` : selection,
       },
       { label: "Peso simulado", value: kg(weight) },
+      {
+        label: "Polígonos sem tabela",
+        value: num(visible.filter((p) => p.tariff === null).length),
+      },
       ...(isPickup
         ? []
         : [
@@ -259,7 +263,7 @@ export default function Dashboard() {
                 Status de atendimento
               </p>
               <div className="flex flex-wrap gap-2">
-                {STORE_NAMES.filter((s) => selection === "Ambas" || selection === s).map((s) => (
+                {OPS_STORES.filter((s) => selection === "Ambas" || selection === s).map((s) => (
                   <StatusBadge
                     key={s}
                     store={s}
@@ -381,7 +385,7 @@ export default function Dashboard() {
         <section className="grid gap-4 xl:grid-cols-2">
           <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="font-display text-lg font-semibold">Horários de atendimento</h2>
-            {STORE_NAMES.map((s) => (
+            {OPS_STORES.map((s) => (
               <ScheduleGrid key={s} store={s} modality={modality} />
             ))}
           </div>
