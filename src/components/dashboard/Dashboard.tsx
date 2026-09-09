@@ -194,46 +194,68 @@ export default function Dashboard() {
             </select>
           </label>
 
-          <div className="text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span>Lojas (clique para exibir · marque para comparar)</span>
-              <button
-                className="btn-ghost text-[11px]"
-                onClick={() => setVisibleStores(regionStores)}
-              >
-                Todas
-              </button>
-              <button className="btn-ghost text-[11px]" onClick={() => setVisibleStores([])}>
-                Nenhuma
-              </button>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {regionStores.map((s) => {
-                const on = visibleStores.includes(s);
-                return (
-                  <span
-                    key={s}
-                    className={
-                      "flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors " +
-                      (on
-                        ? "border-transparent bg-primary text-primary-foreground"
-                        : "border-border bg-background text-muted-foreground")
-                    }
-                  >
-                    <button onClick={() => toggleStore(s)}>{s}</button>
-                    <label className="flex items-center gap-1 text-[10px] font-normal">
-                      <input
-                        type="checkbox"
-                        className="h-3 w-3 accent-current"
-                        checked={compareStores.includes(s)}
-                        onChange={() => toggleCompare(s)}
-                      />
-                      comparar
-                    </label>
+          <div className="relative text-xs text-muted-foreground">
+            Lojas
+            <button
+              className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
+              onClick={() => setStoresOpen((v) => !v)}
+            >
+              <span className="truncate text-foreground">
+                {shownStores.length === 0
+                  ? "Nenhuma loja"
+                  : shownStores.length === regionStores.length
+                    ? `Todas as lojas (${regionStores.length})`
+                    : shownStores.length === 1
+                      ? shownStores[0]
+                      : `${shownStores.length} lojas selecionadas`}
+              </span>
+              <span aria-hidden>▾</span>
+            </button>
+            {storesOpen ? (
+              <div className="absolute left-0 top-full z-[1200] mt-1 w-72 rounded-xl border border-border bg-card p-2 shadow-lg">
+                <div className="mb-1 flex items-center justify-between gap-2 px-1">
+                  <span className="text-[11px]">Exibir · comparar</span>
+                  <span className="flex gap-1">
+                    <button
+                      className="btn-ghost text-[11px]"
+                      onClick={() => setVisibleStores(regionStores)}
+                    >
+                      Todas
+                    </button>
+                    <button className="btn-ghost text-[11px]" onClick={() => setVisibleStores([])}>
+                      Nenhuma
+                    </button>
                   </span>
-                );
-              })}
-            </div>
+                </div>
+                <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                  {regionStores.map((s) => (
+                    <div
+                      key={s}
+                      className="flex items-center justify-between gap-2 rounded-md px-1.5 py-1 hover:bg-muted"
+                    >
+                      <label className="flex flex-1 items-center gap-2 text-xs text-foreground">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 accent-primary"
+                          checked={visibleStores.includes(s)}
+                          onChange={() => toggleStore(s)}
+                        />
+                        {s}
+                      </label>
+                      <label className="flex items-center gap-1 text-[10px]">
+                        <input
+                          type="checkbox"
+                          className="h-3 w-3 accent-primary"
+                          checked={compareStores.includes(s)}
+                          onChange={() => toggleCompare(s)}
+                        />
+                        comparar
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="text-xs text-muted-foreground">
