@@ -1,36 +1,15 @@
 {
- "source": "Simulação.xlsx",
+ "source": "Políticas_padrão.xlsx",
  "modalities": [
-  "Status Gestão de Capacidade",
-  "Status Retira EC Estado",
-  "Ecommerce entrega sábado",
-  "Pequenos volumes Aresta (CM)",
-  "Capacidade EC",
-  "Capacidade VA/TLV",
-  "Pequenos Volumes Custo Frete",
-  "Retira Fácil na Loja (VA)",
-  "Retira Televendas (TLV)",
-  "Retira Autosserviço (VA)",
-  "Clique & Retira (EC)",
+  "Pequenos Volumes",
+  "Retira Fácil (Clique & Retira)",
+  "Retira Televendas",
+  "Retira Imediata",
   "Saldo Borderô",
   "Retira H+4 Ecommerce",
-  "Entrega Normal (EC)",
-  "Transportadora padrão",
-  "Retira Fácil Locker (TLV)",
-  "ENTREGA CONFORTO MANHÃ (TLV / VA)",
-  "ENTREGA CONFORTO TARDE (TLV / VA)",
-  "Entrega Normal Norte (EC)",
-  "Entrega Normal Sul (EC)",
-  "ENTREGA CONFORTO NOITE (TLV / VA)",
-  "Entrega Normal Pesado (VA e TLV)",
-  "Entrega Normal Pesado (VA e TLV)_INTERIOR_LONGE",
-  "Entrega Agendada Norte (TLV_VA)",
-  "Entrega Agendada Sul (TLV_VA)",
-  "Entrega Agendada - Corte de Madeira",
-  "Entrega Rápida - Peq_Volumes",
-  "ENTREGA ESPECIAL",
-  "Entrega Longa Distância R1",
-  "Retira CredObra",
+  "Entrega Normal",
+  "ENTREGA CONFORTO MANHÃ",
+  "ENTREGA CONFORTO TARDE",
   "ENTREGA TLV_VA_FRETE GRATIS"
  ],
  "stores": [
@@ -41,47 +20,19 @@
    "uf": "SP",
    "cidade": "São Paulo",
    "cells": {
-    "Status Gestão de Capacidade": {
-     "status": "Ativa",
-     "note": ""
-    },
-    "Status Retira EC Estado": {
-     "status": "Inativa",
-     "note": ""
-    },
-    "Ecommerce entrega sábado": {
-     "status": "Inativa",
-     "note": ""
-    },
-    "Pequenos volumes Aresta (CM)": {
-     "status": "—",
-     "note": "220"
-    },
-    "Capacidade EC": {
-     "status": "—",
-     "note": "20.0"
-    },
-    "Capacidade VA/TLV": {
-     "status": "—",
-     "note": "50"
-    },
-    "Pequenos Volumes Custo Frete": {
+    "Pequenos Volumes": {
      "status": "Ativa",
      "note": "30,00"
     },
-    "Retira Fácil na Loja (VA)": {
+    "Retira Fácil (Clique & Retira)": {
      "status": "Ativa",
      "note": ""
     },
-    "Retira Televendas (TLV)": {
+    "Retira Televendas": {
      "status": "Ativa",
      "note": ""
     },
-    "Retira Autosserviço (VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Clique & Retira (EC)": {
+    "Retira Imediata": {
      "status": "Ativa",
      "note": ""
     },
@@ -93,76 +44,20 @@
      "status": "Em construção",
      "note": ""
     },
-    "Entrega Normal (EC)": {
+    "Entrega Normal": {
      "status": "Inativa",
      "note": ""
     },
-    "Transportadora padrão": {
+    "ENTREGA CONFORTO MANHÃ": {
      "status": "Em construção",
      "note": ""
     },
-    "Retira Fácil Locker (TLV)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "ENTREGA CONFORTO MANHÃ (TLV / VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "ENTREGA CONFORTO TARDE (TLV / VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Normal Norte (EC)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Normal Sul (EC)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "ENTREGA CONFORTO NOITE (TLV / VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Normal Pesado (VA e TLV)": {
-     "status": "Ativa",
-     "note": ""
-    },
-    "Entrega Normal Pesado (VA e TLV)_INTERIOR_LONGE": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Agendada Norte (TLV_VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Agendada Sul (TLV_VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Agendada - Corte de Madeira": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Rápida - Peq_Volumes": {
-     "status": "Ativa",
-     "note": ""
-    },
-    "ENTREGA ESPECIAL": {
-     "status": "Inativa",
-     "note": ""
-    },
-    "Entrega Longa Distância R1": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Retira CredObra": {
+    "ENTREGA CONFORTO TARDE": {
      "status": "Em construção",
      "note": ""
     },
     "ENTREGA TLV_VA_FRETE GRATIS": {
-     "status": "Em construção",
+     "status": "Inativa",
      "note": ""
     }
    }
@@ -174,47 +69,19 @@
    "uf": "SP",
    "cidade": "Suzano",
    "cells": {
-    "Status Gestão de Capacidade": {
-     "status": "Inativa",
-     "note": ""
-    },
-    "Status Retira EC Estado": {
-     "status": "Inativa",
-     "note": ""
-    },
-    "Ecommerce entrega sábado": {
-     "status": "Inativa",
-     "note": ""
-    },
-    "Pequenos volumes Aresta (CM)": {
-     "status": "—",
-     "note": "220"
-    },
-    "Capacidade EC": {
-     "status": "—",
-     "note": ""
-    },
-    "Capacidade VA/TLV": {
-     "status": "—",
-     "note": "44"
-    },
-    "Pequenos Volumes Custo Frete": {
+    "Pequenos Volumes": {
      "status": "Ativa",
      "note": "30,00"
     },
-    "Retira Fácil na Loja (VA)": {
+    "Retira Fácil (Clique & Retira)": {
      "status": "Ativa",
      "note": ""
     },
-    "Retira Televendas (TLV)": {
+    "Retira Televendas": {
      "status": "Ativa",
      "note": ""
     },
-    "Retira Autosserviço (VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Clique & Retira (EC)": {
+    "Retira Imediata": {
      "status": "Ativa",
      "note": ""
     },
@@ -226,76 +93,461 @@
      "status": "Ativa",
      "note": ""
     },
-    "Entrega Normal (EC)": {
+    "Entrega Normal": {
      "status": "Ativa",
      "note": ""
     },
-    "Transportadora padrão": {
-     "status": "Inativa",
-     "note": ""
-    },
-    "Retira Fácil Locker (TLV)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "ENTREGA CONFORTO MANHÃ (TLV / VA)": {
+    "ENTREGA CONFORTO MANHÃ": {
      "status": "Ativa",
      "note": ""
     },
-    "ENTREGA CONFORTO TARDE (TLV / VA)": {
+    "ENTREGA CONFORTO TARDE": {
      "status": "Ativa",
-     "note": ""
-    },
-    "Entrega Normal Norte (EC)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Normal Sul (EC)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "ENTREGA CONFORTO NOITE (TLV / VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Normal Pesado (VA e TLV)": {
-     "status": "Ativa",
-     "note": ""
-    },
-    "Entrega Normal Pesado (VA e TLV)_INTERIOR_LONGE": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Agendada Norte (TLV_VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Agendada Sul (TLV_VA)": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Agendada - Corte de Madeira": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Entrega Rápida - Peq_Volumes": {
-     "status": "Ativa",
-     "note": ""
-    },
-    "ENTREGA ESPECIAL": {
-     "status": "Inativa",
-     "note": ""
-    },
-    "Entrega Longa Distância R1": {
-     "status": "Em construção",
-     "note": ""
-    },
-    "Retira CredObra": {
-     "status": "Em construção",
      "note": ""
     },
     "ENTREGA TLV_VA_FRETE GRATIS": {
      "status": "Inativa",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Mooca",
+   "uf": "SP",
+   "cidade": "São Paulo",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Praia Grande",
+   "uf": "SP",
+   "cidade": "Praia Grande",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Piracicaba",
+   "uf": "SP",
+   "cidade": "Piracicaba",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Benfica",
+   "uf": "RJ",
+   "cidade": "Rio de Janeiro",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Duque de Caxias",
+   "uf": "RJ",
+   "cidade": "Duque de Caxias",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Guadalupe",
+   "uf": "RJ",
+   "cidade": "Rio de Janeiro",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Jacarepagua",
+   "uf": "RJ",
+   "cidade": "Rio de Janeiro",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Mesquita",
+   "uf": "RJ",
+   "cidade": "Mesquita",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
+     "note": ""
+    }
+   }
+  },
+  {
+   "centro": null,
+   "tipo": "Loja",
+   "nome": "Niteroi",
+   "uf": "RJ",
+   "cidade": "Niterói",
+   "cells": {
+    "Pequenos Volumes": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Fácil (Clique & Retira)": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Televendas": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira Imediata": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Saldo Borderô": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Retira H+4 Ecommerce": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "Entrega Normal": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO MANHÃ": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA CONFORTO TARDE": {
+     "status": "Não informada",
+     "note": ""
+    },
+    "ENTREGA TLV_VA_FRETE GRATIS": {
+     "status": "Não informada",
      "note": ""
     }
    }
