@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [region, setRegion] = useState<RegionSelection>("Todas");
   const [visibleStores, setVisibleStores] = useState<StoreName[]>([...STORE_NAMES]);
   const [compareStores, setCompareStores] = useState<StoreName[]>([]);
+  const [storesOpen, setStoresOpen] = useState(false);
   const regionStores = useMemo(() => storesInRegion(region), [region]);
   const shownStores = useMemo(
     () => regionStores.filter((s) => visibleStores.includes(s)),
