@@ -1,6 +1,6 @@
 import raw from "@/data/shipping-policies.json";
 
-export type PolicyStatus = "Ativa" | "Inativa" | "Em construção" | "—";
+export type PolicyStatus = "Ativa" | "Inativa" | "Em construção" | "Não informada" | "—";
 
 export interface PolicyCell {
   status: PolicyStatus;
@@ -8,7 +8,7 @@ export interface PolicyCell {
 }
 
 export interface PolicyStore {
-  centro: number;
+  centro: number | null;
   tipo: string;
   nome: string;
   uf: string;
