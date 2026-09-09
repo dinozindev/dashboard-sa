@@ -28,6 +28,7 @@ export const STATUS_ICON: Record<PolicyStatus, string> = {
   Ativa: "🟢",
   Inativa: "🔴",
   "Em construção": "🛠",
+  "Não informada": "⚪",
   "—": "—",
 };
 
@@ -35,6 +36,7 @@ export const STATUS_CLASS: Record<PolicyStatus, string> = {
   Ativa: "bg-success/15 text-success",
   Inativa: "bg-danger/15 text-danger",
   "Em construção": "bg-warning/20 text-warning-foreground",
+  "Não informada": "bg-muted text-muted-foreground",
   "—": "text-muted-foreground",
 };
 
