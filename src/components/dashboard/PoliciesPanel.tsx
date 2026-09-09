@@ -6,8 +6,8 @@ export function PoliciesPanel() {
       <div>
         <h2 className="font-display text-lg font-semibold">Políticas de envio por loja</h2>
         <p className="text-xs text-muted-foreground">
-          Matriz loja × modalidade espelhando a base “Simulação” (somente leitura). Estados: Ativa
-          🟢 · Inativa 🔴 · Em construção 🛠.
+          Matriz loja × modalidade conforme a planilha padrão (somente leitura). Estados: Ativa 🟢 ·
+          Inativa 🔴 · Em construção 🛠 · Não informada ⚪.
         </p>
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">
@@ -19,7 +19,8 @@ export function PoliciesPanel() {
                 <th key={s.centro} className="px-3 py-2 text-center">
                   {s.nome}
                   <span className="block text-[10px] font-normal normal-case">
-                    Centro {s.centro} · {s.cidade}/{s.uf}
+                    {s.centro ? `Centro ${s.centro} · ` : ""}
+                    {s.cidade}/{s.uf}
                   </span>
                 </th>
               ))}
