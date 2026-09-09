@@ -96,11 +96,11 @@ export function ComparePanel({ point, matches, weight, overrides, modality, now,
             <div className="flex items-center justify-between">
               <h4 className="font-display text-base font-semibold">{store}</h4>
               {cheapest?.store === store ? (
-                <span className="badge-open">Menor preço (sugestão)</span>
+                <span className="badge-open">Menor preço</span>
               ) : null}
             </div>
             <p className="text-xs text-muted-foreground">
-              {rec.id} · faixa {rec.band} ({rec.rMin / 1000}–{rec.rMax / 1000} km) · {rec.district}
+              Faixa de {rec.band} ({rec.rMin / 1000}–{rec.rMax / 1000} km) · {rec.district}
             </p>
             {isPickup ? null : (
               <p className="font-display text-2xl font-bold text-accent-strong">

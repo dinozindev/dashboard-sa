@@ -1,3 +1,19 @@
+/**
+ * DASHBOARD INTERATIVO DE FRETE
+ * ==============================
+ * 
+ * Componente raiz que orquestra toda a aplicação.
+ * 
+ * Responsabilidades:
+ * - Gerenciar state global (região, lojas, peso, modalidade, etc)
+ * - Coordenar sub-componentes (mapa, tabelas, simulador)
+ * - Sincronizar interações entre componentes
+ * - Calcular dados derivados (visible, kpis, etc)
+ * 
+ * Arquitetura:
+ *   [State] → [useMemo derivations] → [Componentes] → [Events] → [setState]
+ */
+
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
@@ -24,31 +40,103 @@ import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
 
+// Lazy load do mapa (pesado, carrega sob demanda)
 const FreightMap = lazy(() => import("./FreightMap"));
 
+/**
+ * DASHBOARD - Componente principal
+ */
 export default function Dashboard() {
+  // ============================================================================
+  // ESTADO: Abas principais
+  // ============================================================================
+  
+  /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
   const [tab, setTab] = useState<"operacao" | "politicas">("operacao");
+
+  // ============================================================================
+  // ESTADO: Filtros geográficos
+  // ============================================================================
+  
+  /** Região selecionada: "SP", "RJ", ou "Todas" */
   const [region, setRegion] = useState<RegionSelection>("Todas");
+  
+  /** Lojas visíveis no mapa (subset de STORE_NAMES) */
   const [visibleStores, setVisibleStores] = useState<StoreName[]>([...STORE_NAMES]);
+  
+  /** Lojas para comparação (modo comparativo) */
   const [compareStores, setCompareStores] = useState<StoreName[]>([]);
+  
+  /** Dropdown de lojas está aberto? */
   const [storesOpen, setStoresOpen] = useState(false);
+
+  /** Dropdown de faixas de raio está aberto? */
+  const [bandsOpen, setBandsOpen] = useState(false);
+
+  // Dados derivados: lojas da região atual
   const regionStores = useMemo(() => storesInRegion(region), [region]);
+  
+  // Dados derivados: lojas selecionadas E na região
   const shownStores = useMemo(
     () => regionStores.filter((s) => visibleStores.includes(s)),
     [regionStores, visibleStores],
   );
+
+  // ============================================================================
+  // ESTADO: Filtros de conteúdo
+  // ============================================================================
+  
+  /** Bandas de peso visíveis no mapa (filtro de visualização) */
   const [bands, setBands] = useState<string[]>([...BAND_ORDER]);
+  
+  /** Texto de busca por ID ou município */
   const [search, setSearch] = useState("");
+
+  // ============================================================================
+  // ESTADO: Simulação de preço
+  // ============================================================================
+  
+  /** Peso para cálculo de preço (kg, padrão: 10) */
   const [weight, setWeight] = useState(10);
+  
+  /** Modalidade: "Entrega" (despache) ou "Retira" (retirada) */
   const [modality, setModality] = useState<Modality>("Entrega");
+  
+  /** ID do polígono selecionado (null = nenhum selecionado) */
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  
+  /** Index da banda selecionada no simulador (null = nenhuma) */
   const [bandIndex, setBandIndex] = useState<number | null>(null);
+  
+  /** Overrides de preço (simulação): { "id#bandIndex": WeightBand } */
   const [overrides, setOverrides] = useState<Overrides>({});
+
+  // ============================================================================
+  // ESTADO: Interação com mapa
+  // ============================================================================
+  
+  /** Ponto clicado no mapa [lng, lat] (null = nenhum) */
   const [point, setPoint] = useState<{ lng: number; lat: number } | null>(null);
+  
+  /** Data/hora atual para cálculos (simulação de tempo) */
   const [now, setNow] = useState<Date>(() => new Date("2026-01-01T00:00:00Z"));
+  
+  // Inicializa com horário real ao carregar
   useEffect(() => setNow(new Date()), []);
+  
+  // Flag: modalidade é retira (útil para filtros condicionais)
   const isPickup = modality === "Retira";
 
+  // ============================================================================
+  // ESTADO DERIVADO: Filtragem de polígonos
+  // ============================================================================
+  
+  /**
+   * Polígonos visíveis após aplicar todos os filtros:
+   * - Loja está em shownStores
+   * - Banda está em bands[]
+   * - ID ou distrito contém search text
+   */
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return polygons.filter(
@@ -61,13 +149,32 @@ export default function Dashboard() {
     );
   }, [shownStores, bands, search]);
 
+  /**
+   * Polígono atualmente selecionado na tabela/simulador.
+   * Pode ser null se selectedId não existe ou foi filtrado.
+   */
   const selected = useMemo(
     () => visible.find((p) => p.id === selectedId) ?? null,
     [visible, selectedId],
   );
+  
+  /** Tabela de tarifas do polígono selecionado (com overrides) */
   const selectedBands = tariffFor(selected, overrides);
+  
+  /** Resultado do cálculo de preço para o polígono selecionado + peso atual */
   const selectedPrice = calcPrice(selectedBands, weight);
 
+  /**
+   * KPIs exibidos no dashboard (estatísticas dos polígonos visíveis).
+   * 
+   * Inclui:
+   * - Contagem de polígonos
+   * - Área total coberta
+   * - Número de lojas exibidas
+   * - Peso simulado
+   * - Polígonos sem tabela de frete
+   * - (Se Entrega) Preço mínimo, máximo, médio
+   */
   const kpis = useMemo(() => {
     const prices: number[] = [];
     for (const p of visible) {
@@ -111,6 +218,10 @@ export default function Dashboard() {
     ];
   }, [visible, weight, overrides, shownStores, isPickup]);
 
+  /**
+   * Gera tooltip HTML para exibir sobre polígono no mapa.
+   * Mostra: ID, loja, faixa, município, preço (se Entrega).
+   */
   const tooltipFor = (rec: PolygonRecord) => {
     const r = calcPrice(tariffFor(rec, overrides), weight);
     return `<strong>${rec.id}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${
@@ -122,17 +233,39 @@ export default function Dashboard() {
     }`;
   };
 
+  /**
+   * Polígonos contendo o ponto clicado no mapa.
+   * Pode ter mais de um se se sobrepõem.
+   */
   const allMatches = point ? polygonsAtPoint(point.lng, point.lat, visible) : [];
+  
+  /** Se compareStores definidos, filtra matches a apenas aquelas lojas. */
   const matches =
     compareStores.length > 0
       ? allMatches.filter((m) => compareStores.includes(m.store))
       : allMatches;
 
+  // ============================================================================
+  // EVENT HANDLERS
+  // ============================================================================
+
+  /**
+   * Toggle visibilidade de uma loja no mapa.
+   * Deseleciona loja se removeríamos a última visível.
+   */
   const toggleStore = (s: StoreName) =>
     setVisibleStores((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
-  const toggleCompare = (s: StoreName) =>
-    setCompareStores((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
+  
+  /**
+   * Toggle loja para modo de comparação.
+   * Se compara com ponto clicado.
+   */
+  // const toggleCompare = (s: StoreName) =>
+  //   setCompareStores((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
 
+  /**
+   * Toggle banda de peso (0-5kg, 5-10kg, etc) na visualização.
+   */
   const toggleBand = (b: string) =>
     setBands((cur) => (cur.includes(b) ? cur.filter((x) => x !== b) : [...cur, b]));
 
@@ -215,7 +348,7 @@ export default function Dashboard() {
             {storesOpen ? (
               <div className="absolute left-0 top-full z-[1200] mt-1 w-72 rounded-xl border border-border bg-card p-2 shadow-lg">
                 <div className="mb-1 flex items-center justify-between gap-2 px-1">
-                  <span className="text-[11px]">Exibir · comparar</span>
+                  <span className="text-[11px]">Exibir</span>
                   <span className="flex gap-1">
                     <button
                       className="btn-ghost text-[11px]"
@@ -243,7 +376,7 @@ export default function Dashboard() {
                         />
                         {s}
                       </label>
-                      <label className="flex items-center gap-1 text-[10px]">
+                      {/* <label className="flex items-center gap-1 text-[10px]">
                         <input
                           type="checkbox"
                           className="h-3 w-3 accent-primary"
@@ -251,7 +384,7 @@ export default function Dashboard() {
                           onChange={() => toggleCompare(s)}
                         />
                         comparar
-                      </label>
+                      </label> */}
                     </div>
                   ))}
                 </div>
@@ -259,24 +392,52 @@ export default function Dashboard() {
             ) : null}
           </div>
 
-          <div className="text-xs text-muted-foreground">
+          <div className="relative text-xs text-muted-foreground">
             Faixas de raio
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {BAND_ORDER.map((b) => (
-                <button
-                  key={b}
-                  onClick={() => toggleBand(b)}
-                  className={
-                    "rounded-md border px-2 py-1 text-xs font-medium transition-colors " +
-                    (bands.includes(b)
-                      ? "border-transparent bg-primary text-primary-foreground"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted")
-                  }
-                >
-                  {b}
-                </button>
-              ))}
-            </div>
+            <button
+              className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
+              onClick={() => setBandsOpen((v) => !v)}
+            >
+              <span className="truncate text-foreground">
+                {bands.length === 0
+                  ? "Nenhuma faixa"
+                  : bands.length === BAND_ORDER.length
+                    ? `Todas as faixas (${BAND_ORDER.length})`
+                    : `${bands.length} faixas selecionadas`}
+              </span>
+              <span aria-hidden>▾</span>
+            </button>
+            {bandsOpen ? (
+              <div className="absolute left-0 top-full z-[1200] mt-1 w-72 rounded-xl border border-border bg-card p-2 shadow-lg">
+                <div className="mb-1 flex items-center justify-between gap-2 px-1">
+                  <span className="text-[11px]">Exibir faixas</span>
+                  <span className="flex gap-1">
+                    <button className="btn-ghost text-[11px]" onClick={() => setBands([...BAND_ORDER])}>
+                      Todas
+                    </button>
+                    <button className="btn-ghost text-[11px]" onClick={() => setBands([])}>
+                      Nenhuma
+                    </button>
+                  </span>
+                </div>
+                <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                  {BAND_ORDER.map((b) => (
+                    <label
+                      key={b}
+                      className="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs text-foreground hover:bg-muted"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 accent-primary"
+                        checked={bands.includes(b)}
+                        onChange={() => toggleBand(b)}
+                      />
+                      {b}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <label className="text-xs text-muted-foreground">
@@ -347,7 +508,7 @@ export default function Dashboard() {
                     setBandIndex(null);
                   }}
                   onMapClick={(lng, lat) => setPoint({ lng, lat })}
-                  fitKey={`${region}|${shownStores.join(",")}|${bands.join(",")}|${search}`}
+                  fitKey={`${region}|${shownStores.join(",")}|${search}`}
                 />
               </Suspense>
             </ClientOnly>

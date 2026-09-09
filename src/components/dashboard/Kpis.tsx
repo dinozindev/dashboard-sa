@@ -1,5 +1,21 @@
+/**
+ * INDICADORES-CHAVE DE DESEMPENHO (KPIs)
+ * =======================================
+ * 
+ * Exibe estatísticas do dashboard em grid responsivo.
+ * Valores resumidos: polígonos visíveis, área, preço min/max, etc.
+ */
+
 import { brl } from "@/lib/freight/pricing";
 
+/**
+ * Estrutura de um KPI.
+ * 
+ * @param label - Título do indicador
+ * @param value - Valor a exibir
+ * @param hint - Dica/observação adicional (opcional)
+ * @param tone - Codificação visual: "default" (cinza), "low" (verde), "high" (vermelho)
+ */
 interface Kpi {
   label: string;
   value: string;
@@ -7,14 +23,31 @@ interface Kpi {
   tone?: "default" | "low" | "high";
 }
 
+/**
+ * Grid de KPIs.
+ * 
+ * Responsivo:
+ * - Mobile: 2 colunas
+ * - Tablet: 4 colunas
+ * - Desktop: 7 colunas
+ * 
+ * Cores por tone:
+ * - "low": Verde (valor baixo/bom)
+ * - "high": Vermelho (valor alto/ruim)
+ * - "default": Preto (neutro)
+ * 
+ * @param items - Array de Kpi
+ */
 export function Kpis({ items }: { items: Kpi[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
       {items.map((k) => (
         <div key={k.label} className="rounded-xl border border-border bg-card p-3 shadow-sm">
+          {/* Rótulo em maiúsculas pequeno */}
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {k.label}
           </p>
+          {/* Valor principal (cor por tone, truncado com tooltip) */}
           <p
             className={
               "mt-1 truncate font-display text-xl font-semibold " +
@@ -28,6 +61,7 @@ export function Kpis({ items }: { items: Kpi[] }) {
           >
             {k.value}
           </p>
+          {/* Dica adicional (se fornecida) */}
           {k.hint ? <p className="text-[11px] text-muted-foreground">{k.hint}</p> : null}
         </div>
       ))}
@@ -35,4 +69,8 @@ export function Kpis({ items }: { items: Kpi[] }) {
   );
 }
 
+/**
+ * Alias para função de formatação de moeda (BRL).
+ * Exportado como utilitário rápido: money(12.5) → "R$ 12,50"
+ */
 export const money = brl;
