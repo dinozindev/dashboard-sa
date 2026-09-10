@@ -84,6 +84,50 @@ export function updateCell(storeName: string, modality: string, cell: Partial<Po
   emit();
 }
 
+export function addPolicyModality(modalityName: string, activeStoreName: string) {
+  const modality = modalityName.trim();
+  if (!modality) return "empty" as const;
+
+  const alreadyExists = current.modalities.some(
+    (item) => item.toLocaleLowerCase() === modality.toLocaleLowerCase(),
+  );
+  if (alreadyExists) return "exists" as const;
+
+  const next = clone(current);
+  next.modalities.push(modality);
+  next.stores = next.stores.map((store) => ({
+    ...store,
+    cells: {
+      ...store.cells,
+      [modality]: {
+        status: store.nome === activeStoreName ? "Ativa" : "Não informada",
+        note: "",
+      },
+    },
+  }));
+  current = next;
+  persist();
+  emit();
+  return "created" as const;
+}
+
+export function removePolicyModality(modalityName: string) {
+  const modality = modalityName.trim();
+  if (BASE.modalities.includes(modality)) return "protected" as const;
+  if (!current.modalities.includes(modality)) return "not-found" as const;
+
+  const next = clone(current);
+  next.modalities = next.modalities.filter((item) => item !== modality);
+  next.stores = next.stores.map((store) => {
+    const { [modality]: _removed, ...cells } = store.cells;
+    return { ...store, cells };
+  });
+  current = next;
+  persist();
+  emit();
+  return "removed" as const;
+}
+
 export function replaceMatrix(data: unknown) {
   if (!isDataset(data)) throw new Error("Arquivo JSON fora do formato esperado.");
   current = data;

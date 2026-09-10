@@ -108,8 +108,32 @@ export function addPolicyDraft(draft: ShippingPolicyDraft) {
   emit();
 }
 
+export function upsertPolicyDraft(draft: ShippingPolicyDraft) {
+  const existingIndex = items.findIndex(
+    (item) => item.store === draft.store && item.modalities.includes(draft.modalities[0]),
+  );
+
+  if (existingIndex === -1) {
+    addPolicyDraft(draft);
+    return "created" as const;
+  }
+
+  items = items.map((item, index) => (index === existingIndex ? draft : item));
+  persist();
+  emit();
+  return "updated" as const;
+}
+
 export function removePolicyDraft(id: string) {
   items = items.filter((x) => x.id !== id);
+  persist();
+  emit();
+}
+
+export function removePolicyDraftsByModality(modality: string) {
+  const next = items.filter((item) => !item.modalities.includes(modality));
+  if (next.length === items.length) return;
+  items = next;
   persist();
   emit();
 }

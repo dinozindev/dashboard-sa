@@ -7,15 +7,22 @@
 import { useMemo, useRef, useState } from "react";
 import { policies } from "@/lib/freight/policies";
 import {
-  addPolicyDraft,
   getPolicyDrafts,
   removePolicyDraft,
+  removePolicyDraftsByModality,
   replacePolicyDrafts,
+  upsertPolicyDraft,
   usePolicyDrafts,
   type PickupTime,
   type ShippingWindow,
 } from "@/lib/freight/policy-registry";
 import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
+import {
+  addPolicyModality,
+  removePolicyModality,
+  updateCell,
+  usePolicyMatrix,
+} from "@/lib/freight/policy-status-store";
 
 const DAYS = [
   "Todos os dias",
@@ -95,14 +102,16 @@ function Section({
 
 export function PolicyFormPanel() {
   const stores = useMemo(() => policies.stores.map((s) => s.nome), []);
+  const matrix = usePolicyMatrix();
   const drafts = usePolicyDrafts();
 
-  const modalityList = useMemo(() => policies.modalities, []);
+  const modalityList = matrix.modalities;
   const fileRef = useRef<HTMLInputElement>(null);
   const [ioMessage, setIoMessage] = useState<string | null>(null);
 
   const [store, setStore] = useState("");
-  const [modalities, setModalities] = useState<string[]>([]);
+  const [modality, setModality] = useState("");
+  const [newModality, setNewModality] = useState("");
   const [sumOfDimensions, setSum] = useState(0);
   const [largestEdge, setEdge] = useState(0);
   const [cubic, setCubic] = useState(0);
@@ -129,11 +138,39 @@ export function PolicyFormPanel() {
 
   const effectiveSeller = pickupSeller || store;
 
+  const addModality = () => {
+    if (!store) {
+      setErrors(["Selecione a loja antes de adicionar uma nova modalidade."]);
+      return;
+    }
+    const result = addPolicyModality(newModality, store);
+    if (result === "empty") {
+      setErrors(["Informe o nome da nova modalidade."]);
+      return;
+    }
+    if (result === "exists") {
+      setErrors(["Já existe uma modalidade com esse nome."]);
+      return;
+    }
+    setModality(newModality.trim());
+    setNewModality("");
+    setErrors([]);
+    setIoMessage("Nova modalidade adicionada à matriz de políticas.");
+  };
+
+  const removeModality = (modalityName: string) => {
+    if (!window.confirm(`Remover a modalidade "${modalityName}"?`)) return;
+    const result = removePolicyModality(modalityName);
+    if (result !== "removed") return;
+    removePolicyDraftsByModality(modalityName);
+    if (modality === modalityName) setModality("");
+    setIoMessage(`Modalidade "${modalityName}" removida.`);
+  };
+
   const save = () => {
     const errs: string[] = [];
     if (!store) errs.push("Selecione a loja/seller da política.");
-    if (!modalities.length)
-      errs.push("Selecione ao menos uma modalidade para associar a esta política.");
+    if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
     if (pickupEnabled && !effectiveSeller)
       errs.push("Selecione o seller/ponto de retirada.");
     if (mode === "janela") {
@@ -152,12 +189,15 @@ export function PolicyFormPanel() {
       setSaved(null);
       return;
     }
-    const id = `pol-${Date.now()}`;
-    addPolicyDraft({
+    const existing = getPolicyDrafts().find(
+      (draft) => draft.store === store && draft.modalities.includes(modality),
+    );
+    const id = existing?.id ?? `pol-${Date.now()}`;
+    const result = upsertPolicyDraft({
       id,
-      createdAt: new Date().toISOString(),
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
       store,
-      modalities,
+      modalities: [modality],
       dimensions: {
         sumOfDimensions,
         largestEdge,
@@ -170,7 +210,9 @@ export function PolicyFormPanel() {
       shippingWindows: mode === "janela" ? windows : [],
       pickupTimes: mode === "coleta" ? pickupTimes : [],
     });
+    updateCell(store, modality, { status: "Ativa" });
     setSaved(id);
+    setIoMessage(result === "updated" ? "Política existente atualizada." : null);
   };
 
   return (
@@ -198,40 +240,48 @@ export function PolicyFormPanel() {
 
       <Section
         title="Modalidades associadas"
-        hint="Marque as modalidades da matriz de políticas (Pequenos Volumes, Retira Fácil, Retira Televendas…) às quais este cadastro se aplica."
-        right={
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn-ghost text-[11px]"
-              onClick={() => setModalities(modalityList)}
-            >
-              Todas
-            </button>
-            <button
-              type="button"
-              className="btn-ghost text-[11px]"
-              onClick={() => setModalities([])}
-            >
-              Nenhuma
-            </button>
-          </div>
-        }
+        hint="Selecione uma única modalidade da matriz de políticas para este cadastro. Se ela já existir na loja escolhida, o salvamento atualizará a política existente."
       >
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="block flex-1 text-xs text-muted-foreground">
+            Nova modalidade
+            <input
+              className="input mt-1 w-full"
+              value={newModality}
+              onChange={(e) => setNewModality(e.target.value)}
+              placeholder="Ex.: Entrega expressa"
+            />
+          </label>
+          <button
+            type="button"
+            className="rounded-lg border border-primary px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
+            onClick={addModality}
+          >
+            Adicionar modalidade
+          </button>
+        </div>
         <div className="grid gap-2 sm:grid-cols-2">
           {modalityList.map((m) => (
-            <label key={m} className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={modalities.includes(m)}
-                onChange={(e) =>
-                  setModalities((cur) =>
-                    e.target.checked ? [...cur, m] : cur.filter((x) => x !== m),
-                  )
-                }
-              />
-              <span>{m}</span>
-            </label>
+            <div key={m} className="flex items-center gap-2 text-xs">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="shipping-policy-modality"
+                  checked={modality === m}
+                  onChange={() => setModality(m)}
+                />
+                <span>{m}</span>
+              </label>
+              {!policies.modalities.includes(m) ? (
+                <button
+                  type="button"
+                  className="btn-ghost ml-auto text-[11px] text-danger"
+                  onClick={() => removeModality(m)}
+                >
+                  Remover
+                </button>
+              ) : null}
+            </div>
           ))}
         </div>
       </Section>
@@ -531,10 +581,10 @@ export function PolicyFormPanel() {
 
       <Section
         title="Políticas cadastradas"
-        hint="Salvas em JSON no navegador — continuam disponíveis ao recarregar a página. Use os botões para baixar ou importar o arquivo."
+        hint="Salvas em JSON no navegador — continuam disponíveis ao recarregar a página."
         right={
           <div className="flex flex-wrap gap-2">
-            <button
+            {/* <button
               type="button"
               className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
               onClick={() => downloadJson("politicas-cadastradas.json", getPolicyDrafts())}
@@ -547,7 +597,7 @@ export function PolicyFormPanel() {
               onClick={() => fileRef.current?.click()}
             >
               Importar JSON
-            </button>
+            </button> */}
             <input
               ref={fileRef}
               type="file"
@@ -585,7 +635,7 @@ export function PolicyFormPanel() {
                   </button>
                 </div>
                 <p className="mt-1 text-muted-foreground">
-                  Modalidades:{" "}
+                  Modalidade:{" "}
                   {d.modalities.length ? d.modalities.join(" · ") : "não informadas"}
                 </p>
                 <p className="mt-1 text-muted-foreground">

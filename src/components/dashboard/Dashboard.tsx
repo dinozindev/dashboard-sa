@@ -195,13 +195,13 @@ export default function Dashboard() {
     return [
       { label: "Polígonos visíveis", value: num(visible.length) },
       { label: "Área coberta", value: `${num(area, 1)} km²` },
-      {
-        label: "Lojas exibidas",
-        value:
-          shownStores.length === 1
-            ? (shownStores[0] as string)
-            : `${shownStores.length} lojas`,
-      },
+      // {
+      //   label: "Lojas exibidas",
+      //   value:
+      //     shownStores.length === 1
+      //       ? (shownStores[0] as string)
+      //       : `${shownStores.length} lojas`,
+      // },
       { label: "Peso simulado", value: kg(weight) },
       {
         label: "Polígonos sem tabela",
@@ -284,8 +284,7 @@ export default function Dashboard() {
             Dashboard Interativo de Frete
           </h1>
           <p className="text-sm text-muted-foreground">
-            Áreas de entrega, tarifas por faixa de peso e capacidade operacional — Aricanduva,
-            Suzano, Mooca, Praia Grande e Piracicaba (as três últimas ainda sem tabela de frete).
+            Áreas de entrega, tarifas por faixa de peso e capacidade operacional — São Paulo + Rio de Janeiro.
           </p>
         </div>
       </header>

@@ -39,7 +39,7 @@ export function PoliciesPanel() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
+          {/* <button
             type="button"
             className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
             onClick={() => downloadJson("shipping-policies.json", data)}
@@ -62,7 +62,7 @@ export function PoliciesPanel() {
             }}
           >
             Restaurar padrão
-          </button>
+          </button> */}
           <input
             ref={fileRef}
             type="file"
