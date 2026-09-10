@@ -530,7 +530,7 @@ export default function Dashboard() {
                 Status de atendimento
               </p>
               <div className="flex flex-wrap gap-2">
-                {OPS_STORES.filter((s) => shownStores.includes(s)).map((s) => (
+                {(mounted ? OPS_STORES.filter((s) => shownStores.includes(s)) : []).map((s) => (
                   <StatusBadge
                     key={s}
                     store={s}
