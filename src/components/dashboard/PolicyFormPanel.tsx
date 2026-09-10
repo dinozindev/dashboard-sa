@@ -608,9 +608,8 @@ export function PolicyFormPanel() {
                 </p>
               </div>
             ))}
-          </div>
-        </Section>
-      ) : null}
+        </div>
+      </Section>
     </div>
   );
 }
