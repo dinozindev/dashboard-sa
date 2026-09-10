@@ -122,8 +122,14 @@ export default function Dashboard() {
   /** Data/hora atual para cálculos (simulação de tempo) */
   const [now, setNow] = useState<Date>(() => new Date("2026-01-01T00:00:00Z"));
   
+  /** Só renderiza status dependentes de horário após montar (evita mismatch SSR) */
+  const [mounted, setMounted] = useState(false);
+
   // Inicializa com horário real ao carregar
-  useEffect(() => setNow(new Date()), []);
+  useEffect(() => {
+    setNow(new Date());
+    setMounted(true);
+  }, []);
   
   // Flag: modalidade é retira (útil para filtros condicionais)
   const isPickup = modality === "Retira";
