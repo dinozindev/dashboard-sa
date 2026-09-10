@@ -197,6 +197,47 @@ export function PolicyFormPanel() {
       </Section>
 
       <Section
+        title="Modalidades associadas"
+        hint="Marque as modalidades da matriz de políticas (Pequenos Volumes, Retira Fácil, Retira Televendas…) às quais este cadastro se aplica."
+        right={
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn-ghost text-[11px]"
+              onClick={() => setModalities(modalityList)}
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              className="btn-ghost text-[11px]"
+              onClick={() => setModalities([])}
+            >
+              Nenhuma
+            </button>
+          </div>
+        }
+      >
+        <div className="grid gap-2 sm:grid-cols-2">
+          {modalityList.map((m) => (
+            <label key={m} className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={modalities.includes(m)}
+                onChange={(e) =>
+                  setModalities((cur) =>
+                    e.target.checked ? [...cur, m] : cur.filter((x) => x !== m),
+                  )
+                }
+              />
+              <span>{m}</span>
+            </label>
+          ))}
+        </div>
+      </Section>
+
+
+      <Section
         title="Dimensões do pacote"
         hint="Restrições sugeridas pela plataforma para determinadas políticas. Você pode manter os valores em 0 e seguir em frente."
       >
