@@ -39,6 +39,7 @@ import { ScheduleGrid, StatusBadge } from "./SchedulePanel";
 import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
+import { PolicyFormPanel } from "./PolicyFormPanel";
 
 // Lazy load do mapa (pesado, carrega sob demanda)
 const FreightMap = lazy(() => import("./FreightMap"));
@@ -52,7 +53,7 @@ export default function Dashboard() {
   // ============================================================================
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
-  const [tab, setTab] = useState<"operacao" | "politicas">("operacao");
+  const [tab, setTab] = useState<"operacao" | "politicas" | "cadastro">("operacao");
 
   // ============================================================================
   // ESTADO: Filtros geográficos
@@ -288,6 +289,7 @@ export default function Dashboard() {
           {([
             ["operacao", "Operação e frete"],
             ["politicas", "Políticas de Envio"],
+            ["cadastro", "Cadastro de Política de Envio"],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -305,6 +307,7 @@ export default function Dashboard() {
         </nav>
 
         {tab === "politicas" ? <PoliciesPanel /> : null}
+        {tab === "cadastro" ? <PolicyFormPanel /> : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
         {/* Filtros */}
