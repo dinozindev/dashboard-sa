@@ -97,7 +97,12 @@ export function PolicyFormPanel() {
   const stores = useMemo(() => policies.stores.map((s) => s.nome), []);
   const drafts = usePolicyDrafts();
 
+  const modalityList = useMemo(() => policies.modalities, []);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [ioMessage, setIoMessage] = useState<string | null>(null);
+
   const [store, setStore] = useState("");
+  const [modalities, setModalities] = useState<string[]>([]);
   const [sumOfDimensions, setSum] = useState(0);
   const [largestEdge, setEdge] = useState(0);
   const [cubic, setCubic] = useState(0);
@@ -127,6 +132,8 @@ export function PolicyFormPanel() {
   const save = () => {
     const errs: string[] = [];
     if (!store) errs.push("Selecione a loja/seller da política.");
+    if (!modalities.length)
+      errs.push("Selecione ao menos uma modalidade para associar a esta política.");
     if (pickupEnabled && !effectiveSeller)
       errs.push("Selecione o seller/ponto de retirada.");
     if (mode === "janela") {
@@ -150,6 +157,7 @@ export function PolicyFormPanel() {
       id,
       createdAt: new Date().toISOString(),
       store,
+      modalities,
       dimensions: {
         sumOfDimensions,
         largestEdge,
