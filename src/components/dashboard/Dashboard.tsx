@@ -40,6 +40,7 @@ import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
+import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 
 // Lazy load do mapa (pesado, carrega sob demanda)
 const FreightMap = lazy(() => import("./FreightMap"));
@@ -54,6 +55,7 @@ export default function Dashboard() {
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
   const [tab, setTab] = useState<"operacao" | "politicas" | "cadastro">("operacao");
+  const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
 
   // ============================================================================
   // ESTADO: Filtros geográficos
@@ -311,8 +313,20 @@ export default function Dashboard() {
           ))}
         </nav>
 
-        {tab === "politicas" ? <PoliciesPanel /> : null}
-        {tab === "cadastro" ? <PolicyFormPanel /> : null}
+        {tab === "politicas" ? (
+          <PoliciesPanel
+            onEditPolicy={(policy) => {
+              setEditingPolicy(policy);
+              setTab("cadastro");
+            }}
+          />
+        ) : null}
+        {tab === "cadastro" ? (
+          <PolicyFormPanel
+            initialPolicy={editingPolicy}
+            onFinishEdit={() => setEditingPolicy(null)}
+          />
+        ) : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
         {/* Filtros */}

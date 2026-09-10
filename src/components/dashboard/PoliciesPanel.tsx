@@ -7,12 +7,146 @@ import {
   updateCell,
   usePolicyMatrix,
 } from "@/lib/freight/policy-status-store";
+import {
+  removePolicyDraft,
+  usePolicyDrafts,
+  type ShippingPolicyDraft,
+} from "@/lib/freight/policy-registry";
 import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-export function PoliciesPanel() {
+type PolicyTarget = {
+  policyId: string | null;
+  store: string;
+  modality: string;
+};
+
+function PolicyDetails({
+  policy,
+  onEdit,
+  onRemove,
+}: {
+  policy: ShippingPolicyDraft;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const scheduleItems =
+    policy.scheduleMode === "janela"
+      ? policy.shippingWindows.map((window) => `${window.day}: ${window.start}–${window.end}`)
+      : policy.pickupTimes.map((pickup) => `${pickup.day}: ${pickup.time}`);
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Loja</p>
+            <p className="font-semibold">{policy.store}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {policy.modalities.join(" · ")}
+            </p>
+          </div>
+          <span className="rounded-full bg-success/15 px-2.5 py-1 text-xs font-semibold text-success">
+            Ativa
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Dimensões do pacote
+        </h4>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            ["Soma das dimensões", policy.dimensions.sumOfDimensions],
+            ["Maior aresta", policy.dimensions.largestEdge],
+            ["Peso cúbico", policy.dimensions.cubicWeightFactor],
+            ["Peso mínimo", policy.dimensions.minimumWeightFactor],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-border bg-muted/30 p-2.5">
+              <p className="text-[10px] leading-tight text-muted-foreground">{label}</p>
+              <p className="mt-1 font-semibold">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-border p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Entregas
+          </h4>
+          <div className="mt-2 space-y-1.5 text-xs">
+            <p>Sábados: {policy.weekend.saturday ? "✅" : "❌"}</p>
+            <p>Domingos: {policy.weekend.sunday ? "✅" : "❌"}</p>
+            <p>Feriados: {policy.weekend.holidays ? "✅" : "❌"}</p>
+          </div>
+        </div>
+        <div className="rounded-lg border border-border p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Ponto de retirada
+          </h4>
+          <p className="mt-2 text-xs">
+            {policy.pickup.enabled ? policy.pickup.seller : "Não associado"}
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {policy.scheduleMode === "janela" ? "Janelas de envio" : "Horários de coleta"}
+        </h4>
+        <div className="divide-y divide-border rounded-lg border border-border">
+          {scheduleItems.length ? (
+            scheduleItems.map((item) => (
+              <p key={item} className="px-3 py-2 text-xs">
+                {item}
+              </p>
+            ))
+          ) : (
+            <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum horário informado.</p>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+        <button
+          type="button"
+          className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
+          onClick={onEdit}
+        >
+          Editar
+        </button>
+        <button
+          type="button"
+          className="rounded-lg border border-danger/50 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/10"
+          onClick={onRemove}
+        >
+          Remover
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function PoliciesPanel({
+  onEditPolicy,
+}: {
+  onEditPolicy: (policy: ShippingPolicyDraft) => void;
+}) {
   const data = usePolicyMatrix();
+  const drafts = usePolicyDrafts();
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [selectedPolicy, setSelectedPolicy] = useState<PolicyTarget | null>(null);
+  const selectedPolicyDraft = selectedPolicy
+    ? drafts.find((policy) => policy.id === selectedPolicy.policyId)
+    : undefined;
 
   const onImport = async (file: File | undefined) => {
     if (!file) return;
@@ -111,6 +245,9 @@ export function PoliciesPanel() {
                 <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium">{m}</td>
                 {data.stores.map((s) => {
                   const cell = s.cells[m] ?? { status: "—" as PolicyStatus, note: "" };
+                  const policy = drafts.find(
+                    (draft) => draft.store === s.nome && draft.modalities.includes(m),
+                  );
                   return (
                     <td key={s.nome} className="px-3 py-1.5 text-center">
                       <select
@@ -130,13 +267,28 @@ export function PoliciesPanel() {
                           </option>
                         ))}
                       </select>
-                      <input
-                        aria-label={`Observação de ${m} em ${s.nome}`}
-                        value={cell.note}
-                        placeholder="obs."
-                        onChange={(e) => updateCell(s.nome, m, { note: e.target.value })}
-                        className="mt-1 w-full min-w-[140px] rounded-md border border-border bg-background px-2 py-1 text-[11px]"
-                      />
+                      {m === "Pequenos Volumes" ? (
+                        <input
+                          aria-label={`Preço base de ${m} em ${s.nome}`}
+                          value={cell.note}
+                          placeholder="Preço base"
+                          onChange={(e) => updateCell(s.nome, m, { note: e.target.value })}
+                          className="mt-1 w-full min-w-[140px] rounded-md border border-border bg-background px-2 py-1 text-[11px]"
+                        />
+                      ) : null}
+                      <button
+                        type="button"
+                        className="mt-2 w-full rounded-md border border-primary px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+                        onClick={() =>
+                          setSelectedPolicy({
+                            policyId: policy?.id ?? null,
+                            store: s.nome,
+                            modality: m,
+                          })
+                        }
+                      >
+                        Visualizar
+                      </button>
                     </td>
                   );
                 })}
@@ -145,6 +297,53 @@ export function PoliciesPanel() {
           </tbody>
         </table>
       </div>
+      <Dialog
+        open={Boolean(selectedPolicy)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPolicy(null);
+        }}
+      >
+        {selectedPolicy ? (
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Detalhes da política</DialogTitle>
+              <DialogDescription>
+                {selectedPolicy.store} · {selectedPolicy.modality}
+              </DialogDescription>
+            </DialogHeader>
+            {selectedPolicyDraft ? (
+              <PolicyDetails
+                policy={selectedPolicyDraft}
+                onEdit={() => {
+                  setSelectedPolicy(null);
+                  onEditPolicy(selectedPolicyDraft);
+                }}
+                onRemove={() => {
+                  if (
+                    !window.confirm(
+                      `Remover a política de ${selectedPolicyDraft.store} para ${selectedPolicyDraft.modalities.join(" · ")}?`,
+                    )
+                  ) {
+                    return;
+                  }
+                  removePolicyDraft(selectedPolicyDraft.id);
+                  const modality = selectedPolicyDraft.modalities[0];
+                  if (modality) {
+                    updateCell(selectedPolicyDraft.store, modality, {
+                      status: "Não informada",
+                    });
+                  }
+                  setSelectedPolicy(null);
+                }}
+              />
+            ) : (
+              <p className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                Política não cadastrada.
+              </p>
+            )}
+          </DialogContent>
+        ) : null}
+      </Dialog>
       <p className="text-[11px] text-muted-foreground">
         Base original: planilha {data.source}. O arquivo enviado não é alterado — use “Baixar JSON”
         para gerar a versão atualizada.

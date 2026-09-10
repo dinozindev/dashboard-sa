@@ -110,7 +110,9 @@ export function addPolicyDraft(draft: ShippingPolicyDraft) {
 
 export function upsertPolicyDraft(draft: ShippingPolicyDraft) {
   const existingIndex = items.findIndex(
-    (item) => item.store === draft.store && item.modalities.includes(draft.modalities[0]),
+    (item) =>
+      item.id === draft.id ||
+      (item.store === draft.store && item.modalities.includes(draft.modalities[0])),
   );
 
   if (existingIndex === -1) {

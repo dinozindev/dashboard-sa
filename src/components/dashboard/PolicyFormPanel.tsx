@@ -4,7 +4,7 @@
  * Formulário nos moldes do painel administrativo, apenas com estado local.
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { policies } from "@/lib/freight/policies";
 import {
   getPolicyDrafts,
@@ -14,6 +14,7 @@ import {
   upsertPolicyDraft,
   usePolicyDrafts,
   type PickupTime,
+  type ShippingPolicyDraft,
   type ShippingWindow,
 } from "@/lib/freight/policy-registry";
 import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
@@ -100,7 +101,13 @@ function Section({
   );
 }
 
-export function PolicyFormPanel() {
+export function PolicyFormPanel({
+  initialPolicy,
+  onFinishEdit,
+}: {
+  initialPolicy?: ShippingPolicyDraft | null;
+  onFinishEdit?: () => void;
+}) {
   const stores = useMemo(() => policies.stores.map((s) => s.nome), []);
   const matrix = usePolicyMatrix();
   const drafts = usePolicyDrafts();
@@ -138,6 +145,30 @@ export function PolicyFormPanel() {
 
   const effectiveSeller = pickupSeller || store;
 
+  useEffect(() => {
+    if (!initialPolicy) return;
+    setStore(initialPolicy.store);
+    setModality(initialPolicy.modalities[0] ?? "");
+    setSum(initialPolicy.dimensions.sumOfDimensions);
+    setEdge(initialPolicy.dimensions.largestEdge);
+    setCubic(initialPolicy.dimensions.cubicWeightFactor);
+    setMinWeight(initialPolicy.dimensions.minimumWeightFactor);
+    setSaturday(initialPolicy.weekend.saturday);
+    setSunday(initialPolicy.weekend.sunday);
+    setHolidays(initialPolicy.weekend.holidays);
+    setPickupEnabled(initialPolicy.pickup.enabled);
+    setPickupSeller(initialPolicy.pickup.seller);
+    setMode(initialPolicy.scheduleMode);
+    setWindows(initialPolicy.shippingWindows.length ? initialPolicy.shippingWindows : [
+      { id: uid(), day: "Todos os dias", start: "00:00", end: "23:59" },
+    ]);
+    setPickupTimes(initialPolicy.pickupTimes.length ? initialPolicy.pickupTimes : [
+      { id: uid(), day: "Todos os dias", time: "00:00" },
+    ]);
+    setErrors([]);
+    setSaved(null);
+  }, [initialPolicy]);
+
   const addModality = () => {
     if (!store) {
       setErrors(["Selecione a loja antes de adicionar uma nova modalidade."]);
@@ -171,6 +202,9 @@ export function PolicyFormPanel() {
     const errs: string[] = [];
     if (!store) errs.push("Selecione a loja/seller da política.");
     if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
+    if (sumOfDimensions <= 0 && largestEdge <= 0 && cubic <= 0 && minWeight <= 0) {
+      errs.push("Informe ao menos um valor das dimensões maior que 0.");
+    }
     if (pickupEnabled && !effectiveSeller)
       errs.push("Selecione o seller/ponto de retirada.");
     if (mode === "janela") {
@@ -189,9 +223,11 @@ export function PolicyFormPanel() {
       setSaved(null);
       return;
     }
-    const existing = getPolicyDrafts().find(
-      (draft) => draft.store === store && draft.modalities.includes(modality),
-    );
+    const existing = initialPolicy
+      ? getPolicyDrafts().find((draft) => draft.id === initialPolicy.id)
+      : getPolicyDrafts().find(
+          (draft) => draft.store === store && draft.modalities.includes(modality),
+        );
     const id = existing?.id ?? `pol-${Date.now()}`;
     const result = upsertPolicyDraft({
       id,
@@ -213,6 +249,7 @@ export function PolicyFormPanel() {
     updateCell(store, modality, { status: "Ativa" });
     setSaved(id);
     setIoMessage(result === "updated" ? "Política existente atualizada." : null);
+    onFinishEdit?.();
   };
 
   return (
@@ -307,8 +344,11 @@ export function PolicyFormPanel() {
                 min={0}
                 className="input mt-1 w-full"
                 placeholder={ph}
-                value={value}
-                onChange={(e) => setter(Number(e.target.value))}
+                value={value || ""}
+                onChange={(e) => {
+                  const parsed = Number(e.target.value);
+                  setter(e.target.value === "" || !Number.isFinite(parsed) ? 0 : parsed);
+                }}
               />
             </label>
           ))}
