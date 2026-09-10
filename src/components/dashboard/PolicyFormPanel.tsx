@@ -4,15 +4,18 @@
  * Formulário nos moldes do painel administrativo, apenas com estado local.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { policies } from "@/lib/freight/policies";
 import {
   addPolicyDraft,
+  getPolicyDrafts,
   removePolicyDraft,
+  replacePolicyDrafts,
   usePolicyDrafts,
   type PickupTime,
   type ShippingWindow,
 } from "@/lib/freight/policy-registry";
+import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
 
 const DAYS = [
   "Todos os dias",
@@ -94,7 +97,12 @@ export function PolicyFormPanel() {
   const stores = useMemo(() => policies.stores.map((s) => s.nome), []);
   const drafts = usePolicyDrafts();
 
+  const modalityList = useMemo(() => policies.modalities, []);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [ioMessage, setIoMessage] = useState<string | null>(null);
+
   const [store, setStore] = useState("");
+  const [modalities, setModalities] = useState<string[]>([]);
   const [sumOfDimensions, setSum] = useState(0);
   const [largestEdge, setEdge] = useState(0);
   const [cubic, setCubic] = useState(0);
@@ -124,6 +132,8 @@ export function PolicyFormPanel() {
   const save = () => {
     const errs: string[] = [];
     if (!store) errs.push("Selecione a loja/seller da política.");
+    if (!modalities.length)
+      errs.push("Selecione ao menos uma modalidade para associar a esta política.");
     if (pickupEnabled && !effectiveSeller)
       errs.push("Selecione o seller/ponto de retirada.");
     if (mode === "janela") {
@@ -147,6 +157,7 @@ export function PolicyFormPanel() {
       id,
       createdAt: new Date().toISOString(),
       store,
+      modalities,
       dimensions: {
         sumOfDimensions,
         largestEdge,
@@ -184,6 +195,47 @@ export function PolicyFormPanel() {
           </select>
         </label>
       </Section>
+
+      <Section
+        title="Modalidades associadas"
+        hint="Marque as modalidades da matriz de políticas (Pequenos Volumes, Retira Fácil, Retira Televendas…) às quais este cadastro se aplica."
+        right={
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn-ghost text-[11px]"
+              onClick={() => setModalities(modalityList)}
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              className="btn-ghost text-[11px]"
+              onClick={() => setModalities([])}
+            >
+              Nenhuma
+            </button>
+          </div>
+        }
+      >
+        <div className="grid gap-2 sm:grid-cols-2">
+          {modalityList.map((m) => (
+            <label key={m} className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={modalities.includes(m)}
+                onChange={(e) =>
+                  setModalities((cur) =>
+                    e.target.checked ? [...cur, m] : cur.filter((x) => x !== m),
+                  )
+                }
+              />
+              <span>{m}</span>
+            </label>
+          ))}
+        </div>
+      </Section>
+
 
       <Section
         title="Dimensões do pacote"
@@ -473,17 +525,55 @@ export function PolicyFormPanel() {
 
       {saved ? (
         <div className="rounded-xl border border-success/40 bg-success/10 p-3 text-xs text-success">
-          Política salva nesta simulação ({saved}). Confira o resumo abaixo.
+          Política salva em JSON ({saved}). Confira o resumo abaixo.
         </div>
       ) : null}
 
-      {drafts.length ? (
-        <Section
-          title="Políticas cadastradas nesta sessão"
-          hint="Resumo das políticas simuladas. Nada é gravado em arquivo — os dados existem apenas enquanto a página estiver aberta."
-        >
-          <div className="space-y-2">
-            {drafts.map((d) => (
+      <Section
+        title="Políticas cadastradas"
+        hint="Salvas em JSON no navegador — continuam disponíveis ao recarregar a página. Use os botões para baixar ou importar o arquivo."
+        right={
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+              onClick={() => downloadJson("politicas-cadastradas.json", getPolicyDrafts())}
+            >
+              Baixar JSON
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted/60"
+              onClick={() => fileRef.current?.click()}
+            >
+              Importar JSON
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                void readJsonFile(file)
+                  .then((data) => {
+                    replacePolicyDrafts(data);
+                    setIoMessage("Políticas importadas do arquivo JSON.");
+                  })
+                  .catch(() => setIoMessage("Não foi possível ler o arquivo JSON."));
+              }}
+            />
+          </div>
+        }
+      >
+        {ioMessage ? <p className="text-xs text-muted-foreground">{ioMessage}</p> : null}
+        {!drafts.length ? (
+          <p className="text-xs text-muted-foreground">Nenhuma política cadastrada ainda.</p>
+        ) : null}
+        <div className="space-y-2">
+          {drafts.map((d) => (
               <div key={d.id} className="rounded-lg border border-border p-3 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <strong className="text-sm">{d.store}</strong>
@@ -494,6 +584,10 @@ export function PolicyFormPanel() {
                     Remover
                   </button>
                 </div>
+                <p className="mt-1 text-muted-foreground">
+                  Modalidades:{" "}
+                  {d.modalities.length ? d.modalities.join(" · ") : "não informadas"}
+                </p>
                 <p className="mt-1 text-muted-foreground">
                   Sábados: {d.weekend.saturday ? "sim" : "não"} · Domingos:{" "}
                   {d.weekend.sunday ? "sim" : "não"} · Feriados:{" "}
@@ -514,9 +608,8 @@ export function PolicyFormPanel() {
                 </p>
               </div>
             ))}
-          </div>
-        </Section>
-      ) : null}
+        </div>
+      </Section>
     </div>
   );
 }
