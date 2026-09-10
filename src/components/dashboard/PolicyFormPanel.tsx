@@ -4,15 +4,18 @@
  * Formulário nos moldes do painel administrativo, apenas com estado local.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { policies } from "@/lib/freight/policies";
 import {
   addPolicyDraft,
+  getPolicyDrafts,
   removePolicyDraft,
+  replacePolicyDrafts,
   usePolicyDrafts,
   type PickupTime,
   type ShippingWindow,
 } from "@/lib/freight/policy-registry";
+import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
 
 const DAYS = [
   "Todos os dias",
