@@ -525,17 +525,55 @@ export function PolicyFormPanel() {
 
       {saved ? (
         <div className="rounded-xl border border-success/40 bg-success/10 p-3 text-xs text-success">
-          Política salva nesta simulação ({saved}). Confira o resumo abaixo.
+          Política salva em JSON ({saved}). Confira o resumo abaixo.
         </div>
       ) : null}
 
-      {drafts.length ? (
-        <Section
-          title="Políticas cadastradas nesta sessão"
-          hint="Resumo das políticas simuladas. Nada é gravado em arquivo — os dados existem apenas enquanto a página estiver aberta."
-        >
-          <div className="space-y-2">
-            {drafts.map((d) => (
+      <Section
+        title="Políticas cadastradas"
+        hint="Salvas em JSON no navegador — continuam disponíveis ao recarregar a página. Use os botões para baixar ou importar o arquivo."
+        right={
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+              onClick={() => downloadJson("politicas-cadastradas.json", getPolicyDrafts())}
+            >
+              Baixar JSON
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted/60"
+              onClick={() => fileRef.current?.click()}
+            >
+              Importar JSON
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                void readJsonFile(file)
+                  .then((data) => {
+                    replacePolicyDrafts(data);
+                    setIoMessage("Políticas importadas do arquivo JSON.");
+                  })
+                  .catch(() => setIoMessage("Não foi possível ler o arquivo JSON."));
+              }}
+            />
+          </div>
+        }
+      >
+        {ioMessage ? <p className="text-xs text-muted-foreground">{ioMessage}</p> : null}
+        {!drafts.length ? (
+          <p className="text-xs text-muted-foreground">Nenhuma política cadastrada ainda.</p>
+        ) : null}
+        <div className="space-y-2">
+          {drafts.map((d) => (
               <div key={d.id} className="rounded-lg border border-border p-3 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <strong className="text-sm">{d.store}</strong>
@@ -546,6 +584,10 @@ export function PolicyFormPanel() {
                     Remover
                   </button>
                 </div>
+                <p className="mt-1 text-muted-foreground">
+                  Modalidades:{" "}
+                  {d.modalities.length ? d.modalities.join(" · ") : "não informadas"}
+                </p>
                 <p className="mt-1 text-muted-foreground">
                   Sábados: {d.weekend.saturday ? "sim" : "não"} · Domingos:{" "}
                   {d.weekend.sunday ? "sim" : "não"} · Feriados:{" "}
