@@ -39,6 +39,7 @@ import { ScheduleGrid, StatusBadge } from "./SchedulePanel";
 import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
+import { PolicyFormPanel } from "./PolicyFormPanel";
 
 // Lazy load do mapa (pesado, carrega sob demanda)
 const FreightMap = lazy(() => import("./FreightMap"));
@@ -52,7 +53,7 @@ export default function Dashboard() {
   // ============================================================================
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
-  const [tab, setTab] = useState<"operacao" | "politicas">("operacao");
+  const [tab, setTab] = useState<"operacao" | "politicas" | "cadastro">("operacao");
 
   // ============================================================================
   // ESTADO: Filtros geográficos
@@ -121,8 +122,14 @@ export default function Dashboard() {
   /** Data/hora atual para cálculos (simulação de tempo) */
   const [now, setNow] = useState<Date>(() => new Date("2026-01-01T00:00:00Z"));
   
+  /** Só renderiza status dependentes de horário após montar (evita mismatch SSR) */
+  const [mounted, setMounted] = useState(false);
+
   // Inicializa com horário real ao carregar
-  useEffect(() => setNow(new Date()), []);
+  useEffect(() => {
+    setNow(new Date());
+    setMounted(true);
+  }, []);
   
   // Flag: modalidade é retira (útil para filtros condicionais)
   const isPickup = modality === "Retira";
@@ -288,6 +295,7 @@ export default function Dashboard() {
           {([
             ["operacao", "Operação e frete"],
             ["politicas", "Políticas de Envio"],
+            ["cadastro", "Cadastro de Política de Envio"],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -305,6 +313,7 @@ export default function Dashboard() {
         </nav>
 
         {tab === "politicas" ? <PoliciesPanel /> : null}
+        {tab === "cadastro" ? <PolicyFormPanel /> : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
         {/* Filtros */}
@@ -521,7 +530,7 @@ export default function Dashboard() {
                 Status de atendimento
               </p>
               <div className="flex flex-wrap gap-2">
-                {OPS_STORES.filter((s) => shownStores.includes(s)).map((s) => (
+                {(mounted ? OPS_STORES.filter((s) => shownStores.includes(s)) : []).map((s) => (
                   <StatusBadge
                     key={s}
                     store={s}
