@@ -279,20 +279,40 @@ export default function Dashboard() {
     setBands((cur) => (cur.includes(b) ? cur.filter((x) => x !== b) : [...cur, b]));
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/70 backdrop-blur">
-        <div className="mx-auto max-w-[1600px] px-4 py-4">
-          <h1 className="font-display text-2xl font-bold tracking-tight">
-            Dashboard Interativo de Frete
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Áreas de entrega, tarifas por faixa de peso e capacidade operacional — São Paulo + Rio de Janeiro.
-          </p>
+    <div className="min-h-screen bg-surface-subtle">
+      <header className="bg-brand-gradient text-white">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-6">
+          <div className="flex items-center gap-4">
+            <span className="bg-accent-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-display text-lg font-bold text-white shadow-brand">
+              OX
+            </span>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/70">
+                Obramax · Logística
+              </p>
+              <h1 className="font-display text-2xl font-bold tracking-tight text-white">
+                Dashboard Interativo de Frete
+              </h1>
+              <p className="mt-0.5 text-sm text-white/75">
+                Áreas de entrega, tarifas por faixa de peso e capacidade operacional — São Paulo +
+                Rio de Janeiro.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1 font-semibold text-white/90">
+              {polygons.length.toLocaleString("pt-BR")} polígonos mapeados
+            </span>
+            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1 font-semibold text-white/90">
+              {STORE_NAMES.length} lojas
+            </span>
+          </div>
         </div>
+        <div className="bg-accent-gradient h-1 w-full" />
       </header>
 
-      <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-4">
-        <nav className="flex gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
+      <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-5">
+        <nav className="surface flex flex-wrap gap-1 p-1.5">
           {([
             ["operacao", "Operação e frete"],
             ["politicas", "Políticas de Envio"],
@@ -301,12 +321,8 @@ export default function Dashboard() {
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={
-                "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors " +
-                (tab === key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted")
-              }
+              aria-current={tab === key ? "page" : undefined}
+              className={tab === key ? "tab-pill-active" : "tab-pill"}
             >
               {label}
             </button>
@@ -330,8 +346,8 @@ export default function Dashboard() {
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
         {/* Filtros */}
-        <section className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
-          <label className="text-xs text-muted-foreground">
+        <section className="surface flex flex-wrap items-end gap-3 p-3.5">
+          <label className="field-label">
             Regional
             <select
               className="input mt-1 w-32"
@@ -350,7 +366,7 @@ export default function Dashboard() {
             </select>
           </label>
 
-          <div className="relative text-xs text-muted-foreground">
+          <div className="field-label relative">
             Lojas
             <button
               className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
@@ -414,7 +430,7 @@ export default function Dashboard() {
             ) : null}
           </div>
 
-          <div className="relative text-xs text-muted-foreground">
+          <div className="field-label relative">
             Faixas de raio
             <button
               className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
@@ -462,7 +478,7 @@ export default function Dashboard() {
             ) : null}
           </div>
 
-          <label className="text-xs text-muted-foreground">
+          <label className="field-label">
             Modalidade
             <select
               className="input mt-1 w-36"
@@ -474,7 +490,7 @@ export default function Dashboard() {
             </select>
           </label>
 
-          <label className="text-xs text-muted-foreground">
+          <label className="field-label">
             Peso simulado (kg)
             <input
               type="number"
@@ -486,7 +502,7 @@ export default function Dashboard() {
             />
           </label>
 
-          <label className="min-w-52 flex-1 text-xs text-muted-foreground">
+          <label className="field-label min-w-52 flex-1">
             Buscar polígono / município
             <input
               className="input mt-1 w-full"
@@ -516,7 +532,7 @@ export default function Dashboard() {
         <Kpis items={kpis} />
 
         <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="overflow-hidden surface">
             <ClientOnly
               fallback={<div className="h-[620px] w-full animate-pulse bg-muted" />}
             >
@@ -538,8 +554,8 @@ export default function Dashboard() {
 
           <div className="space-y-4">
             <Legend stores={shownStores} />
-            <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="surface p-3">
+              <p className="eyebrow mb-2">
                 Status de atendimento
               </p>
               <div className="flex flex-wrap gap-2">
@@ -555,8 +571,8 @@ export default function Dashboard() {
               </div>
             </div>
             {point ? (
-              <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="surface p-3">
+                <p className="eyebrow mb-2">
                   Comparação no ponto clicado
                 </p>
                 <ComparePanel
@@ -579,12 +595,12 @@ export default function Dashboard() {
         </section>
 
         {/* Detalhe do polígono selecionado */}
-        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <section className="surface p-4">
           {selected ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h2 className="font-display text-lg font-semibold">{selected.id}</h2>
+                  <h2 className="section-title text-lg">{selected.id}</h2>
                   <p className="text-xs text-muted-foreground">
                     {selected.store} · faixa {selected.band} ({selected.rMin}–{selected.rMax} km) ·
                     {" "}
@@ -654,23 +670,31 @@ export default function Dashboard() {
               )}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Selecione um polígono no mapa para ver a tabela de faixas de peso, a composição do
-              preço e o simulador de regras.
-            </p>
+            <div className="flex flex-col items-center gap-2 py-6 text-center">
+              <span className="bg-accent-gradient flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold text-white shadow-brand">
+                ↖
+              </span>
+              <p className="font-display text-sm font-bold text-primary">
+                Nenhum polígono selecionado
+              </p>
+              <p className="max-w-md text-xs text-muted-foreground">
+                Selecione um polígono no mapa para ver a tabela de faixas de peso, a composição do
+                preço e o simulador de regras.
+              </p>
+            </div>
           )}
         </section>
 
         {/* Horários e capacidade */}
         <section className="grid gap-4 xl:grid-cols-2">
-          <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
-            <h2 className="font-display text-lg font-semibold">Horários de atendimento</h2>
+          <div className="space-y-3 surface p-4">
+            <h2 className="section-title text-lg">Horários de atendimento</h2>
             {OPS_STORES.map((s) => (
               <ScheduleGrid key={s} store={s} modality={modality} />
             ))}
           </div>
-          <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
-            <h2 className="font-display text-lg font-semibold">Capacidade operacional</h2>
+          <div className="space-y-3 surface p-4">
+            <h2 className="section-title text-lg">Capacidade operacional</h2>
             <CapacityPanel />
           </div>
         </section>

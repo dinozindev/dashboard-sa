@@ -1,7 +1,7 @@
 /**
  * CADASTRO DE POLÍTICA DE ENVIO (simulador)
  * =========================================
- * Formulário nos moldes do painel administrativo, apenas com estado local.
+ * Fluxo em etapas (wizard) com validação progressiva, apenas com estado local.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +17,7 @@ import {
   type ShippingPolicyDraft,
   type ShippingWindow,
 } from "@/lib/freight/policy-registry";
-import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
+import { readJsonFile } from "@/lib/freight/json-file";
 import {
   addPolicyModality,
   removePolicyModality,
@@ -35,6 +35,14 @@ const DAYS = [
   "Quinta-feira",
   "Sexta-feira",
   "Sábado",
+];
+
+const STEPS = [
+  { title: "Loja e modalidade", hint: "Onde e como a entrega acontece" },
+  { title: "Dimensões", hint: "Limites do pacote" },
+  { title: "Disponibilidade", hint: "Dias de entrega e retirada" },
+  { title: "Horários", hint: "Janelas de envio ou coletas" },
+  { title: "Revisão", hint: "Confira e salve" },
 ];
 
 let seq = 0;
@@ -88,16 +96,79 @@ function Section({
   right?: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+    <section className="space-y-3 surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-semibold">{title}</h2>
+          <h2 className="section-title text-lg">{title}</h2>
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
         </div>
         {right}
       </div>
       {children}
     </section>
+  );
+}
+
+function Stepper({
+  step,
+  maxVisited,
+  onGo,
+}: {
+  step: number;
+  maxVisited: number;
+  onGo: (i: number) => void;
+}) {
+  return (
+    <nav aria-label="Etapas do cadastro" className="surface p-4">
+      <ol className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        {STEPS.map((s, i) => {
+          const done = i < step;
+          const current = i === step;
+          const reachable = i <= maxVisited;
+          return (
+            <li key={s.title} className="flex flex-1 items-center gap-3">
+              <button
+                type="button"
+                disabled={!reachable}
+                onClick={() => reachable && onGo(i)}
+                aria-current={current ? "step" : undefined}
+                className={
+                  "flex flex-1 items-center gap-3 rounded-lg border p-2 text-left transition-colors " +
+                  (current
+                    ? "border-primary bg-primary/5"
+                    : reachable
+                      ? "border-border hover:bg-muted/60"
+                      : "border-border opacity-50")
+                }
+              >
+                <span
+                  className={
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold " +
+                    (done
+                      ? "bg-primary text-primary-foreground"
+                      : current
+                        ? "border border-primary text-primary"
+                        : "border border-border text-muted-foreground")
+                  }
+                >
+                  {done ? "✓" : i + 1}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-semibold">{s.title}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{s.hint}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+        />
+      </div>
+    </nav>
   );
 }
 
@@ -115,6 +186,9 @@ export function PolicyFormPanel({
   const modalityList = matrix.modalities;
   const fileRef = useRef<HTMLInputElement>(null);
   const [ioMessage, setIoMessage] = useState<string | null>(null);
+
+  const [step, setStep] = useState(0);
+  const [maxVisited, setMaxVisited] = useState(0);
 
   const [store, setStore] = useState("");
   const [modality, setModality] = useState("");
@@ -159,14 +233,20 @@ export function PolicyFormPanel({
     setPickupEnabled(initialPolicy.pickup.enabled);
     setPickupSeller(initialPolicy.pickup.seller);
     setMode(initialPolicy.scheduleMode);
-    setWindows(initialPolicy.shippingWindows.length ? initialPolicy.shippingWindows : [
-      { id: uid(), day: "Todos os dias", start: "00:00", end: "23:59" },
-    ]);
-    setPickupTimes(initialPolicy.pickupTimes.length ? initialPolicy.pickupTimes : [
-      { id: uid(), day: "Todos os dias", time: "00:00" },
-    ]);
+    setWindows(
+      initialPolicy.shippingWindows.length
+        ? initialPolicy.shippingWindows
+        : [{ id: uid(), day: "Todos os dias", start: "00:00", end: "23:59" }],
+    );
+    setPickupTimes(
+      initialPolicy.pickupTimes.length
+        ? initialPolicy.pickupTimes
+        : [{ id: uid(), day: "Todos os dias", time: "00:00" }],
+    );
     setErrors([]);
     setSaved(null);
+    setStep(0);
+    setMaxVisited(STEPS.length - 1);
   }, [initialPolicy]);
 
   const addModality = () => {
@@ -198,26 +278,56 @@ export function PolicyFormPanel({
     setIoMessage(`Modalidade "${modalityName}" removida.`);
   };
 
-  const save = () => {
+  const validateStep = (index: number): string[] => {
     const errs: string[] = [];
-    if (!store) errs.push("Selecione a loja/seller da política.");
-    if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
-    if (sumOfDimensions <= 0 && largestEdge <= 0 && cubic <= 0 && minWeight <= 0) {
-      errs.push("Informe ao menos um valor das dimensões maior que 0.");
+    if (index === 0) {
+      if (!store) errs.push("Selecione a loja/seller da política.");
+      if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
     }
-    if (pickupEnabled && !effectiveSeller)
-      errs.push("Selecione o seller/ponto de retirada.");
-    if (mode === "janela") {
-      windows.forEach((w, i) => {
-        if (!w.day || !w.start || !w.end)
-          errs.push(`Preencha os campos obrigatórios da janela de envio ${i + 1}.`);
-      });
-    } else {
-      pickupTimes.forEach((p, i) => {
-        if (!p.day || !p.time)
-          errs.push(`Preencha os campos obrigatórios do horário de coleta ${i + 1}.`);
-      });
+    if (index === 1) {
+      if (sumOfDimensions <= 0 && largestEdge <= 0 && cubic <= 0 && minWeight <= 0) {
+        errs.push("Informe ao menos um valor das dimensões maior que 0.");
+      }
     }
+    if (index === 2) {
+      if (pickupEnabled && !effectiveSeller) errs.push("Selecione o seller/ponto de retirada.");
+    }
+    if (index === 3) {
+      if (mode === "janela") {
+        windows.forEach((w, i) => {
+          if (!w.day || !w.start || !w.end)
+            errs.push(`Preencha os campos obrigatórios da janela de envio ${i + 1}.`);
+        });
+      } else {
+        pickupTimes.forEach((p, i) => {
+          if (!p.day || !p.time)
+            errs.push(`Preencha os campos obrigatórios do horário de coleta ${i + 1}.`);
+        });
+      }
+    }
+    return errs;
+  };
+
+  const goTo = (index: number) => {
+    setErrors([]);
+    setStep(index);
+    setMaxVisited((cur) => Math.max(cur, index));
+  };
+
+  const next = () => {
+    const errs = validateStep(step);
+    setErrors(errs);
+    if (errs.length) return;
+    goTo(Math.min(step + 1, STEPS.length - 1));
+  };
+
+  const back = () => {
+    setErrors([]);
+    setStep((cur) => Math.max(0, cur - 1));
+  };
+
+  const save = () => {
+    const errs = [0, 1, 2, 3].flatMap((i) => validateStep(i));
     setErrors(errs);
     if (errs.length) {
       setSaved(null);
@@ -254,131 +364,24 @@ export function PolicyFormPanel({
 
   return (
     <div className="space-y-4">
-      <Section
-        title="Loja / seller da política"
-        hint="Selecione a loja à qual esta política de envio pertence. A escolha alimenta a sugestão de seller nas políticas de retira."
-      >
-        <label className="block text-xs text-muted-foreground">
-          Loja/seller*
-          <select
-            className="input mt-1 w-full max-w-sm"
-            value={store}
-            onChange={(e) => setStore(e.target.value)}
+      <Stepper step={step} maxVisited={maxVisited} onGo={goTo} />
+
+      <p className="text-xs text-muted-foreground">
+        Etapa {step + 1} de {STEPS.length} · {STEPS[step]?.title}
+      </p>
+
+      {step === 0 ? (
+        <>
+          <Section
+            title="Loja / seller da política"
+            hint="Selecione a loja à qual esta política de envio pertence. A escolha alimenta a sugestão de seller nas políticas de retira."
           >
-            <option value="">Selecione…</option>
-            {stores.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-      </Section>
-
-      <Section
-        title="Modalidades associadas"
-        hint="Selecione uma única modalidade da matriz de políticas para este cadastro. Se ela já existir na loja escolhida, o salvamento atualizará a política existente."
-      >
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="block flex-1 text-xs text-muted-foreground">
-            Nova modalidade
-            <input
-              className="input mt-1 w-full"
-              value={newModality}
-              onChange={(e) => setNewModality(e.target.value)}
-              placeholder="Ex.: Entrega expressa"
-            />
-          </label>
-          <button
-            type="button"
-            className="rounded-lg border border-primary px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
-            onClick={addModality}
-          >
-            Adicionar modalidade
-          </button>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {modalityList.map((m) => (
-            <div key={m} className="flex items-center gap-2 text-xs">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="shipping-policy-modality"
-                  checked={modality === m}
-                  onChange={() => setModality(m)}
-                />
-                <span>{m}</span>
-              </label>
-              {!policies.modalities.includes(m) ? (
-                <button
-                  type="button"
-                  className="btn-ghost ml-auto text-[11px] text-danger"
-                  onClick={() => removeModality(m)}
-                >
-                  Remover
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </Section>
-
-
-      <Section
-        title="Dimensões do pacote"
-        hint="Restrições sugeridas pela plataforma para determinadas políticas. Você pode manter os valores em 0 e seguir em frente."
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(
-            [
-              ["Soma das dimensões", sumOfDimensions, setSum, "0"],
-              ["Maior aresta", largestEdge, setEdge, "100"],
-              ["Fator de peso cúbico", cubic, setCubic, "0"],
-              ["Fator de peso mínimo", minWeight, setMinWeight, "0"],
-            ] as const
-          ).map(([label, value, setter, ph]) => (
-            <label key={label} className="text-xs text-muted-foreground">
-              {label}
-              <input
-                type="number"
-                min={0}
-                className="input mt-1 w-full"
-                placeholder={ph}
-                value={value || ""}
-                onChange={(e) => {
-                  const parsed = Number(e.target.value);
-                  setter(e.target.value === "" || !Number.isFinite(parsed) ? 0 : parsed);
-                }}
-              />
-            </label>
-          ))}
-        </div>
-      </Section>
-
-      <Section
-        title="Finais de semana e feriados"
-        hint="Escolha se há entregas nesses dias."
-      >
-        <div className="space-y-2">
-          <Toggle checked={saturday} onChange={setSaturday} label="Entrega aos sábados" />
-          <Toggle checked={sunday} onChange={setSunday} label="Entrega aos domingos" />
-          <Toggle checked={holidays} onChange={setHolidays} label="Entregas em feriados" />
-        </div>
-      </Section>
-
-      <Section
-        title="Associar pontos de retirada"
-        hint="Preencha uma das opções para ativar seus pontos de retirada associando-os a uma política de envio."
-        right={<Toggle checked={pickupEnabled} onChange={setPickupEnabled} label="" />}
-      >
-        {pickupEnabled ? (
-          <div className="space-y-2">
             <label className="block text-xs text-muted-foreground">
-              Seller / ponto de retirada*
+              Loja/seller*
               <select
                 className="input mt-1 w-full max-w-sm"
-                value={effectiveSeller}
-                onChange={(e) => setPickupSeller(e.target.value)}
+                value={store}
+                onChange={(e) => setStore(e.target.value)}
               >
                 <option value="">Selecione…</option>
                 {stores.map((s) => (
@@ -388,210 +391,364 @@ export function PolicyFormPanel({
                 ))}
               </select>
             </label>
-            <p className="text-[11px] text-muted-foreground">
-              Sugestão preenchida com a loja selecionada no topo do formulário. Para a política
-              funcionar de fato, é necessário existir um ponto de retirada (doca) cadastrado e
-              associado a ela.
-            </p>
+          </Section>
+
+          <Section
+            title="Modalidades associadas"
+            hint="Selecione uma única modalidade da matriz de políticas para este cadastro. Se ela já existir na loja escolhida, o salvamento atualizará a política existente."
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label className="block flex-1 text-xs text-muted-foreground">
+                Nova modalidade
+                <input
+                  className="input mt-1 w-full"
+                  value={newModality}
+                  onChange={(e) => setNewModality(e.target.value)}
+                  placeholder="Ex.: Entrega expressa"
+                />
+              </label>
+              <button
+                type="button"
+                className="rounded-lg border border-primary px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
+                onClick={addModality}
+              >
+                Adicionar modalidade
+              </button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {modalityList.map((m) => (
+                <div key={m} className="flex items-center gap-2 text-xs">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="shipping-policy-modality"
+                      checked={modality === m}
+                      onChange={() => setModality(m)}
+                    />
+                    <span>{m}</span>
+                  </label>
+                  {!policies.modalities.includes(m) ? (
+                    <button
+                      type="button"
+                      className="btn-ghost ml-auto text-[11px] text-danger"
+                      onClick={() => removeModality(m)}
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </Section>
+        </>
+      ) : null}
+
+      {step === 1 ? (
+        <Section
+          title="Dimensões do pacote"
+          hint="Restrições sugeridas pela plataforma para determinadas políticas."
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(
+              [
+                ["Soma das dimensões", sumOfDimensions, setSum, "0"],
+                ["Maior aresta", largestEdge, setEdge, "100"],
+                ["Fator de peso cúbico", cubic, setCubic, "0"],
+                ["Fator de peso mínimo", minWeight, setMinWeight, "0"],
+              ] as const
+            ).map(([label, value, setter, ph]) => (
+              <label key={label} className="text-xs text-muted-foreground">
+                {label}
+                <input
+                  type="number"
+                  min={0}
+                  className="input mt-1 w-full"
+                  placeholder={ph}
+                  value={value || ""}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value);
+                    setter(e.target.value === "" || !Number.isFinite(parsed) ? 0 : parsed);
+                  }}
+                />
+              </label>
+            ))}
           </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Ative o botão acima para associar um ponto de retirada a esta política.
-          </p>
-        )}
-      </Section>
+        </Section>
+      ) : null}
 
-      <Section
-        title="Horário de funcionamento"
-        hint="Defina os horários em que a transportadora faz coletas ou as janelas de tempo em que ela envia os itens para os clientes. Estas configurações influenciam o cálculo do tempo de entrega."
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(
-            [
-              [
-                "janela",
-                "Janela de envio",
-                "Períodos em que a transportadora envia itens para os clientes.",
-              ],
-              [
-                "coleta",
-                "Horário de coleta",
-                "Horários em que a transportadora coleta os itens para entrega.",
-              ],
-            ] as const
-          ).map(([key, title, desc]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setMode(key)}
-              className={
-                "rounded-xl border p-3 text-left transition-colors " +
-                (mode === key
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-muted/60")
-              }
-            >
-              <span className="flex items-center justify-between gap-2 text-sm font-semibold">
-                {title}
-                {mode === key ? <span className="text-primary">✓</span> : null}
-              </span>
-              <span className="mt-1 block text-xs text-muted-foreground">{desc}</span>
-            </button>
-          ))}
-        </div>
+      {step === 2 ? (
+        <>
+          <Section title="Finais de semana e feriados" hint="Escolha se há entregas nesses dias.">
+            <div className="space-y-2">
+              <Toggle checked={saturday} onChange={setSaturday} label="Entrega aos sábados" />
+              <Toggle checked={sunday} onChange={setSunday} label="Entrega aos domingos" />
+              <Toggle checked={holidays} onChange={setHolidays} label="Entregas em feriados" />
+            </div>
+          </Section>
 
-        {mode === "janela" ? (
-          <div className="space-y-3">
-            <Toggle
-              checked={acceptOutside}
-              onChange={setAcceptOutside}
-              label="Aceitar compras fora do horário de funcionamento"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Quando ativo, o intervalo de tempo entre o momento do pedido e o início do próximo
-              horário de funcionamento é somado ao tempo total de entrega.
-            </p>
-            {windows.map((w) => (
-              <div key={w.id} className="grid gap-2 sm:grid-cols-[1fr_140px_140px_auto]">
-                <label className="text-xs text-muted-foreground">
-                  Dia da semana*
+          <Section
+            title="Associar pontos de retirada"
+            hint="Preencha uma das opções para ativar seus pontos de retirada associando-os a uma política de envio."
+            right={<Toggle checked={pickupEnabled} onChange={setPickupEnabled} label="" />}
+          >
+            {pickupEnabled ? (
+              <div className="space-y-2">
+                <label className="block text-xs text-muted-foreground">
+                  Seller / ponto de retirada*
                   <select
-                    className="input mt-1 w-full"
-                    value={w.day}
-                    onChange={(e) =>
-                      setWindows((cur) =>
-                        cur.map((x) => (x.id === w.id ? { ...x, day: e.target.value } : x)),
-                      )
-                    }
+                    className="input mt-1 w-full max-w-sm"
+                    value={effectiveSeller}
+                    onChange={(e) => setPickupSeller(e.target.value)}
                   >
-                    {DAYS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
+                    <option value="">Selecione…</option>
+                    {stores.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
                       </option>
                     ))}
                   </select>
                 </label>
-                <label className="text-xs text-muted-foreground">
-                  Horário de início*
-                  <input
-                    type="time"
-                    className="input mt-1 w-full"
-                    value={w.start}
-                    onChange={(e) =>
-                      setWindows((cur) =>
-                        cur.map((x) => (x.id === w.id ? { ...x, start: e.target.value } : x)),
-                      )
-                    }
-                  />
-                </label>
-                <label className="text-xs text-muted-foreground">
-                  Horário de término*
-                  <input
-                    type="time"
-                    className="input mt-1 w-full"
-                    value={w.end}
-                    onChange={(e) =>
-                      setWindows((cur) =>
-                        cur.map((x) => (x.id === w.id ? { ...x, end: e.target.value } : x)),
-                      )
-                    }
-                  />
-                </label>
-                {windows.length > 1 ? (
-                  <button
-                    type="button"
-                    className="btn-ghost self-end text-xs"
-                    onClick={() => setWindows((cur) => cur.filter((x) => x.id !== w.id))}
-                  >
-                    Remover
-                  </button>
-                ) : null}
+                <p className="text-[11px] text-muted-foreground">
+                  Sugestão preenchida com a loja selecionada na primeira etapa. Para a política
+                  funcionar de fato, é necessário existir um ponto de retirada (doca) cadastrado e
+                  associado a ela.
+                </p>
               </div>
-            ))}
-            <div className="flex justify-end">
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Ative o botão acima para associar um ponto de retirada a esta política.
+              </p>
+            )}
+          </Section>
+        </>
+      ) : null}
+
+      {step === 3 ? (
+        <Section
+          title="Horário de funcionamento"
+          hint="Defina os horários em que a transportadora faz coletas ou as janelas de tempo em que ela envia os itens para os clientes. Estas configurações influenciam o cálculo do tempo de entrega."
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(
+              [
+                [
+                  "janela",
+                  "Janela de envio",
+                  "Períodos em que a transportadora envia itens para os clientes.",
+                ],
+                [
+                  "coleta",
+                  "Horário de coleta",
+                  "Horários em que a transportadora coleta os itens para entrega.",
+                ],
+              ] as const
+            ).map(([key, title, desc]) => (
               <button
+                key={key}
                 type="button"
-                className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
-                onClick={() =>
-                  setWindows((cur) => [
-                    ...cur,
-                    { id: uid(), day: "Todos os dias", start: "00:00", end: "23:59" },
-                  ])
+                onClick={() => setMode(key)}
+                className={
+                  "rounded-xl border p-3 text-left transition-colors " +
+                  (mode === key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-muted/60")
                 }
               >
-                + Adicionar janela de envio
+                <span className="flex items-center justify-between gap-2 text-sm font-semibold">
+                  {title}
+                  {mode === key ? <span className="text-primary">✓</span> : null}
+                </span>
+                <span className="mt-1 block text-xs text-muted-foreground">{desc}</span>
               </button>
-            </div>
+            ))}
           </div>
-        ) : (
-          <div className="space-y-3">
-            {pickupTimes.map((p) => (
-              <div key={p.id} className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
-                <label className="text-xs text-muted-foreground">
-                  Dia da semana*
-                  <select
-                    className="input mt-1 w-full"
-                    value={p.day}
-                    onChange={(e) =>
-                      setPickupTimes((cur) =>
-                        cur.map((x) => (x.id === p.id ? { ...x, day: e.target.value } : x)),
-                      )
-                    }
-                  >
-                    {DAYS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs text-muted-foreground">
-                  Horário de coleta*
-                  <input
-                    type="time"
-                    className="input mt-1 w-full"
-                    value={p.time}
-                    onChange={(e) =>
-                      setPickupTimes((cur) =>
-                        cur.map((x) => (x.id === p.id ? { ...x, time: e.target.value } : x)),
-                      )
-                    }
-                  />
-                </label>
-                {pickupTimes.length > 1 ? (
-                  <button
-                    type="button"
-                    className="btn-ghost self-end text-xs"
-                    onClick={() => setPickupTimes((cur) => cur.filter((x) => x.id !== p.id))}
-                  >
-                    Remover
-                  </button>
-                ) : null}
+
+          {mode === "janela" ? (
+            <div className="space-y-3">
+              <Toggle
+                checked={acceptOutside}
+                onChange={setAcceptOutside}
+                label="Aceitar compras fora do horário de funcionamento"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Quando ativo, o intervalo de tempo entre o momento do pedido e o início do próximo
+                horário de funcionamento é somado ao tempo total de entrega.
+              </p>
+              {windows.map((w) => (
+                <div key={w.id} className="grid gap-2 sm:grid-cols-[1fr_140px_140px_auto]">
+                  <label className="text-xs text-muted-foreground">
+                    Dia da semana*
+                    <select
+                      className="input mt-1 w-full"
+                      value={w.day}
+                      onChange={(e) =>
+                        setWindows((cur) =>
+                          cur.map((x) => (x.id === w.id ? { ...x, day: e.target.value } : x)),
+                        )
+                      }
+                    >
+                      {DAYS.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Horário de início*
+                    <input
+                      type="time"
+                      className="input mt-1 w-full"
+                      value={w.start}
+                      onChange={(e) =>
+                        setWindows((cur) =>
+                          cur.map((x) => (x.id === w.id ? { ...x, start: e.target.value } : x)),
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Horário de término*
+                    <input
+                      type="time"
+                      className="input mt-1 w-full"
+                      value={w.end}
+                      onChange={(e) =>
+                        setWindows((cur) =>
+                          cur.map((x) => (x.id === w.id ? { ...x, end: e.target.value } : x)),
+                        )
+                      }
+                    />
+                  </label>
+                  {windows.length > 1 ? (
+                    <button
+                      type="button"
+                      className="btn-ghost self-end text-xs"
+                      onClick={() => setWindows((cur) => cur.filter((x) => x.id !== w.id))}
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+                  onClick={() =>
+                    setWindows((cur) => [
+                      ...cur,
+                      { id: uid(), day: "Todos os dias", start: "00:00", end: "23:59" },
+                    ])
+                  }
+                >
+                  + Adicionar janela de envio
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pickupTimes.map((p) => (
+                <div key={p.id} className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
+                  <label className="text-xs text-muted-foreground">
+                    Dia da semana*
+                    <select
+                      className="input mt-1 w-full"
+                      value={p.day}
+                      onChange={(e) =>
+                        setPickupTimes((cur) =>
+                          cur.map((x) => (x.id === p.id ? { ...x, day: e.target.value } : x)),
+                        )
+                      }
+                    >
+                      {DAYS.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Horário de coleta*
+                    <input
+                      type="time"
+                      className="input mt-1 w-full"
+                      value={p.time}
+                      onChange={(e) =>
+                        setPickupTimes((cur) =>
+                          cur.map((x) => (x.id === p.id ? { ...x, time: e.target.value } : x)),
+                        )
+                      }
+                    />
+                  </label>
+                  {pickupTimes.length > 1 ? (
+                    <button
+                      type="button"
+                      className="btn-ghost self-end text-xs"
+                      onClick={() => setPickupTimes((cur) => cur.filter((x) => x.id !== p.id))}
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground">
+                Se o pedido for feito antes do início do horário de coleta, nenhum tempo é adicionado
+                ao tempo total de entrega. Se o pedido for feito depois do horário de coleta, o
+                intervalo entre o momento do pedido e o próximo horário de coleta é somado ao tempo
+                total de entrega.
+              </p>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+                  onClick={() =>
+                    setPickupTimes((cur) => [
+                      ...cur,
+                      { id: uid(), day: "Todos os dias", time: "00:00" },
+                    ])
+                  }
+                >
+                  + Adicionar horário de coleta
+                </button>
+              </div>
+            </div>
+          )}
+        </Section>
+      ) : null}
+
+      {step === 4 ? (
+        <Section title="Revisão" hint="Confira as informações antes de salvar a política.">
+          <dl className="grid gap-3 text-xs sm:grid-cols-2">
+            {(
+              [
+                ["Loja/seller", store || "—"],
+                ["Modalidade", modality || "—"],
+                [
+                  "Dimensões",
+                  `soma ${sumOfDimensions} · maior aresta ${largestEdge} · peso cúbico ${cubic} · peso mínimo ${minWeight}`,
+                ],
+                [
+                  "Dias de entrega",
+                  `sábados: ${saturday ? "sim" : "não"} · domingos: ${sunday ? "sim" : "não"} · feriados: ${holidays ? "sim" : "não"}`,
+                ],
+                ["Retirada", pickupEnabled ? effectiveSeller || "—" : "desativada"],
+                [
+                  "Horários",
+                  mode === "janela"
+                    ? windows.map((w) => `${w.day} ${w.start}–${w.end}`).join(" · ")
+                    : pickupTimes.map((p) => `${p.day} ${p.time}`).join(" · "),
+                ],
+              ] as const
+            ).map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-border p-3">
+                <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+                <dd className="mt-1 font-medium">{value}</dd>
               </div>
             ))}
-            <p className="text-[11px] text-muted-foreground">
-              Se o pedido for feito antes do início do horário de coleta, nenhum tempo é adicionado
-              ao tempo total de entrega. Se o pedido for feito depois do horário de coleta, o
-              intervalo entre o momento do pedido e o próximo horário de coleta é somado ao tempo
-              total de entrega.
-            </p>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
-                onClick={() =>
-                  setPickupTimes((cur) => [
-                    ...cur,
-                    { id: uid(), day: "Todos os dias", time: "00:00" },
-                  ])
-                }
-              >
-                + Adicionar horário de coleta
-              </button>
-            </div>
-          </div>
-        )}
-      </Section>
+          </dl>
+        </Section>
+      ) : null}
 
       {errors.length ? (
         <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
@@ -603,14 +760,35 @@ export function PolicyFormPanel({
         </div>
       ) : null}
 
-      <div className="flex justify-end">
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
         <button
           type="button"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-          onClick={save}
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted/60 disabled:opacity-40"
+          onClick={back}
+          disabled={step === 0}
         >
-          Salvar política de envio
+          Voltar
         </button>
+        <span className="text-xs text-muted-foreground">
+          {STEPS[step]?.title} · {step + 1}/{STEPS.length}
+        </span>
+        {step < STEPS.length - 1 ? (
+          <button
+            type="button"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            onClick={next}
+          >
+            Continuar
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            onClick={save}
+          >
+            Salvar política de envio
+          </button>
+        )}
       </div>
 
       {saved ? (
@@ -624,20 +802,6 @@ export function PolicyFormPanel({
         hint="Salvas em JSON no navegador — continuam disponíveis ao recarregar a página."
         right={
           <div className="flex flex-wrap gap-2">
-            {/* <button
-              type="button"
-              className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
-              onClick={() => downloadJson("politicas-cadastradas.json", getPolicyDrafts())}
-            >
-              Baixar JSON
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted/60"
-              onClick={() => fileRef.current?.click()}
-            >
-              Importar JSON
-            </button> */}
             <input
               ref={fileRef}
               type="file"
@@ -664,40 +828,34 @@ export function PolicyFormPanel({
         ) : null}
         <div className="space-y-2">
           {drafts.map((d) => (
-              <div key={d.id} className="rounded-lg border border-border p-3 text-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <strong className="text-sm">{d.store}</strong>
-                  <button
-                    className="btn-ghost text-[11px]"
-                    onClick={() => removePolicyDraft(d.id)}
-                  >
-                    Remover
-                  </button>
-                </div>
-                <p className="mt-1 text-muted-foreground">
-                  Modalidade:{" "}
-                  {d.modalities.length ? d.modalities.join(" · ") : "não informadas"}
-                </p>
-                <p className="mt-1 text-muted-foreground">
-                  Sábados: {d.weekend.saturday ? "sim" : "não"} · Domingos:{" "}
-                  {d.weekend.sunday ? "sim" : "não"} · Feriados:{" "}
-                  {d.weekend.holidays ? "sim" : "não"} · Retira:{" "}
-                  {d.pickup.enabled ? d.pickup.seller : "desativada"}
-                </p>
-                <p className="text-muted-foreground">
-                  {d.scheduleMode === "janela"
-                    ? d.shippingWindows
-                        .map((w) => `${w.day} ${w.start}–${w.end}`)
-                        .join(" · ")
-                    : d.pickupTimes.map((p) => `${p.day} ${p.time}`).join(" · ")}
-                </p>
-                <p className="text-muted-foreground">
-                  Dimensões: soma {d.dimensions.sumOfDimensions} · maior aresta{" "}
-                  {d.dimensions.largestEdge} · peso cúbico {d.dimensions.cubicWeightFactor} · peso
-                  mínimo {d.dimensions.minimumWeightFactor}
-                </p>
+            <div key={d.id} className="rounded-lg border border-border p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <strong className="text-sm">{d.store}</strong>
+                <button className="btn-ghost text-[11px]" onClick={() => removePolicyDraft(d.id)}>
+                  Remover
+                </button>
               </div>
-            ))}
+              <p className="mt-1 text-muted-foreground">
+                Modalidade: {d.modalities.length ? d.modalities.join(" · ") : "não informadas"}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Sábados: {d.weekend.saturday ? "sim" : "não"} · Domingos:{" "}
+                {d.weekend.sunday ? "sim" : "não"} · Feriados:{" "}
+                {d.weekend.holidays ? "sim" : "não"} · Retira:{" "}
+                {d.pickup.enabled ? d.pickup.seller : "desativada"}
+              </p>
+              <p className="text-muted-foreground">
+                {d.scheduleMode === "janela"
+                  ? d.shippingWindows.map((w) => `${w.day} ${w.start}–${w.end}`).join(" · ")
+                  : d.pickupTimes.map((p) => `${p.day} ${p.time}`).join(" · ")}
+              </p>
+              <p className="text-muted-foreground">
+                Dimensões: soma {d.dimensions.sumOfDimensions} · maior aresta{" "}
+                {d.dimensions.largestEdge} · peso cúbico {d.dimensions.cubicWeightFactor} · peso
+                mínimo {d.dimensions.minimumWeightFactor}
+              </p>
+            </div>
+          ))}
         </div>
       </Section>
     </div>

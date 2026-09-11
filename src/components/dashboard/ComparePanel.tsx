@@ -21,7 +21,7 @@ export function ComparePanel({ point, matches, weight, overrides, modality, now,
   if (matches.length === 0) {
     if (!isInSaoPauloState(point.lng, point.lat)) {
       return (
-        <div className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">
+        <div className="surface p-3 text-sm text-muted-foreground">
           Ponto {point.lat.toFixed(4)}, {point.lng.toFixed(4)} — <strong>fora do estado de SP</strong>:
           sem entrega e sem retira disponíveis.
         </div>

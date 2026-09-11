@@ -55,7 +55,7 @@ export function RuleSimulator({ rec, bands, index, onIndex, overrides, setOverri
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-card p-3">
+    <div className="surface space-y-3 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Simulador de regras (memória — não altera a planilha)

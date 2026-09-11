@@ -41,12 +41,12 @@ export const BAND_ORDER = ["5KM", "10KM", "15KM", "20KM", "25KM", "30KM"] as con
  * Progressão de quente (próximo) a frio (distante).
  */
 export const BAND_COLORS: Record<string, string> = {
-  "5KM": "#e11d48",
-  "10KM": "#f97316",
-  "15KM": "#eab308",
-  "20KM": "#22c55e",
-  "25KM": "#06b6d4",
-  "30KM": "#2563eb",
+  "5KM": "#FF2D2D",
+  "10KM": "#FF941B",
+  "15KM": "#FFD466",
+  "20KM": "#28C908",
+  "25KM": "#2288FF",
+  "30KM": "#004DA7",
 };
 
 // ============================================================================
@@ -112,4 +112,4 @@ export const STORE_DASH_LABEL: Record<StoreName, string> = {
  * @returns Cor hex (ex: "#e11d48") ou fallback "#64748b" (cinza)
  */
 export const bandColor = (_store: StoreName, band: string) =>
-  BAND_COLORS[band] ?? "#64748b";
+  BAND_COLORS[band] ?? "#777777";

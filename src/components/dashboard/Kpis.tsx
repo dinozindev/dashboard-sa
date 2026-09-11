@@ -41,21 +41,32 @@ interface Kpi {
 export function Kpis({ items }: { items: Kpi[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-      {items.map((k) => (
-        <div key={k.label} className="rounded-xl border border-border bg-card p-3 shadow-sm">
-          {/* Rótulo em maiúsculas pequeno */}
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {k.label}
-          </p>
+      {items.map((k, i) => (
+        <div key={k.label} className="surface-hover relative overflow-hidden p-3.5 pl-4">
+          {/* Barra lateral: laranja Obramax alternando com azul para leitura rápida */}
+          <span
+            aria-hidden
+            className={
+              "absolute inset-y-0 left-0 w-1 " +
+              (k.tone === "low"
+                ? "bg-success"
+                : k.tone === "high"
+                  ? "bg-danger"
+                  : i % 2 === 0
+                    ? "bg-accent-gradient"
+                    : "bg-brand-2")
+            }
+          />
+          <p className="eyebrow">{k.label}</p>
           {/* Valor principal (cor por tone, truncado com tooltip) */}
           <p
             className={
-              "mt-1 truncate font-display text-xl font-semibold " +
+              "mt-1.5 truncate font-display text-2xl font-bold tracking-tight " +
               (k.tone === "low"
                 ? "text-success"
                 : k.tone === "high"
                   ? "text-danger"
-                  : "text-foreground")
+                  : "text-primary")
             }
             title={k.value}
           >

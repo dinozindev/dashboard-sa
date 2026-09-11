@@ -162,10 +162,10 @@ export function PoliciesPanel({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+    <div className="space-y-3 surface p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-semibold">Políticas de envio por loja</h2>
+          <h2 className="section-title text-lg">Políticas de envio por loja</h2>
           <p className="text-xs text-muted-foreground">
             Matriz loja × modalidade. Altere o status de cada modalidade direto na tabela — as
             mudanças ficam salvas em JSON no navegador. Estados: Ativa 🟢 · Inativa 🔴 · Em

@@ -23,7 +23,7 @@ export function CapacityPanel() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-xs text-muted-foreground">
+        <label className="field-label min-w-0">
           Limite de alerta de utilização (%)
           <input
             type="number"
@@ -42,9 +42,9 @@ export function CapacityPanel() {
 
       <div className="grid gap-3 md:grid-cols-2">
         {results.map(({ store, r }) => (
-          <div key={store} className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <div key={store} className="surface space-y-3 p-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-lg font-semibold">{store}</h3>
+              <h3 className="section-title text-lg">{store}</h3>
               {r.utilization > limit ? (
                 <span className="badge-closed">Risco de gargalo (&gt;{limit}%)</span>
               ) : (
@@ -52,11 +52,11 @@ export function CapacityPanel() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-xs text-muted-foreground">
+              <label className="field-label min-w-0">
                 Veículos disponíveis/dia
                 <input
                   type="number"
-                  className="input mt-1"
+                  className="input mt-1 w-full min-w-0"
                   value={inputs[store]?.vehicles ?? 0}
                   onChange={(e) =>
                     setInputs({
@@ -66,11 +66,11 @@ export function CapacityPanel() {
                   }
                 />
               </label>
-              <label className="text-xs text-muted-foreground">
+              <label className="field-label min-w-0">
                 Capacidade média por veículo
                 <input
                   type="number"
-                  className="input mt-1"
+                  className="input mt-1 w-full min-w-0"
                   value={inputs[store]?.perVehicle ?? 0}
                   onChange={(e) =>
                     setInputs({
@@ -121,7 +121,7 @@ export function CapacityPanel() {
         ))}
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="surface p-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Capacidade x Demanda (entregas/dia)
         </p>

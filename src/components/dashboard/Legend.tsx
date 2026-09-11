@@ -3,8 +3,8 @@ import type { StoreName } from "@/lib/freight/types";
 
 export function Legend({ stores }: { stores: StoreName[] }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-3 text-xs shadow-sm">
-      <p className="mb-2 font-semibold uppercase tracking-wide text-muted-foreground">Legenda</p>
+    <div className="surface p-3 text-xs">
+      <p className="eyebrow mb-2">Legenda</p>
 
       <p className="mb-1 font-medium text-foreground">Faixa de raio (cores iguais para todas as lojas)</p>
       <div className="mb-3 grid grid-cols-3 gap-1.5">

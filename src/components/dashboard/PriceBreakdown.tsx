@@ -25,7 +25,7 @@ export function PriceBreakdownCard({
     ["4. Custo adicional por kg", brl(r.extraRate)],
   ] as const;
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
+    <div className="surface p-3">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Composição do cálculo
