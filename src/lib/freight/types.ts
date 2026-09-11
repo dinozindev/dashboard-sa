@@ -54,16 +54,6 @@ export interface WeightBand {
   amc: number | null;
   /** PriceByExtraWeight: Preço por kg adicional (R$/kg) */
   pew: number | null;
-  /** PricePercent: percentual aplicado sobre o valor do pedido */
-  pct?: number | null;
-  /** MaxVolume: volume máximo permitido */
-  maxVol?: number | null;
-  /** TimeCost: prazo (ex.: "2.00:00:00") */
-  time?: string | null;
-  /** Country: país da regra (ex.: "BRA") */
-  country?: string | null;
-  /** MinimumValueInsurance: valor mínimo de seguro */
-  minIns?: number | null;
 }
 
 /**
