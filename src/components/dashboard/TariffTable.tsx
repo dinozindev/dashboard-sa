@@ -46,6 +46,17 @@ export function TariffTable({
   
   // Identifica qual faixa será aplicada para o peso atual
   const applied = findBand(bands, weight);
+
+  // Campos extras vindos da planilha (só exibidos quando existirem)
+  const hasExtras = bands.some(
+    (b) =>
+      b.pct !== undefined ||
+      b.time !== undefined ||
+      b.maxVol !== undefined ||
+      b.minIns !== undefined,
+  );
+  const numFmt = (v: number | null | undefined) =>
+    v === null || v === undefined ? "—" : v.toLocaleString("pt-BR");
   
   // ============================================================================
   // TABELA
