@@ -73,6 +73,15 @@ export function TariffTable({
             <th className="px-2 py-2 text-right">Peso final</th>
             <th className="px-2 py-2 text-right">Preço base</th>
             <th className="px-2 py-2 text-right">Adicional/kg</th>
+            {hasExtras ? (
+              <>
+                <th className="px-2 py-2 text-right">% sobre valor</th>
+                <th className="px-2 py-2 text-right">Volume máx.</th>
+                <th className="px-2 py-2 text-right">Prazo</th>
+                <th className="px-2 py-2 text-right">Seguro mín.</th>
+                <th className="px-2 py-2 text-right">País</th>
+              </>
+            ) : null}
             {hidePrice ? null : <th className="px-2 py-2 text-right">Preço calculado</th>}
           </tr>
         </thead>
@@ -121,6 +130,17 @@ export function TariffTable({
                   {b.pew === null ? "—" : brl(b.pew)}
                 </td>
                 
+                {/* Colunas extras da planilha */}
+                {hasExtras ? (
+                  <>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{numFmt(b.pct)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{numFmt(b.maxVol)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{b.time ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{numFmt(b.minIns)}</td>
+                    <td className="px-2 py-1.5 text-right">{b.country ?? "—"}</td>
+                  </>
+                ) : null}
+
                 {/* Coluna: Preço calculado (se hidePrice = false) */}
                 {hidePrice ? null : (
                   <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
