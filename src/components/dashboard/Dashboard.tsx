@@ -40,6 +40,8 @@ import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
+import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
+import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 
 // Lazy load do mapa (pesado, carrega sob demanda)
@@ -54,7 +56,7 @@ export default function Dashboard() {
   // ============================================================================
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
-  const [tab, setTab] = useState<"operacao" | "politicas" | "cadastro">("operacao");
+  const [tab, setTab] = useState<"operacao" | "politicas" | "cadastro" | "envio">("operacao");
   const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
 
   // ============================================================================
