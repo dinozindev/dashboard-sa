@@ -149,6 +149,27 @@ export default function FreightMap({
    *    - Configura eventos hover e click
    * 4. Adiciona à camada
    */
+  // Markers: apenas das lojas com polígonos ativos no mapa
+  const storeKey = [...new Set(visible.map((p) => p.store))].sort().join("|");
+  useEffect(() => {
+    const group = markersRef.current;
+    if (!group) return;
+    group.clearLayers();
+    const active = new Set(storeKey ? storeKey.split("|") : []);
+    for (const s of stores) {
+      if (!active.has(s.name)) continue;
+      L.marker([s.center[1], s.center[0]], {
+        icon: L.divIcon({
+          className: "",
+          html: `<div class="map-store-marker"><img src="/logo-marker.png" alt="" class="map-store-marker__icon"/><span class="map-store-marker__label">${s.name}</span></div>`,
+          iconSize: [0, 0],
+        }),
+      })
+        .addTo(group)
+        .bindPopup(`<strong>${s.name}</strong><br/>${s.note}`);
+    }
+  }, [storeKey]);
+
   useEffect(() => {
     const group = layerRef.current;
     if (!group) return;
