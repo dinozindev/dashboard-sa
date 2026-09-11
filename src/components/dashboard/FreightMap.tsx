@@ -68,6 +68,9 @@ export default function FreightMap({
   
   /** Ref da camada que contém todos os polígonos */
   const layerRef = useRef<L.LayerGroup | null>(null);
+
+  /** Ref da camada de markers das lojas */
+  const markersRef = useRef<L.LayerGroup | null>(null);
   
   /**
    * Ref de callbacks atualizados.
@@ -109,18 +112,8 @@ export default function FreightMap({
       attribution: GOOGLE_KEY ? "&copy; Google" : "&copy; OpenStreetMap",
     }).addTo(map);
 
-    // Adiciona markers das lojas
-    for (const s of stores) {
-      L.marker([s.center[1], s.center[0]], {
-        icon: L.divIcon({
-          className: "",
-          html: `<div class="map-store-marker"><img src="/logo-marker.png" alt="" class="map-store-marker__icon"/><span class="map-store-marker__label">${s.name}</span></div>`,
-          iconSize: [0, 0],
-        }),
-      })
-        .addTo(map)
-        .bindPopup(`<strong>${s.name}</strong><br/>${s.note}`);
-    }
+    // Camada de markers das lojas (preenchida conforme as lojas ativas)
+    markersRef.current = L.layerGroup().addTo(map);
 
     // Click no mapa dispara callback (usado para comparação)
     map.on("click", (e: L.LeafletMouseEvent) => cb.current.onMapClick(e.latlng.lng, e.latlng.lat));
@@ -156,6 +149,27 @@ export default function FreightMap({
    *    - Configura eventos hover e click
    * 4. Adiciona à camada
    */
+  // Markers: apenas das lojas com polígonos ativos no mapa
+  const storeKey = [...new Set(visible.map((p) => p.store))].sort().join("|");
+  useEffect(() => {
+    const group = markersRef.current;
+    if (!group) return;
+    group.clearLayers();
+    const active = new Set(storeKey ? storeKey.split("|") : []);
+    for (const s of stores) {
+      if (!active.has(s.name)) continue;
+      L.marker([s.center[1], s.center[0]], {
+        icon: L.divIcon({
+          className: "",
+          html: `<div class="map-store-marker"><img src="/logo-marker.png" alt="" class="map-store-marker__icon"/><span class="map-store-marker__label">${s.name}</span></div>`,
+          iconSize: [0, 0],
+        }),
+      })
+        .addTo(group)
+        .bindPopup(`<strong>${s.name}</strong><br/>${s.note}`);
+    }
+  }, [storeKey]);
+
   useEffect(() => {
     const group = layerRef.current;
     if (!group) return;
