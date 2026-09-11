@@ -64,6 +64,8 @@ def ring_area_m2(ring):
 def parse_wkt(wkt):
     """MultiPolygon/Polygon WKT -> [poligono][anel][ponto][lng,lat]"""
     s = str(wkt).strip()
+    if "(" not in s or ")" not in s:
+        return []
     up = s.upper()
     if up.startswith("MULTIPOLYGON"):
         body = s[s.index("(") + 1 : s.rindex(")")]
