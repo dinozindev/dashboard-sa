@@ -40,6 +40,8 @@ import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
+import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
+import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 
 // Lazy load do mapa (pesado, carrega sob demanda)
@@ -54,7 +56,7 @@ export default function Dashboard() {
   // ============================================================================
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
-  const [tab, setTab] = useState<"operacao" | "politicas" | "cadastro">("operacao");
+  const [tab, setTab] = useState<"operacao" | "politicas" | "cadastro" | "envio">("operacao");
   const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
 
   // ============================================================================
@@ -76,8 +78,20 @@ export default function Dashboard() {
   /** Dropdown de faixas de raio está aberto? */
   const [bandsOpen, setBandsOpen] = useState(false);
 
-  // Dados derivados: lojas da região atual
-  const regionStores = useMemo(() => storesInRegion(region), [region]);
+  /** Lojas já enviadas na aba "Envio de Polígonos" (persistidas no navegador) */
+  const submittedStores = useSubmittedStores();
+
+  /** Lojas ativas: já cadastradas (Aricanduva/Suzano) + enviadas na simulação */
+  const activeStores = useMemo(
+    () => STORE_NAMES.filter((s) => BASE_STORES.includes(s) || submittedStores.includes(s)),
+    [submittedStores],
+  );
+
+  // Dados derivados: lojas ativas da região atual
+  const regionStores = useMemo(
+    () => storesInRegion(region).filter((s) => activeStores.includes(s)),
+    [region, activeStores],
+  );
   
   // Dados derivados: lojas selecionadas E na região
   const shownStores = useMemo(
@@ -304,7 +318,7 @@ export default function Dashboard() {
               {polygons.length.toLocaleString("pt-BR")} polígonos mapeados
             </span>
             <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1 font-semibold text-white/90">
-              {STORE_NAMES.length} lojas
+              {activeStores.length} de {STORE_NAMES.length} lojas ativas
             </span>
           </div>
         </div>
@@ -317,6 +331,7 @@ export default function Dashboard() {
             ["operacao", "Operação e frete"],
             ["politicas", "Políticas de Envio"],
             ["cadastro", "Cadastro de Política de Envio"],
+            ["envio", "Envio de Polígonos"],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -342,6 +357,9 @@ export default function Dashboard() {
             initialPolicy={editingPolicy}
             onFinishEdit={() => setEditingPolicy(null)}
           />
+        ) : null}
+        {tab === "envio" ? (
+          <PolygonSubmissionPanel onGoToMap={() => setTab("operacao")} />
         ) : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
@@ -559,7 +577,7 @@ export default function Dashboard() {
                 Status de atendimento
               </p>
               <div className="flex flex-wrap gap-2">
-                {(mounted ? OPS_STORES.filter((s) => shownStores.includes(s)) : []).map((s) => (
+                {(mounted ? shownStores : []).map((s) => (
                   <StatusBadge
                     key={s}
                     store={s}
@@ -689,7 +707,7 @@ export default function Dashboard() {
         <section className="grid gap-4 xl:grid-cols-2">
           <div className="space-y-3 surface p-4">
             <h2 className="section-title text-lg">Horários de atendimento</h2>
-            {OPS_STORES.map((s) => (
+            {shownStores.map((s) => (
               <ScheduleGrid key={s} store={s} modality={modality} />
             ))}
           </div>

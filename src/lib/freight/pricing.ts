@@ -2,14 +2,14 @@
  * CÁLCULO DE PREÇO DE FRETE
  * ==========================
  * 
- * Regra 5 do documento:
- * - Se Weight_Start <= peso <= Weight_End: preço = AbsoluteMoneyCost
- * - Se peso > Weight_End: preço = AbsoluteMoneyCost + (peso - Weight_End) * PriceByExtraWeight
+ * Regra aplicada:
+ * - O AbsoluteMoneyCost da faixa cobre o peso até o início dela (Weight_Start - 1).
+ * - Cada kg acima desse ponto custa PriceByExtraWeight.
  * 
- * Fórmula geral: price = amc + max(0, peso - we) * pew
+ * Fórmula geral: price = amc + max(0, peso - (ws - 1)) * pew
  * onde:
- *   amc = AbsoluteMoneyCost (preço base)
- *   we  = Weight_End (limite da faixa)
+ *   amc = AbsoluteMoneyCost (preço base da faixa)
+ *   ws  = Weight_Start (início da faixa)
  *   pew = PriceByExtraWeight (preço por kg adicional)
  */
 
@@ -144,7 +144,10 @@ export function calcPrice(bands: WeightBand[] | undefined, weight: number): Pric
   if (band.amc === null || band.ws === null || band.we === null) {
     return invalid("Dados incompletos na planilha para esta faixa");
   }
-  const extraWeight = weight > band.we ? weight - band.we : 0;
+  // O preço base (amc) cobre o peso até o início da faixa; a partir daí
+  // cada kg adicional é cobrado por PriceByExtraWeight.
+  const threshold = band.ws > 0 ? band.ws - 1 : 0;
+  const extraWeight = weight > threshold ? weight - threshold : 0;
   const extraRate = band.pew ?? 0;
   if (extraWeight > 0 && band.pew === null) {
     return invalid("Peso excedente sem PriceByExtraWeight na planilha");
@@ -153,7 +156,7 @@ export function calcPrice(bands: WeightBand[] | undefined, weight: number): Pric
     ok: true,
     band,
     basePrice: band.amc,
-    includedWeight: Math.min(weight, band.we),
+    includedWeight: Math.min(weight, threshold),
     extraWeight,
     extraRate,
     total: band.amc + extraWeight * extraRate,

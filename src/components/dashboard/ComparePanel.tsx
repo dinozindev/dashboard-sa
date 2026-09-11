@@ -93,14 +93,14 @@ export function ComparePanel({ point, matches, weight, overrides, modality, now,
                 : "border-border bg-card")
             }
           >
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-start gap-1">
               <h4 className="font-display text-base font-semibold">{store}</h4>
               {cheapest?.store === store ? (
-                <span className="badge-open">Menor preço</span>
+                <span className="badge-open whitespace-nowrap">Menor preço</span>
               ) : null}
             </div>
             <p className="text-xs text-muted-foreground">
-              Faixa de {rec.band} ({rec.rMin / 1000}–{rec.rMax / 1000} km) · {rec.district}
+              Faixa de {rec.band} · {rec.district}
             </p>
             {isPickup ? null : (
               <p className="font-display text-2xl font-bold text-accent-strong">

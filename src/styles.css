@@ -325,6 +325,30 @@
   }
 }
 
+@utility btn-primary {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--brand-3);
+  background-color: var(--brand-3);
+  padding: 0.4375rem 0.6875rem;
+  font-weight: 700;
+  color: var(--color-background);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--brand-2);
+    background-color: var(--brand-2);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand-3) 25%, transparent);
+  }
+}
+
 @utility btn-brand {
   border-radius: var(--radius-md);
   border: 1px solid transparent;
