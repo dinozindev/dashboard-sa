@@ -68,6 +68,9 @@ export default function FreightMap({
   
   /** Ref da camada que contém todos os polígonos */
   const layerRef = useRef<L.LayerGroup | null>(null);
+
+  /** Ref da camada de markers das lojas */
+  const markersRef = useRef<L.LayerGroup | null>(null);
   
   /**
    * Ref de callbacks atualizados.
