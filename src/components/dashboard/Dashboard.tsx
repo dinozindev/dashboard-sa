@@ -78,8 +78,20 @@ export default function Dashboard() {
   /** Dropdown de faixas de raio está aberto? */
   const [bandsOpen, setBandsOpen] = useState(false);
 
-  // Dados derivados: lojas da região atual
-  const regionStores = useMemo(() => storesInRegion(region), [region]);
+  /** Lojas já enviadas na aba "Envio de Polígonos" (persistidas no navegador) */
+  const submittedStores = useSubmittedStores();
+
+  /** Lojas ativas: já cadastradas (Aricanduva/Suzano) + enviadas na simulação */
+  const activeStores = useMemo(
+    () => STORE_NAMES.filter((s) => BASE_STORES.includes(s) || submittedStores.includes(s)),
+    [submittedStores],
+  );
+
+  // Dados derivados: lojas ativas da região atual
+  const regionStores = useMemo(
+    () => storesInRegion(region).filter((s) => activeStores.includes(s)),
+    [region, activeStores],
+  );
   
   // Dados derivados: lojas selecionadas E na região
   const shownStores = useMemo(
