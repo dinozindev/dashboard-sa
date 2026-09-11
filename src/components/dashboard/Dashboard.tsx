@@ -358,6 +358,9 @@ export default function Dashboard() {
             onFinishEdit={() => setEditingPolicy(null)}
           />
         ) : null}
+        {tab === "envio" ? (
+          <PolygonSubmissionPanel onGoToMap={() => setTab("operacao")} />
+        ) : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
         {/* Filtros */}
