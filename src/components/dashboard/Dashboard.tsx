@@ -318,7 +318,7 @@ export default function Dashboard() {
               {polygons.length.toLocaleString("pt-BR")} polígonos mapeados
             </span>
             <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1 font-semibold text-white/90">
-              {STORE_NAMES.length} lojas
+              {activeStores.length} de {STORE_NAMES.length} lojas ativas
             </span>
           </div>
         </div>
@@ -331,6 +331,7 @@ export default function Dashboard() {
             ["operacao", "Operação e frete"],
             ["politicas", "Políticas de Envio"],
             ["cadastro", "Cadastro de Política de Envio"],
+            ["envio", "Envio de Polígonos"],
           ] as const).map(([key, label]) => (
             <button
               key={key}
