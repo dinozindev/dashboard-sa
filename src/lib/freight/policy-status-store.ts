@@ -8,7 +8,9 @@
  */
 
 import { useEffect, useSyncExternalStore } from "react";
+import { logAudit } from "./audit-log";
 import { policies, type PolicyCell, type PolicyDataset, type PolicyStatus } from "./policies";
+
 
 export const POLICY_MATRIX_STORAGE_KEY = "freight.shipping-policies.v1";
 
@@ -73,7 +75,12 @@ export function getMatrix() {
   return current;
 }
 
-export function updateCell(storeName: string, modality: string, cell: Partial<PolicyCell>) {
+export function updateCell(
+  storeName: string,
+  modality: string,
+  cell: Partial<PolicyCell>,
+  options?: { silent?: boolean },
+) {
   const next = clone(current);
   const store = next.stores.find((s) => s.nome === storeName);
   if (!store) return;
@@ -82,7 +89,33 @@ export function updateCell(storeName: string, modality: string, cell: Partial<Po
   current = next;
   persist();
   emit();
+
+  if (options?.silent) return;
+  if (cell.status !== undefined && cell.status !== prev.status) {
+    logAudit({
+      store: storeName,
+      module: "Políticas de Envio",
+      field: `Status — ${modality}`,
+      before: prev.status,
+      after: cell.status,
+      action:
+        cell.status === "Ativa" ? "Ativação" : cell.status === "Inativa" ? "Desativação" : "Edição",
+      description: `Status da modalidade "${modality}" alterado de ${prev.status} para ${cell.status} na loja ${storeName}`,
+    });
+  }
+  if (cell.note !== undefined && cell.note !== prev.note) {
+    logAudit({
+      store: storeName,
+      module: "Políticas de Envio",
+      field: `Observação — ${modality}`,
+      before: prev.note || "—",
+      after: cell.note || "—",
+      action: "Edição",
+      description: `Observação da modalidade "${modality}" alterada na loja ${storeName}`,
+    });
+  }
 }
+
 
 export function addPolicyModality(modalityName: string, activeStoreName: string) {
   const modality = modalityName.trim();

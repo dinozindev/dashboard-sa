@@ -18,6 +18,8 @@ import {
   type ShippingWindow,
 } from "@/lib/freight/policy-registry";
 import { readJsonFile } from "@/lib/freight/json-file";
+import { logAudit } from "@/lib/freight/audit-log";
+
 import {
   addPolicyModality,
   removePolicyModality,
@@ -47,6 +49,104 @@ const STEPS = [
 
 let seq = 0;
 const uid = () => `row-${++seq}`;
+
+const onOff = (v: boolean) => (v ? "Ativa" : "Inativa");
+
+const describeWindows = (d: ShippingPolicyDraft) =>
+  d.scheduleMode === "janela"
+    ? d.shippingWindows.map((w) => `${w.day} ${w.start}-${w.end}`).join("; ") || "—"
+    : d.pickupTimes.map((p) => `${p.day} ${p.time}`).join("; ") || "—";
+
+/** Compara a política anterior com a nova e registra cada alteração na auditoria. */
+function logPolicyChanges(
+  before: ShippingPolicyDraft | undefined,
+  after: ShippingPolicyDraft,
+  modality: string,
+) {
+  const base = {
+    store: after.store,
+    module: "Cadastro de Política de Envio" as const,
+  };
+
+  if (!before) {
+    logAudit({
+      ...base,
+      field: `Política de envio — ${modality}`,
+      before: "—",
+      after: modality,
+      action: "Criação",
+      description: `Política de envio criada para a modalidade "${modality}" na loja ${after.store}`,
+    });
+    return;
+  }
+
+  const fields: Array<[string, string, string]> = [
+    ["Modalidade", before.modalities.join(", ") || "—", after.modalities.join(", ") || "—"],
+    [
+      "Soma das dimensões",
+      String(before.dimensions.sumOfDimensions),
+      String(after.dimensions.sumOfDimensions),
+    ],
+    ["Maior aresta", String(before.dimensions.largestEdge), String(after.dimensions.largestEdge)],
+    [
+      "Fator de peso cúbico",
+      String(before.dimensions.cubicWeightFactor),
+      String(after.dimensions.cubicWeightFactor),
+    ],
+    [
+      "Fator de peso mínimo",
+      String(before.dimensions.minimumWeightFactor),
+      String(after.dimensions.minimumWeightFactor),
+    ],
+    ["Entrega aos sábados", onOff(before.weekend.saturday), onOff(after.weekend.saturday)],
+    ["Entrega aos domingos", onOff(before.weekend.sunday), onOff(after.weekend.sunday)],
+    ["Entregas em feriados", onOff(before.weekend.holidays), onOff(after.weekend.holidays)],
+    [
+      "Associar pontos de retirada",
+      onOff(before.pickup.enabled),
+      onOff(after.pickup.enabled),
+    ],
+    ["Seller sugerido (retira)", before.pickup.seller || "—", after.pickup.seller || "—"],
+    [
+      "Tipo de horário",
+      before.scheduleMode === "janela" ? "Janela de envio" : "Horário de coleta",
+      after.scheduleMode === "janela" ? "Janela de envio" : "Horário de coleta",
+    ],
+    [
+      after.scheduleMode === "janela" ? "Janela de envio" : "Horário de coleta",
+      describeWindows(before),
+      describeWindows(after),
+    ],
+  ];
+
+  let changed = false;
+  for (const [field, prev, next] of fields) {
+    if (prev === next) continue;
+    changed = true;
+    const action =
+      next === "Ativa" ? "Ativação" : next === "Inativa" ? "Desativação" : ("Edição" as const);
+    logAudit({
+      ...base,
+      field,
+      before: prev,
+      after: next,
+      action,
+      description: `${field} alterada de ${prev} para ${next} na loja ${after.store} (modalidade "${modality}")`,
+    });
+  }
+
+  if (!changed) {
+    logAudit({
+      ...base,
+      field: `Política de envio — ${modality}`,
+      before: modality,
+      after: modality,
+      action: "Edição",
+      description: `Política de envio da modalidade "${modality}" salva sem alterações de valores na loja ${after.store}`,
+    });
+  }
+}
+
 
 function Toggle({
   checked,
@@ -263,19 +363,40 @@ export function PolicyFormPanel({
       setErrors(["Já existe uma modalidade com esse nome."]);
       return;
     }
-    setModality(newModality.trim());
+    const created = newModality.trim();
+    logAudit({
+      store,
+      module: "Cadastro de Política de Envio",
+      field: "Modalidade",
+      before: "—",
+      after: created,
+      action: "Adição",
+      description: `Modalidade "${created}" adicionada à matriz de políticas (loja ${store})`,
+    });
+    setModality(created);
     setNewModality("");
     setErrors([]);
     setIoMessage("Nova modalidade adicionada à matriz de políticas.");
   };
+
 
   const removeModality = (modalityName: string) => {
     if (!window.confirm(`Remover a modalidade "${modalityName}"?`)) return;
     const result = removePolicyModality(modalityName);
     if (result !== "removed") return;
     removePolicyDraftsByModality(modalityName);
+    logAudit({
+      store: store || "Todas",
+      module: "Cadastro de Política de Envio",
+      field: "Modalidade",
+      before: modalityName,
+      after: "—",
+      action: "Remoção",
+      description: `Modalidade "${modalityName}" removida da matriz de políticas`,
+    });
     if (modality === modalityName) setModality("");
     setIoMessage(`Modalidade "${modalityName}" removida.`);
+
   };
 
   const validateStep = (index: number): string[] => {
@@ -339,7 +460,7 @@ export function PolicyFormPanel({
           (draft) => draft.store === store && draft.modalities.includes(modality),
         );
     const id = existing?.id ?? `pol-${Date.now()}`;
-    const result = upsertPolicyDraft({
+    const draft: ShippingPolicyDraft = {
       id,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       store,
@@ -355,12 +476,15 @@ export function PolicyFormPanel({
       scheduleMode: mode,
       shippingWindows: mode === "janela" ? windows : [],
       pickupTimes: mode === "coleta" ? pickupTimes : [],
-    });
-    updateCell(store, modality, { status: "Ativa" });
+    };
+    const result = upsertPolicyDraft(draft);
+    logPolicyChanges(existing, draft, modality);
+    updateCell(store, modality, { status: "Ativa" }, { silent: true });
     setSaved(id);
     setIoMessage(result === "updated" ? "Política existente atualizada." : null);
     onFinishEdit?.();
   };
+
 
   return (
     <div className="space-y-4">
