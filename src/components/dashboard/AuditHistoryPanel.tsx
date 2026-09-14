@@ -182,8 +182,8 @@ export function AuditHistoryPanel() {
           </p>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-border p-3">
+        <div className="grid justify-center gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mx-auto w-full max-w-xs rounded-xl border border-border p-3 text-center">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Total de alterações
             </p>
@@ -191,23 +191,15 @@ export function AuditHistoryPanel() {
               {entries.length.toLocaleString("pt-BR")}
             </p>
           </div>
-          <div className="rounded-xl border border-border p-3">
+          <div className="mx-auto w-full max-w-xs rounded-xl border border-border p-3 text-center">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Aricanduva x Suzano
-            </p>
-            <p className="text-xl font-semibold tabular-nums">
-              {byStore("Aricanduva")} × {byStore("Suzano")}
-            </p>
-          </div>
-          <div className="rounded-xl border border-border p-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Polígonos adicionados (filtro)
+              Polígonos adicionados 
             </p>
             <p className="text-xl font-semibold tabular-nums">
               {polygonsAdded.toLocaleString("pt-BR")}
             </p>
           </div>
-          <div className="rounded-xl border border-border p-3">
+          <div className="mx-auto w-full max-w-xs rounded-xl border border-border p-3 text-center">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Última alteração
             </p>
