@@ -41,6 +41,7 @@ import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
 import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
+import { AuditHistoryPanel } from "./AuditHistoryPanel";
 import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 
@@ -56,7 +57,9 @@ export default function Dashboard() {
   // ============================================================================
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
-  const [tab, setTab] = useState<"operacao" | "politicas" | "cadastro" | "envio">("operacao");
+  const [tab, setTab] = useState<
+    "operacao" | "politicas" | "cadastro" | "envio" | "auditoria"
+  >("operacao");
   const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
 
   // ============================================================================
@@ -332,6 +335,7 @@ export default function Dashboard() {
             ["politicas", "Políticas de Envio"],
             ["cadastro", "Cadastro de Política de Envio"],
             ["envio", "Envio de Polígonos"],
+            ["auditoria", "Histórico de Auditoria"],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -361,6 +365,7 @@ export default function Dashboard() {
         {tab === "envio" ? (
           <PolygonSubmissionPanel onGoToMap={() => setTab("operacao")} />
         ) : null}
+        {tab === "auditoria" ? <AuditHistoryPanel /> : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
         {/* Filtros */}

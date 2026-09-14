@@ -17,7 +17,9 @@ import {
   unsubmitStore,
   useSubmittedStores,
 } from "@/lib/freight/submitted-stores";
+import { logAudit } from "@/lib/freight/audit-log";
 import type { StoreName } from "@/lib/freight/types";
+
 
 export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void }) {
   const submitted = useSubmittedStores();
@@ -41,12 +43,55 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
 
   const handleSubmit = () => {
     const created = submitStore(store);
+    const count = info?.count ?? 0;
+    if (created) {
+      logAudit({
+        store,
+        module: "Criação de Polígonos",
+        field: "Polígonos",
+        before: "0",
+        after: String(count),
+        action: "Adição",
+        description: `${count.toLocaleString("pt-BR")} polígonos adicionados para a loja de ${store}`,
+      });
+    }
     setFeedback(
       created
-        ? `${info?.count.toLocaleString("pt-BR") ?? 0} polígonos de ${store} enviados para o mapa.`
+        ? `${count.toLocaleString("pt-BR")} polígonos de ${store} enviados para o mapa.`
         : `${store} já havia sido enviada — os polígonos continuam no mapa.`,
     );
   };
+
+  const handleUnsubmit = (s: StoreName) => {
+    const count = summary.get(s)?.count ?? 0;
+    unsubmitStore(s);
+    logAudit({
+      store: s,
+      module: "Criação de Polígonos",
+      field: "Polígonos",
+      before: String(count),
+      after: "0",
+      action: "Remoção",
+      description: `${count.toLocaleString("pt-BR")} polígonos removidos da loja de ${s}`,
+    });
+  };
+
+  const handleClear = () => {
+    for (const s of submitted) {
+      logAudit({
+        store: s,
+        module: "Criação de Polígonos",
+        field: "Polígonos",
+        before: String(summary.get(s)?.count ?? 0),
+        after: "0",
+        action: "Remoção",
+        description: `Polígonos da loja de ${s} removidos do mapa (limpeza de envios)`,
+      });
+    }
+    clearSubmittedStores();
+    setFeedback("Todos os envios simulados foram removidos do mapa.");
+  };
+
 
   return (
     <div className="space-y-4">
@@ -107,15 +152,10 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="section-title text-base">Lojas ativas no mapa</h3>
           {submitted.length ? (
-            <button
-              className="btn-ghost text-xs"
-              onClick={() => {
-                clearSubmittedStores();
-                setFeedback("Todos os envios simulados foram removidos do mapa.");
-              }}
-            >
+            <button className="btn-ghost text-xs" onClick={handleClear}>
               Limpar envios
             </button>
+
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -135,7 +175,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               {s} · enviada
               <button
                 className="text-[11px] underline"
-                onClick={() => unsubmitStore(s)}
+                onClick={() => handleUnsubmit(s)}
                 aria-label={`Remover ${s} do mapa`}
               >
                 remover
