@@ -22,10 +22,51 @@ export interface PickupTime {
   time: string;
 }
 
+/** Tipo da política: entrega no endereço do cliente ou retirada em loja. */
+export type PolicyType = "Entrega" | "Retira";
+
+export const DAY_GROUPS = ["Segunda a sexta-feira", "Sábado", "Domingo"] as const;
+export type DayGroup = (typeof DAY_GROUPS)[number];
+
+/** Linha de janela de entrega agendada. */
+export interface DeliveryWindowRow {
+  id: string;
+  days: DayGroup;
+  capacity: number;
+  additional: number;
+  start: string;
+  end: string;
+}
+
+/** Etapa "Entrega Agendada" (apenas para políticas de venda assistida). */
+export interface ScheduledDelivery {
+  enabled: boolean;
+  /** Tempo máximo de entrega, em dias */
+  maxDays: number;
+  capacityEnabled: boolean;
+  unit: "Itens" | "Pedidos";
+  windows: DeliveryWindowRow[];
+}
+
+export const emptyScheduledDelivery = (): ScheduledDelivery => ({
+  enabled: false,
+  maxDays: 0,
+  capacityEnabled: false,
+  unit: "Itens",
+  windows: [],
+});
+
 export interface ShippingPolicyDraft {
   id: string;
   createdAt: string;
   store: string;
+  /** Política em vigor (Ativa) ou apenas cadastrada (Inativa) */
+  active: boolean;
+  /** Entrega ou Retira */
+  policyType: PolicyType;
+  /** Política de venda assistida? Habilita a etapa "Entrega Agendada". */
+  assistedSale: boolean;
+  scheduledDelivery: ScheduledDelivery;
   /** Modalidades às quais esta política se aplica (Pequenos Volumes, Retira Fácil, ...) */
   modalities: string[];
   dimensions: {
@@ -73,7 +114,18 @@ function normalize(list: unknown): ShippingPolicyDraft[] {
   if (!Array.isArray(list)) return [];
   return list
     .filter((x): x is ShippingPolicyDraft => !!x && typeof x === "object")
-    .map((d) => ({ ...d, modalities: Array.isArray(d.modalities) ? d.modalities : [] }));
+    .map((d) => ({
+      ...d,
+      modalities: Array.isArray(d.modalities) ? d.modalities : [],
+      active: typeof d.active === "boolean" ? d.active : true,
+      policyType: d.policyType === "Retira" ? "Retira" : "Entrega",
+      assistedSale: !!d.assistedSale,
+      scheduledDelivery: {
+        ...emptyScheduledDelivery(),
+        ...(d.scheduledDelivery ?? {}),
+        windows: Array.isArray(d.scheduledDelivery?.windows) ? d.scheduledDelivery.windows : [],
+      },
+    }));
 }
 
 /** Lê o JSON salvo no navegador. Chamada apenas no cliente. */
@@ -84,10 +136,9 @@ export function hydratePolicyDrafts() {
     const raw = window.localStorage.getItem(POLICY_DRAFTS_STORAGE_KEY);
     if (!raw) return;
     const parsed = normalize(JSON.parse(raw));
-    if (parsed.length) {
-      items = parsed;
-      emit();
-    }
+    items = parsed;
+    persist();
+    emit();
   } catch {
     /* JSON inválido — ignora */
   }

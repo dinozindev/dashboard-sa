@@ -21,43 +21,43 @@
    "cidade": "São Paulo",
    "cells": {
     "Pequenos Volumes": {
-     "status": "Ativa",
-     "note": "30,00"
+     "status": "Não informada",
+     "note": ""
     },
     "Retira Fácil (Clique & Retira)": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Retira Televendas": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Retira Imediata": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Saldo Borderô": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Retira H+4 Ecommerce": {
-     "status": "Em construção",
+     "status": "Não informada",
      "note": ""
     },
     "Entrega Normal": {
-     "status": "Inativa",
+     "status": "Não informada",
      "note": ""
     },
     "ENTREGA CONFORTO MANHÃ": {
-     "status": "Em construção",
+     "status": "Não informada",
      "note": ""
     },
     "ENTREGA CONFORTO TARDE": {
-     "status": "Em construção",
+     "status": "Não informada",
      "note": ""
     },
     "ENTREGA TLV_VA_FRETE GRATIS": {
-     "status": "Inativa",
+     "status": "Não informada",
      "note": ""
     }
    }
@@ -70,43 +70,43 @@
    "cidade": "Suzano",
    "cells": {
     "Pequenos Volumes": {
-     "status": "Ativa",
-     "note": "30,00"
+     "status": "Não informada",
+     "note": ""
     },
     "Retira Fácil (Clique & Retira)": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Retira Televendas": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Retira Imediata": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Saldo Borderô": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Retira H+4 Ecommerce": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "Entrega Normal": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "ENTREGA CONFORTO MANHÃ": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "ENTREGA CONFORTO TARDE": {
-     "status": "Ativa",
+     "status": "Não informada",
      "note": ""
     },
     "ENTREGA TLV_VA_FRETE GRATIS": {
-     "status": "Inativa",
+     "status": "Não informada",
      "note": ""
     }
    }

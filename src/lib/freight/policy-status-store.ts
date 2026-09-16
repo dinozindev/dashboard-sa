@@ -50,6 +50,29 @@ function isDataset(v: unknown): v is PolicyDataset {
   return !!d && Array.isArray(d.modalities) && Array.isArray(d.stores);
 }
 
+/**
+ * Limpeza única: as células pré-preenchidas de Aricanduva e Suzano vieram da
+ * planilha original e não devem existir. Roda uma só vez por navegador; depois
+ * disso essas lojas seguem o mesmo fluxo das demais.
+ */
+const LEGACY_SEED_STORES = ["Aricanduva", "Suzano"];
+const LEGACY_CLEANUP_KEY = "freight.shipping-policies.legacy-seed-cleared.v1";
+
+function clearLegacySeed(d: PolicyDataset) {
+  let changed = false;
+  for (const store of d.stores) {
+    if (!LEGACY_SEED_STORES.includes(store.nome)) continue;
+    for (const modality of Object.keys(store.cells)) {
+      const cell = store.cells[modality];
+      if (cell && (cell.status !== "Não informada" || cell.note !== "")) {
+        store.cells[modality] = { status: "Não informada", note: "" };
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
 export function hydratePolicyMatrix() {
   if (hydrated || typeof window === "undefined") return;
   hydrated = true;
@@ -59,6 +82,20 @@ export function hydratePolicyMatrix() {
     const parsed: unknown = JSON.parse(raw);
     if (isDataset(parsed)) {
       current = parsed;
+      let done = false;
+      try {
+        done = window.localStorage.getItem(LEGACY_CLEANUP_KEY) === "1";
+      } catch {
+        /* storage indisponível */
+      }
+      if (!done) {
+        if (clearLegacySeed(current)) persist();
+        try {
+          window.localStorage.setItem(LEGACY_CLEANUP_KEY, "1");
+        } catch {
+          /* storage indisponível */
+        }
+      }
       emit();
     }
   } catch {

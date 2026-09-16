@@ -1,6 +1,9 @@
-import { useRef, useState } from "react";
-import { STATUS_CLASS, STATUS_ICON, type PolicyStatus } from "@/lib/freight/policies";
+import { useMemo, useRef, useState } from "react";
+import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
+import { policies, STATUS_CLASS, STATUS_ICON, type PolicyStatus } from "@/lib/freight/policies";
 import {
+  addPolicyModality,
+  removePolicyModality,
   STATUS_OPTIONS,
   replaceMatrix,
   resetMatrix,
@@ -9,10 +12,12 @@ import {
 } from "@/lib/freight/policy-status-store";
 import {
   removePolicyDraft,
+  removePolicyDraftsByModality,
   usePolicyDrafts,
   type ShippingPolicyDraft,
 } from "@/lib/freight/policy-registry";
 import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
+import { logAudit } from "@/lib/freight/audit-log";
 import {
   Dialog,
   DialogContent,
@@ -20,12 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-type PolicyTarget = {
-  policyId: string | null;
-  store: string;
-  modality: string;
-};
 
 function PolicyDetails({
   policy,
@@ -52,8 +51,23 @@ function PolicyDetails({
               {policy.modalities.join(" · ")}
             </p>
           </div>
-          <span className="rounded-full bg-success/15 px-2.5 py-1 text-xs font-semibold text-success">
-            Ativa
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              {policy.policyType}
+            </span>
+            {policy.assistedSale ? (
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                Venda assistida
+              </span>
+            ) : null}
+            <span
+              className={
+                "rounded-full px-2.5 py-1 text-xs font-semibold " +
+                (policy.active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground")
+              }
+            >
+              {policy.active ? "Ativa" : "Inativa"}
+            </span>
           </span>
         </div>
       </div>
@@ -98,6 +112,34 @@ function PolicyDetails({
         </div>
       </div>
 
+      {policy.assistedSale ? (
+        <div className="rounded-lg border border-border p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Entrega agendada
+          </h4>
+          {policy.scheduledDelivery.enabled ? (
+            <div className="mt-2 space-y-1 text-xs">
+              <p>Tempo máximo de entrega: {policy.scheduledDelivery.maxDays} dia(s)</p>
+              {policy.scheduledDelivery.capacityEnabled ? (
+                <>
+                  <p>Capacidade em: {policy.scheduledDelivery.unit}</p>
+                  {policy.scheduledDelivery.windows.map((w) => (
+                    <p key={w.id}>
+                      {w.days}: {w.start}–{w.end} · {w.capacity} {policy.scheduledDelivery.unit} ·
+                      adicional R$ {w.additional.toFixed(2)}
+                    </p>
+                  ))}
+                </>
+              ) : (
+                <p className="text-muted-foreground">Capacidade de entrega não configurada.</p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-muted-foreground">Desativada.</p>
+          )}
+        </div>
+      ) : null}
+
       <div>
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {policy.scheduleMode === "janela" ? "Janelas de envio" : "Horários de coleta"}
@@ -141,12 +183,74 @@ export function PoliciesPanel({
 }) {
   const data = usePolicyMatrix();
   const drafts = usePolicyDrafts();
+  const submitted = useSubmittedStores();
+  const [region, setRegion] = useState<"Todas" | "SP" | "RJ">("Todas");
+
+  /** Lojas liberadas: só entram na listagem quando têm polígonos cadastrados. */
+  const availableStores = useMemo(
+    () =>
+      data.stores.filter(
+        (s) =>
+          BASE_STORES.includes(s.nome as never) || submitted.includes(s.nome as never),
+      ),
+    [data.stores, submitted],
+  );
+  const blockedStores = useMemo(
+    () => data.stores.filter((s) => !availableStores.includes(s)),
+    [data.stores, availableStores],
+  );
+  const shownStores = useMemo(
+    () => availableStores.filter((s) => region === "Todas" || s.uf === region),
+    [availableStores, region],
+  );
+
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const [selectedPolicy, setSelectedPolicy] = useState<PolicyTarget | null>(null);
-  const selectedPolicyDraft = selectedPolicy
-    ? drafts.find((policy) => policy.id === selectedPolicy.policyId)
-    : undefined;
+  const [newModality, setNewModality] = useState("");
+  const [selectedModality, setSelectedModality] = useState<string | null>(null);
+  const selectedPolicyDrafts = selectedModality
+    ? drafts.filter((policy) => policy.modalities.includes(selectedModality))
+    : [];
+
+  const addModality = () => {
+    const modality = newModality.trim();
+    const result = addPolicyModality(modality, "");
+    if (result === "empty") {
+      setMessage({ kind: "err", text: "Informe o nome da nova modalidade." });
+      return;
+    }
+    if (result === "exists") {
+      setMessage({ kind: "err", text: "Já existe uma modalidade com esse nome." });
+      return;
+    }
+    setNewModality("");
+    logAudit({
+      store: "Todas",
+      module: "Políticas de Envio",
+      field: "Modalidade",
+      before: "—",
+      after: modality,
+      action: "Adição",
+      description: `Modalidade "${modality}" adicionada à matriz de políticas`,
+    });
+    setMessage({ kind: "ok", text: `Modalidade "${modality}" adicionada à matriz de políticas.` });
+  };
+
+  const removeModality = (modality: string) => {
+    if (!window.confirm(`Remover a modalidade "${modality}"?`)) return;
+    if (removePolicyModality(modality) !== "removed") return;
+    removePolicyDraftsByModality(modality);
+    logAudit({
+      store: "Todas",
+      module: "Políticas de Envio",
+      field: "Modalidade",
+      before: modality,
+      after: "—",
+      action: "Remoção",
+      description: `Modalidade "${modality}" removida da matriz de políticas`,
+    });
+    setMessage({ kind: "ok", text: `Modalidade "${modality}" removida.` });
+  };
 
   const onImport = async (file: File | undefined) => {
     if (!file) return;
@@ -210,6 +314,73 @@ export function PoliciesPanel({
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Filtrar lojas:</span>
+        {(
+          [
+            ["Todas", "Todas as lojas"],
+            ["SP", "Somente SP"],
+            ["RJ", "Somente RJ"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setRegion(value)}
+            className={
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+              (region === value
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border hover:bg-muted/60")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-lg border border-border p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="block flex-1 text-xs text-muted-foreground">
+            Nova modalidade
+            <input
+              className="input mt-1 w-full"
+              value={newModality}
+              onChange={(e) => setNewModality(e.target.value)}
+              placeholder="Ex.: Entrega expressa"
+            />
+          </label>
+          <button
+            type="button"
+            className="rounded-lg border border-primary px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
+            onClick={addModality}
+          >
+            Adicionar modalidade
+          </button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {data.modalities
+            .filter((modality) => !policies.modalities.includes(modality))
+            .map((modality) => (
+              <button
+                key={modality}
+                type="button"
+                className="rounded-full border border-danger/40 px-2.5 py-1 text-[11px] text-danger hover:bg-danger/10"
+                onClick={() => removeModality(modality)}
+              >
+                Remover {modality}
+              </button>
+            ))}
+        </div>
+      </div>
+
+      {blockedStores.length ? (
+        <p className="rounded-lg border border-border bg-muted/40 p-2 text-[11px] text-muted-foreground">
+          Lojas indisponíveis ({blockedStores.map((s) => s.nome).join(", ")}): cadastre os polígonos
+          desta loja para liberar a política de envio.
+        </p>
+      ) : null}
+
       {message ? (
         <p
           className={
@@ -228,7 +399,7 @@ export function PoliciesPanel({
           <thead className="bg-muted/60 uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="sticky left-0 z-10 bg-muted px-2 py-2 text-left">Modalidade</th>
-              {data.stores.map((s) => (
+              {shownStores.map((s) => (
                 <th key={s.nome} className="px-3 py-2 text-center">
                   {s.nome}
                   <span className="block text-[10px] font-normal normal-case">
@@ -242,8 +413,19 @@ export function PoliciesPanel({
           <tbody>
             {data.modalities.map((m) => (
               <tr key={m} className="border-t border-border">
-                <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium">{m}</td>
-                {data.stores.map((s) => {
+                <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium">
+                  <div className="flex min-w-[180px] items-center justify-between gap-2">
+                    <span>{m}</span>
+                    <button
+                      type="button"
+                      className="rounded-md border border-primary px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+                      onClick={() => setSelectedModality(m)}
+                    >
+                      Visualizar
+                    </button>
+                  </div>
+                </td>
+                {shownStores.map((s) => {
                   const cell = s.cells[m] ?? { status: "—" as PolicyStatus, note: "" };
                   const policy = drafts.find(
                     (draft) => draft.store === s.nome && draft.modalities.includes(m),
@@ -276,19 +458,6 @@ export function PoliciesPanel({
                           className="mt-1 w-full min-w-[140px] rounded-md border border-border bg-background px-2 py-1 text-[11px]"
                         />
                       ) : null}
-                      <button
-                        type="button"
-                        className="mt-2 w-full rounded-md border border-primary px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
-                        onClick={() =>
-                          setSelectedPolicy({
-                            policyId: policy?.id ?? null,
-                            store: s.nome,
-                            modality: m,
-                          })
-                        }
-                      >
-                        Visualizar
-                      </button>
                     </td>
                   );
                 })}
@@ -298,49 +467,49 @@ export function PoliciesPanel({
         </table>
       </div>
       <Dialog
-        open={Boolean(selectedPolicy)}
+        open={Boolean(selectedModality)}
         onOpenChange={(open) => {
-          if (!open) setSelectedPolicy(null);
+          if (!open) setSelectedModality(null);
         }}
       >
-        {selectedPolicy ? (
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
+        {selectedModality ? (
+          <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Detalhes da política</DialogTitle>
+              <DialogTitle>Políticas da modalidade</DialogTitle>
               <DialogDescription>
-                {selectedPolicy.store} · {selectedPolicy.modality}
+                {selectedModality} · {availableStores.length} loja(s)
               </DialogDescription>
             </DialogHeader>
-            {selectedPolicyDraft ? (
-              <PolicyDetails
-                policy={selectedPolicyDraft}
-                onEdit={() => {
-                  setSelectedPolicy(null);
-                  onEditPolicy(selectedPolicyDraft);
-                }}
-                onRemove={() => {
-                  if (
-                    !window.confirm(
-                      `Remover a política de ${selectedPolicyDraft.store} para ${selectedPolicyDraft.modalities.join(" · ")}?`,
-                    )
-                  ) {
-                    return;
-                  }
-                  removePolicyDraft(selectedPolicyDraft.id);
-                  const modality = selectedPolicyDraft.modalities[0];
-                  if (modality) {
-                    updateCell(selectedPolicyDraft.store, modality, {
-                      status: "Não informada",
-                    });
-                  }
-                  setSelectedPolicy(null);
-                }}
-              />
-            ) : (
-              <p className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-                Política não cadastrada.
-              </p>
-            )}
+            <div className="flex max-w-full gap-4 overflow-x-auto pb-3">
+              {availableStores.map((store) => {
+                const policy = selectedPolicyDrafts.find((item) => item.store === store.nome);
+                return policy ? (
+                  <div key={store.nome} className="min-w-[min(420px,80vw)]">
+                    <PolicyDetails
+                      policy={policy}
+                      onEdit={() => {
+                        setSelectedModality(null);
+                        onEditPolicy(policy);
+                      }}
+                      onRemove={() => {
+                        if (!window.confirm(`Remover a política de ${policy.store} para ${policy.modalities.join(" · ")}?`)) return;
+                        removePolicyDraft(policy.id);
+                        updateCell(policy.store, selectedModality, { status: "Não informada" });
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div key={store.nome} className="min-w-[min(420px,80vw)]">
+                    <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+                      <p className="font-semibold">{store.nome}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Sem política cadastrada · Status: {store.cells[selectedModality]?.status ?? "—"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </DialogContent>
         ) : null}
       </Dialog>

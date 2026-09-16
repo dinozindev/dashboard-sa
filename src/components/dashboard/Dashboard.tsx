@@ -39,6 +39,7 @@ import { ScheduleGrid, StatusBadge } from "./SchedulePanel";
 import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
+import { DocksPanel } from "./DocksPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
 import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
 import { AuditHistoryPanel } from "./AuditHistoryPanel";
@@ -61,6 +62,8 @@ export default function Dashboard() {
     "operacao" | "politicas" | "cadastro" | "envio" | "auditoria"
   >("operacao");
   const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
+  /** Sub-aba dentro de "Políticas de Envio": matriz ou docas */
+  const [policyTab, setPolicyTab] = useState<"matriz" | "docas">("matriz");
 
   // ============================================================================
   // ESTADO: Filtros geográficos
@@ -349,12 +352,40 @@ export default function Dashboard() {
         </nav>
 
         {tab === "politicas" ? (
-          <PoliciesPanel
-            onEditPolicy={(policy) => {
-              setEditingPolicy(policy);
-              setTab("cadastro");
-            }}
-          />
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["matriz", "Políticas de Envio"],
+                  ["docas", "Docas"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setPolicyTab(key)}
+                  className={
+                    "rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors " +
+                    (policyTab === key
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:bg-muted/60")
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {policyTab === "matriz" ? (
+              <PoliciesPanel
+                onEditPolicy={(policy) => {
+                  setEditingPolicy(policy);
+                  setTab("cadastro");
+                }}
+              />
+            ) : (
+              <DocksPanel />
+            )}
+          </div>
         ) : null}
         {tab === "cadastro" ? (
           <PolicyFormPanel

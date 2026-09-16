@@ -1,0 +1,188 @@
+/**
+ * DOCAS POR LOJA
+ * ==============
+ *
+ * Lista as lojas liberadas (com polígonos cadastrados) e suas 3 docas fixas.
+ * Ao abrir uma doca, é possível associar ou desvincular as políticas de envio
+ * cadastradas para aquela loja. Tudo salvo em JSON no navegador.
+ */
+
+import { useMemo, useState } from "react";
+import { policies } from "@/lib/freight/policies";
+import { usePolicyDrafts, type ShippingPolicyDraft } from "@/lib/freight/policy-registry";
+import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
+import {
+  DOCKS,
+  dockKey,
+  toggleDockPolicy,
+  useDockLinks,
+  type DockName,
+} from "@/lib/freight/docks-store";
+
+const policyLabel = (p: ShippingPolicyDraft) =>
+  `${p.modalities.join(" · ") || "Sem modalidade"} (${p.policyType})`;
+
+export function DocksPanel() {
+  const drafts = usePolicyDrafts();
+  const links = useDockLinks();
+  const submitted = useSubmittedStores();
+  const [open, setOpen] = useState<{ store: string; dock: DockName } | null>(null);
+  const [region, setRegion] = useState<"Todas" | "SP" | "RJ">("Todas");
+
+  const stores = useMemo(
+    () =>
+      policies.stores.filter(
+        (s) =>
+          (BASE_STORES.includes(s.nome as never) || submitted.includes(s.nome as never)) &&
+          (region === "Todas" || s.uf === region),
+      ),
+    [submitted, region],
+  );
+
+  const blocked = useMemo(
+    () =>
+      policies.stores.filter(
+        (s) => !BASE_STORES.includes(s.nome as never) && !submitted.includes(s.nome as never),
+      ),
+    [submitted],
+  );
+
+  if (open) {
+    const storePolicies = drafts.filter((d) => d.store === open.store);
+    const linked = links[dockKey(open.store, open.dock)] ?? [];
+    return (
+      <div className="space-y-3 surface p-4">
+        <button type="button" className="btn-ghost text-xs" onClick={() => setOpen(null)}>
+          ← Voltar para as docas
+        </button>
+        <div>
+          <h2 className="section-title text-lg">
+            {open.dock} · {open.store}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Associe as políticas de envio desta loja à doca. Uma política pode estar associada a
+            mais de uma doca.
+          </p>
+        </div>
+
+        {!storePolicies.length ? (
+          <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+            Nenhuma política cadastrada para {open.store}. Cadastre uma política na aba “Cadastro de
+            Política de Envio”.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {storePolicies.map((p) => {
+              const isLinked = linked.includes(p.id);
+              return (
+                <div
+                  key={p.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-xs"
+                >
+                  <div>
+                    <p className="text-sm font-semibold">{policyLabel(p)}</p>
+                    <p className="text-muted-foreground">
+                      {p.active ? "Ativa" : "Inativa"}
+                      {p.assistedSale ? " · venda assistida" : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className={
+                      "rounded-lg px-3 py-1.5 text-xs font-semibold " +
+                      (isLinked
+                        ? "border border-danger/50 text-danger hover:bg-danger/10"
+                        : "bg-primary text-primary-foreground hover:opacity-90")
+                    }
+                    onClick={() => toggleDockPolicy(open.store, open.dock, p.id, policyLabel(p))}
+                  >
+                    {isLinked ? "Desvincular" : "Associar"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 surface p-4">
+      <div>
+        <h2 className="section-title text-lg">Docas por loja</h2>
+        <p className="text-xs text-muted-foreground">
+          Cada loja possui três docas. Clique em uma doca para associar as políticas de envio
+          cadastradas.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Filtrar lojas:</span>
+        {(
+          [
+            ["Todas", "Todas as lojas"],
+            ["SP", "Somente SP"],
+            ["RJ", "Somente RJ"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setRegion(value)}
+            className={
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+              (region === value
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border hover:bg-muted/60")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {blocked.length ? (
+        <p className="rounded-lg border border-border bg-muted/40 p-2 text-[11px] text-muted-foreground">
+          Lojas indisponíveis ({blocked.map((s) => s.nome).join(", ")}): cadastre os polígonos desta
+          loja para liberar a política de envio.
+        </p>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {stores.map((s) => (
+          <div key={s.nome} className="rounded-xl border border-border p-3">
+            <p className="text-sm font-semibold">{s.nome}</p>
+            <p className="text-[11px] text-muted-foreground">
+              {s.cidade}/{s.uf}
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {DOCKS.map((dock) => {
+                const count = (links[dockKey(s.nome, dock)] ?? []).length;
+                return (
+                  <button
+                    key={dock}
+                    type="button"
+                    onClick={() => setOpen({ store: s.nome, dock })}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-left text-xs hover:bg-muted/60"
+                  >
+                    <span className="font-medium">{dock}</span>
+                    <span className="text-muted-foreground">
+                      {count} política{count === 1 ? "" : "s"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {!stores.length ? (
+        <p className="text-xs text-muted-foreground">
+          Nenhuma loja disponível para este filtro.
+        </p>
+      ) : null}
+    </div>
+  );
+}

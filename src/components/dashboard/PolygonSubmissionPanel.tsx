@@ -54,6 +54,15 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
         action: "Adição",
         description: `${count.toLocaleString("pt-BR")} polígonos adicionados para a loja de ${store}`,
       });
+      logAudit({
+        store,
+        module: "Políticas de Envio",
+        field: "Disponibilidade da loja",
+        before: "Oculta (sem polígonos)",
+        after: "Disponível",
+        action: "Liberação automática",
+        description: `Loja ${store} liberada para cadastro de política de envio após o envio dos polígonos`,
+      });
     }
     setFeedback(
       created

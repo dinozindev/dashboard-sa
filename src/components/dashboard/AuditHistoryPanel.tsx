@@ -25,11 +25,13 @@ const ACTIONS: AuditAction[] = [
   "Desativação",
   "Adição",
   "Remoção",
+  "Liberação automática",
 ];
 
 const MODULES: AuditModule[] = [
   "Cadastro de Política de Envio",
   "Políticas de Envio",
+  "Docas",
   "Criação de Polígonos",
 ];
 
@@ -40,6 +42,7 @@ const ACTION_CLASS: Record<AuditAction, string> = {
   Ativação: "border-primary/40 bg-primary/10 text-primary",
   Desativação: "border-border bg-muted text-muted-foreground",
   Remoção: "border-danger/40 bg-danger/10 text-danger",
+  "Liberação automática": "border-warning/40 bg-warning/15 text-warning-foreground",
 };
 
 type PeriodKey = "todos" | "24h" | "7d" | "personalizado";
