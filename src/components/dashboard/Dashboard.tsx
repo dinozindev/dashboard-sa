@@ -684,10 +684,8 @@ export default function Dashboard() {
               <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
                 <TariffTable
                   bands={selectedBands}
-                  weight={weight}
                   activeIndex={bandIndex}
                   onPickBand={setBandIndex}
-                  hidePrice={isPickup}
                 />
                 {isPickup ? (
                   <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
@@ -755,10 +753,10 @@ export default function Dashboard() {
         </div>
 
 
-        <footer className="pb-8 text-[11px] text-muted-foreground">
+        {/* <footer className="pb-8 text-[11px] text-muted-foreground">
           Fonte: GeoJSON de polígonos + planilha de frete (associação Nome_Poligono ↔ PolygonName).
           Simulações de faixas são aplicadas apenas em memória e não alteram os arquivos originais.
-        </footer>
+        </footer> */}
       </main>
     </div>
   );

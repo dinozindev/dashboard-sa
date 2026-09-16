@@ -183,7 +183,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             >
               {s} · enviada
               <button
-                className="text-[11px] underline"
+                className="rounded px-1 text-[11px] text-danger underline hover:bg-danger/10 cursor-pointer"
                 onClick={() => handleUnsubmit(s)}
                 aria-label={`Remover ${s} do mapa`}
               >

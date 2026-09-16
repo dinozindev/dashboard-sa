@@ -374,12 +374,12 @@ export function PoliciesPanel({
         </div>
       </div>
 
-      {blockedStores.length ? (
+      {/* {blockedStores.length ? (
         <p className="rounded-lg border border-border bg-muted/40 p-2 text-[11px] text-muted-foreground">
           Lojas indisponíveis ({blockedStores.map((s) => s.nome).join(", ")}): cadastre os polígonos
           desta loja para liberar a política de envio.
         </p>
-      ) : null}
+      ) : null} */}
 
       {message ? (
         <p
@@ -477,11 +477,11 @@ export function PoliciesPanel({
             <DialogHeader>
               <DialogTitle>Políticas da modalidade</DialogTitle>
               <DialogDescription>
-                {selectedModality} · {availableStores.length} loja(s)
+                {selectedModality} · {shownStores.length} loja(s)
               </DialogDescription>
             </DialogHeader>
             <div className="flex max-w-full gap-4 overflow-x-auto pb-3">
-              {availableStores.map((store) => {
+              {shownStores.map((store) => {
                 const policy = selectedPolicyDrafts.find((item) => item.store === store.nome);
                 return policy ? (
                   <div key={store.nome} className="min-w-[min(420px,80vw)]">
@@ -513,10 +513,6 @@ export function PoliciesPanel({
           </DialogContent>
         ) : null}
       </Dialog>
-      <p className="text-[11px] text-muted-foreground">
-        Base original: planilha {data.source}. O arquivo enviado não é alterado — use “Baixar JSON”
-        para gerar a versão atualizada.
-      </p>
     </div>
   );
 }
