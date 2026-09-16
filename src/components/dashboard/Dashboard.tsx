@@ -308,14 +308,13 @@ export default function Dashboard() {
             </span>
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/70">
-                Obramax · Logística
+                Obramax · Supply Chain
               </p>
               <h1 className="font-display text-2xl font-bold tracking-tight text-white">
-                Dashboard Interativo de Frete
+                Painel OMS
               </h1>
               <p className="mt-0.5 text-sm text-white/75">
-                Áreas de entrega, tarifas por faixa de peso e capacidade operacional — São Paulo +
-                Rio de Janeiro.
+                Áreas de entrega, tarifas por faixa de peso e capacidade operacional 
               </p>
             </div>
           </div>
@@ -334,7 +333,7 @@ export default function Dashboard() {
       <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-5">
         <nav className="surface flex flex-wrap gap-1 p-1.5">
           {([
-            ["operacao", "Operação e frete"],
+            ["operacao", "Área de Atendimento e Frete"],
             ["politicas", "Políticas de Envio"],
             ["cadastro", "Cadastro de Política de Envio"],
             ["envio", "Envio de Polígonos"],
