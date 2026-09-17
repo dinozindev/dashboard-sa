@@ -278,7 +278,8 @@ export default function Dashboard() {
     return allPolygons.filter(
       (p) =>
         shownStores.includes(p.store) &&
-        bands.includes(p.band) &&
+        // faixas fora da paleta padrão (ex.: arquivo sem "Faixa") continuam visíveis
+        (bands.includes(p.band) || !BAND_ORDER.includes(p.band)) &&
         (p.kind ?? "Entrega") === modality &&
         (q === "" ||
           p.id.toLowerCase().includes(q) ||
