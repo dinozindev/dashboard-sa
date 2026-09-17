@@ -44,8 +44,8 @@ function areaKm2Of(coords: number[][][][]): number {
   const kmPerDegLng = 111.32 * Math.cos((latRef * Math.PI) / 180);
   let a = 0;
   for (let i = 0; i < ring.length - 1; i += 1) {
-    const p1 = ring[i];
-    const p2 = ring[i + 1];
+    const p1 = ring[i] as number[];
+    const p2 = ring[i + 1] as number[];
     const x1 = (p1[0] ?? 0) * kmPerDegLng;
     const y1 = (p1[1] ?? 0) * kmPerDegLat;
     const x2 = (p2[0] ?? 0) * kmPerDegLng;
