@@ -96,6 +96,12 @@ type ProfileKey = keyof typeof PROFILES;
 /**
  * DASHBOARD - Componente principal
  */
+/** Nome legível do polígono (padrão Distrito_Faixa_Numero), sem prefixos internos. */
+function polygonLabel(rec: { id: string }): string {
+  const parts = rec.id.split("|");
+  return parts[parts.length - 1] || rec.id;
+}
+
 export default function Dashboard() {
   // ============================================================================
   // ESTADO: Abas principais
@@ -379,7 +385,7 @@ export default function Dashboard() {
    */
   const tooltipFor = (rec: PolygonRecord) => {
     const r = calcPrice(bandsOf(rec), weight);
-    return `<strong>${rec.id}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${
+    return `<strong>${polygonLabel(rec)}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${
       rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
     }${
       isPickup
@@ -939,7 +945,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h2 className="section-title text-lg">{selected.id}</h2>
+                  <h2 className="section-title text-lg">{polygonLabel(selected)}</h2>
                   <p className="text-xs text-muted-foreground">
                     {selected.store} · faixa {selected.band} ({selected.rMin}–{selected.rMax} km) ·
                     {" "}

@@ -196,9 +196,14 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
         const coords = asMulti(g);
         const center = centroidOf(coords);
         const attrs = props[i] ?? {};
-        const districtValue = pick(attrs, ["NM_DIST", "distrito", "district", "Nome_Poligono", "PolygonName"]);
+        const districtValue = pick(attrs, ["NM_DIST", "distrito", "district"]);
+        const nameValue = pick(attrs, ["Nome_Poligono", "PolygonName", "nome_poligono", "name"]);
+        const polygonName =
+          nameValue === undefined || String(nameValue).trim() === ""
+            ? `${districtValue ?? storeName}_${bandOf(attrs)}_${String(i + 1).padStart(3, "0")}`
+            : String(nameValue);
         return {
-          clientId: `${storeName}|${kind}|${Date.now()}|${i}`,
+          clientId: `${storeName}|${kind}|${polygonName}`,
           storeId,
           policyId: null,
           kind,
