@@ -141,25 +141,18 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     try {
       const { id: storeId } = await ensureStore({ data: { name: storeName, region } });
 
-      let policyClientId: string | null = null;
-      if (policyId) {
-        const draft = drafts.find((d) => d.id === policyId);
-        if (!draft) throw new Error("Política não encontrada.");
-        policyClientId = draft.id;
-      }
-
-      if (replaceExisting && policyClientId) {
-        await deletePolygonCollection({ data: { storeId, policyClientId } });
+      if (replaceExisting) {
+        await deletePolygonCollection({ data: { storeId, kind } });
       }
 
       const rows = geo.map((g, i) => {
         const coords = asMulti(g);
         const center = centroidOf(coords);
         return {
-          clientId: `${storeName}|${policyClientId ?? "base"}|${Date.now()}|${i}`,
+          clientId: `${storeName}|${kind}|${Date.now()}|${i}`,
           storeId,
-          policyId: policyClientId,
-          policyClientId,
+          policyId: null,
+          kind,
           district: null,
           uf: region,
           band: "—",
