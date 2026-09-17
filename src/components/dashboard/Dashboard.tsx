@@ -17,6 +17,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
+  dataset,
   polygons as staticPolygons,
   stores as staticStoreRefs,
   STORE_NAMES,
