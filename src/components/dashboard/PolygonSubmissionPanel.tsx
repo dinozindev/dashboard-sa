@@ -9,7 +9,13 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useLive, liveStores, refreshLive, storeRegionOf } from "@/lib/freight/live";
-import { deletePolygonCollection, ensureStore, insertPolygonRows } from "@/lib/freight/remote.functions";
+import {
+  deletePolygonCollection,
+  deleteStatePolygon,
+  ensureStore,
+  insertPolygonRows,
+  upsertStatePolygon,
+} from "@/lib/freight/remote.functions";
 import { logAudit } from "@/lib/freight/audit-log";
 import { useSubmittedStores, useDbStores } from "@/lib/freight/submitted-stores";
 
