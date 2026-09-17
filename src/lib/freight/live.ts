@@ -145,6 +145,7 @@ function applySnapshot(raw: FreightSnapshotDto) {
       tariff: tableIdx,
       geom,
       policyClientId: p.policyClientId,
+      kind: p.kind === "Retira" ? "Retira" : "Entrega",
     });
   }
 
