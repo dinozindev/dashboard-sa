@@ -400,6 +400,8 @@ export function PolicyFormPanel({
   const [replicating, setReplicating] = useState(false);
   const [replicaFrom, setReplicaFrom] = useState("");
   const [replicaTarget, setReplicaTarget] = useState("");
+  /** Modalidade travada durante a replicação: só a política original pode ser mantida. */
+  const [replicaModality, setReplicaModality] = useState("");
 
 
   const effectiveSeller = pickupSeller || store;
@@ -633,6 +635,7 @@ export function PolicyFormPanel({
     setReplicating(false);
     setReplicaFrom("");
     setReplicaTarget("");
+    setReplicaModality("");
     setSaved(id);
     setIoMessage(result === "updated" ? "Política existente atualizada." : null);
     onFinishEdit?.();
@@ -644,6 +647,7 @@ export function PolicyFormPanel({
     setReplicaFrom(store);
     setStore(replicaTarget);
     setReplicating(true);
+    setReplicaModality(modality);
     setTariffIndex(null);
     setTariffSource("existente");
     setTariffFileName("");
@@ -741,25 +745,40 @@ export function PolicyFormPanel({
 
           <Section
             title="Modalidades associadas"
-            hint="Selecione uma única modalidade da matriz de políticas para este cadastro. Novas modalidades são cadastradas na aba Políticas de Envio."
+            hint={
+              replicating
+                ? "Na replicação, a modalidade da política original é mantida — as demais ficam desabilitadas."
+                : "Selecione uma única modalidade da matriz de políticas para este cadastro. Novas modalidades são cadastradas na aba Políticas de Envio."
+            }
           >
             <div className="grid gap-2 sm:grid-cols-2">
-              {modalityList.map((m) => (
-                <div key={m} className="flex items-center gap-2 text-xs">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="shipping-policy-modality"
-                      checked={modality === m}
-                      onChange={() => setModality(m)}
-                    />
-                    <span>
-                      {m}
-                      {shippingPolicyDefinition(m)?.id ? ` · ID ${shippingPolicyDefinition(m)?.id}` : null}
-                    </span>
-                  </label>
-                </div>
-              ))}
+              {modalityList.map((m) => {
+                const lockedOut = replicating && m !== replicaModality;
+                return (
+                  <div
+                    key={m}
+                    className={
+                      "flex items-center gap-2 text-xs" +
+                      (lockedOut ? " opacity-50" : "")
+                    }
+                  >
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="shipping-policy-modality"
+                        checked={modality === m}
+                        disabled={lockedOut}
+                        onChange={() => setModality(m)}
+                      />
+                      <span>
+                        {m}
+                        {shippingPolicyDefinition(m)?.id ? ` · ID ${shippingPolicyDefinition(m)?.id}` : null}
+                        {lockedOut ? " · fixa na replicação" : null}
+                      </span>
+                    </label>
+                  </div>
+                );
+              })}
             </div>
           </Section>
 
