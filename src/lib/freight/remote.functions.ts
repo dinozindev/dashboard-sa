@@ -71,6 +71,13 @@ export interface FreightSnapshotDto {
     kind: "Entrega" | "Retira" | null;
     geojson: { type: string; coordinates: number[][][][] } | null;
   }>;
+  statePolygons: Array<{
+    uf: string;
+    name: string;
+    source: string | null;
+    updatedAt: string;
+    geojson: { type: string; coordinates: number[][][][] } | null;
+  }>;
   dockLinks: Array<{ store: string; dock: string; policyClientId: string }>;
   policyCells: Array<{ store: string; modality: string; status: string; note: string }>;
   customModalities: string[];
@@ -503,6 +510,39 @@ export const deletePolygonCollection = createServerFn({ method: "POST" })
       .delete()
       .eq("store_id", data.storeId)
       .eq("kind", data.kind);
+    fail(error);
+    return { ok: true };
+  });
+
+// ============================================================================
+// MALHAS ESTADUAIS (RETIRA)
+// ============================================================================
+
+/** Grava (ou substitui) a malha estadual de uma UF usada na modalidade Retira. */
+export const upsertStatePolygon = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: { uf: string; name: string; source?: string | null; geojson: string }) => input,
+  )
+  .handler(async ({ data }) => {
+    const supabase = publicClient();
+    const { error } = await supabase.rpc("upsert_state_polygon", {
+      payload: {
+        uf: data.uf,
+        name: data.name,
+        source: data.source ?? null,
+        geojson: data.geojson,
+      },
+    });
+    fail(error);
+    return { ok: true };
+  });
+
+/** Remove a malha estadual de uma UF. */
+export const deleteStatePolygon = createServerFn({ method: "POST" })
+  .inputValidator((input: { uf: string }) => input)
+  .handler(async ({ data }) => {
+    const supabase = publicClient();
+    const { error } = await supabase.from("state_polygons").delete().eq("uf", data.uf);
     fail(error);
     return { ok: true };
   });

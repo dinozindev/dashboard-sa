@@ -9,7 +9,13 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useLive, liveStores, refreshLive, storeRegionOf } from "@/lib/freight/live";
-import { deletePolygonCollection, ensureStore, insertPolygonRows } from "@/lib/freight/remote.functions";
+import {
+  deletePolygonCollection,
+  deleteStatePolygon,
+  ensureStore,
+  insertPolygonRows,
+  upsertStatePolygon,
+} from "@/lib/freight/remote.functions";
 import { logAudit } from "@/lib/freight/audit-log";
 import { useSubmittedStores, useDbStores } from "@/lib/freight/submitted-stores";
 
@@ -71,6 +77,9 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [newStore, setNewStore] = useState("");
+  const [stateFeedback, setStateFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(
+    null,
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   const storeOptions = useMemo(
@@ -216,6 +225,71 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       action: "Remoção",
       description: `Coleção de ${collectionKind} removida da loja de ${storeName}`,
     });
+    await refreshLive();
+  };
+
+  /** Substitui a malha estadual de uma UF por um novo GeoJSON */
+  const handleStateFile = async (uf: string, name: string, file: File | undefined) => {
+    if (!file) return;
+    setStateFeedback(null);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text) as
+        | AnyGeom
+        | { type: "Feature"; geometry: AnyGeom }
+        | { type: "FeatureCollection"; features: Array<{ geometry: AnyGeom }> };
+      let geoms: AnyGeom[] = [];
+      if (json.type === "FeatureCollection") {
+        geoms = (json.features ?? []).map((f) => f.geometry).filter(Boolean);
+      } else if (json.type === "Feature") {
+        geoms = [(json as { geometry: AnyGeom }).geometry];
+      } else {
+        geoms = [json as AnyGeom];
+      }
+      geoms = geoms.filter((g) => g && (g.type === "Polygon" || g.type === "MultiPolygon"));
+      if (!geoms.length) throw new Error("Nenhuma geometria Polygon/MultiPolygon no arquivo.");
+      const coords = geoms.flatMap((g) => asMulti(g));
+      await upsertStatePolygon({
+        data: {
+          uf,
+          name,
+          source: file.name,
+          geojson: JSON.stringify({ type: "MultiPolygon", coordinates: coords }),
+        },
+      });
+      logAudit({
+        store: `Estado ${uf}`,
+        module: "Criação de Polígonos",
+        field: `Malha estadual (${uf})`,
+        before: "Cadastrada",
+        after: file.name,
+        action: "Edição",
+        description: `Malha estadual de ${name} substituída por ${file.name} (${coords.length} partes)`,
+      });
+      setStateFeedback({ kind: "ok", text: `Malha de ${name} atualizada no banco.` });
+      await refreshLive();
+    } catch (e) {
+      setStateFeedback({
+        kind: "err",
+        text: e instanceof Error ? e.message : "Falha ao atualizar a malha estadual.",
+      });
+    }
+  };
+
+  /** Remove a malha estadual de uma UF */
+  const handleRemoveState = async (uf: string, name: string) => {
+    if (!window.confirm(`Remover a malha estadual de ${name}?`)) return;
+    await deleteStatePolygon({ data: { uf } });
+    logAudit({
+      store: `Estado ${uf}`,
+      module: "Criação de Polígonos",
+      field: `Malha estadual (${uf})`,
+      before: "Cadastrada",
+      after: "—",
+      action: "Remoção",
+      description: `Malha estadual de ${name} removida`,
+    });
+    setStateFeedback({ kind: "ok", text: `Malha de ${name} removida.` });
     await refreshLive();
   };
 
@@ -390,6 +464,78 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="surface space-y-3 p-4">
+        <div>
+          <h3 className="section-title text-base">Malhas estaduais (Retira)</h3>
+          <p className="text-xs text-muted-foreground">
+            Contornos de São Paulo e Rio de Janeiro usados na modalidade Retira. Ficam gravados no
+            banco e podem ser substituídos por um novo arquivo GeoJSON.
+          </p>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/60 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-2 py-2 text-left">Estado</th>
+                <th className="px-2 py-2 text-right">Partes</th>
+                <th className="px-2 py-2 text-right">Pontos</th>
+                <th className="px-2 py-2 text-left">Substituir</th>
+                <th className="px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {(live?.statePolygons ?? []).map((s) => (
+                <tr key={s.uf} className="border-t border-border">
+                  <td className="px-2 py-1.5 font-medium">
+                    {s.name} ({s.uf})
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{s.geom.length}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {s.geom
+                      .reduce((t, poly) => t + poly.reduce((r, ring) => r + ring.length, 0), 0)
+                      .toLocaleString("pt-BR")}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input
+                      type="file"
+                      accept=".geojson,.json,application/geo+json,application/json"
+                      className="input w-52 text-[11px]"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        void handleStateFile(s.uf, s.name, f);
+                      }}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    <button
+                      className="text-[11px] text-danger underline hover:bg-danger/10"
+                      onClick={() => void handleRemoveState(s.uf, s.name)}
+                    >
+                      remover
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {(live?.statePolygons ?? []).length === 0 ? (
+                <tr>
+                  <td className="px-2 py-3 text-xs text-muted-foreground" colSpan={5}>
+                    Nenhuma malha estadual gravada no banco.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        {stateFeedback ? (
+          <p
+            className={`text-xs ${stateFeedback.kind === "ok" ? "text-success" : "text-danger"}`}
+          >
+            {stateFeedback.text}
+          </p>
+        ) : null}
       </section>
     </div>
   );
