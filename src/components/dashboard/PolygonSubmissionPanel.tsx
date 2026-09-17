@@ -397,6 +397,78 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
           </table>
         </div>
       </section>
+
+      <section className="surface space-y-3 p-4">
+        <div>
+          <h3 className="section-title text-base">Malhas estaduais (Retira)</h3>
+          <p className="text-xs text-muted-foreground">
+            Contornos de São Paulo e Rio de Janeiro usados na modalidade Retira. Ficam gravados no
+            banco e podem ser substituídos por um novo arquivo GeoJSON.
+          </p>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/60 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-2 py-2 text-left">Estado</th>
+                <th className="px-2 py-2 text-right">Partes</th>
+                <th className="px-2 py-2 text-right">Pontos</th>
+                <th className="px-2 py-2 text-left">Substituir</th>
+                <th className="px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {(live?.statePolygons ?? []).map((s) => (
+                <tr key={s.uf} className="border-t border-border">
+                  <td className="px-2 py-1.5 font-medium">
+                    {s.name} ({s.uf})
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{s.geom.length}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {s.geom
+                      .reduce((t, poly) => t + poly.reduce((r, ring) => r + ring.length, 0), 0)
+                      .toLocaleString("pt-BR")}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input
+                      type="file"
+                      accept=".geojson,.json,application/geo+json,application/json"
+                      className="input w-52 text-[11px]"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        void handleStateFile(s.uf, s.name, f);
+                      }}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    <button
+                      className="text-[11px] text-danger underline hover:bg-danger/10"
+                      onClick={() => void handleRemoveState(s.uf, s.name)}
+                    >
+                      remover
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {(live?.statePolygons ?? []).length === 0 ? (
+                <tr>
+                  <td className="px-2 py-3 text-xs text-muted-foreground" colSpan={5}>
+                    Nenhuma malha estadual gravada no banco.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        {stateFeedback ? (
+          <p
+            className={`text-xs ${stateFeedback.kind === "ok" ? "text-success" : "text-danger"}`}
+          >
+            {stateFeedback.text}
+          </p>
+        ) : null}
+      </section>
     </div>
   );
 }
