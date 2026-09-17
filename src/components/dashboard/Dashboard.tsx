@@ -49,6 +49,35 @@ import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 // Lazy load do mapa (pesado, carrega sob demanda)
 const FreightMap = lazy(() => import("./FreightMap"));
 
+/** Abas disponíveis no painel */
+const TABS = [
+  ["operacao", "Área de Atendimento e Frete"],
+  ["politicas", "Políticas de Envio"],
+  ["cadastro", "Cadastro de Política de Envio"],
+  ["envio", "Envio de Polígonos"],
+  ["auditoria", "Histórico de Auditoria"],
+] as const;
+
+type TabKey = (typeof TABS)[number][0];
+
+/** Perfis de acesso simulados e as abas que cada um enxerga */
+const PROFILES = {
+  consultor: {
+    label: "Consultor",
+    tabs: ["operacao", "politicas"] as TabKey[],
+  },
+  editor: {
+    label: "Editor",
+    tabs: ["operacao", "politicas", "cadastro", "envio"] as TabKey[],
+  },
+  auditor: {
+    label: "Auditor",
+    tabs: ["operacao", "politicas", "cadastro", "envio", "auditoria"] as TabKey[],
+  },
+} as const;
+
+type ProfileKey = keyof typeof PROFILES;
+
 /**
  * DASHBOARD - Componente principal
  */
@@ -58,12 +87,21 @@ export default function Dashboard() {
   // ============================================================================
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
-  const [tab, setTab] = useState<
-    "operacao" | "politicas" | "cadastro" | "envio" | "auditoria"
-  >("operacao");
+  const [tab, setTab] = useState<TabKey>("operacao");
   const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
   /** Sub-aba dentro de "Políticas de Envio": matriz ou docas */
   const [policyTab, setPolicyTab] = useState<"matriz" | "docas">("matriz");
+
+  /** Perfil de acesso simulado (Consultor / Editor / Auditor) */
+  const [profile, setProfile] = useState<ProfileKey>("auditor");
+
+  /** Abas permitidas para o perfil atual */
+  const allowedTabs = PROFILES[profile].tabs;
+
+  // Se a aba ativa não é permitida no perfil escolhido, volta para a primeira
+  useEffect(() => {
+    if (!allowedTabs.includes(tab)) setTab(allowedTabs[0] ?? "operacao");
+  }, [allowedTabs, tab]);
 
   // ============================================================================
   // ESTADO: Filtros geográficos
@@ -301,6 +339,28 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-surface-subtle">
       <header className="bg-brand-gradient text-white">
+        <div className="border-b border-white/15 bg-black/15">
+          <div className="mx-auto flex max-w-[1600px] items-center justify-end gap-2 px-4 py-1.5">
+            <label
+              htmlFor="profile-select"
+              className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70"
+            >
+              Visualização
+            </label>
+            <select
+              id="profile-select"
+              className="rounded-md border border-white/25 bg-white/10 px-2 py-1 text-xs font-semibold text-white outline-none [&>option]:text-foreground"
+              value={profile}
+              onChange={(e) => setProfile(e.target.value as ProfileKey)}
+            >
+              {(Object.keys(PROFILES) as ProfileKey[]).map((key) => (
+                <option key={key} value={key}>
+                  {PROFILES[key].label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-6">
           <div className="flex items-center gap-4">
             <span className="bg-accent-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-display text-lg font-bold text-white shadow-brand">
@@ -331,14 +391,8 @@ export default function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-5">
-        <nav className="surface flex flex-wrap gap-1 p-1.5">
-          {([
-            ["operacao", "Área de Atendimento e Frete"],
-            ["politicas", "Políticas de Envio"],
-            ["cadastro", "Cadastro de Política de Envio"],
-            ["envio", "Envio de Polígonos"],
-            ["auditoria", "Histórico de Auditoria"],
-          ] as const).map(([key, label]) => (
+        <nav className="surface flex flex-wrap items-center gap-1 p-1.5">
+          {TABS.filter(([key]) => allowedTabs.includes(key)).map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
