@@ -344,7 +344,7 @@ export default function Dashboard() {
             { label: "Frete médio", value: prices.length ? brl(avg) : "—" },
           ]),
     ];
-  }, [visible, weight, overrides, shownStores, isPickup]);
+  }, [visible, weight, overrides, shownStores, isPickup, policyTariffIdx]);
 
   /**
    * Gera tooltip HTML para exibir sobre polígono no mapa.
@@ -710,14 +710,13 @@ export default function Dashboard() {
 
           {!isPickup ? (
             <label className="field-label">
-              Política de envio
+              Política de envio (tabela de frete)
               <select
                 className="input mt-1 w-56"
                 value={policyFilter}
                 onChange={(e) => setPolicyFilter(e.target.value)}
               >
-                <option value="todas">Todas as coleções</option>
-                <option value="sem-politica">Base (sem política)</option>
+                <option value="todas">Tabela padrão da loja</option>
                 {(live?.drafts ?? []).map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.store} · {d.modalities.join(" / ") || d.policyType}
