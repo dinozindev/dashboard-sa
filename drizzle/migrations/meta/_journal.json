@@ -57,6 +57,13 @@
       "when": 1789666556229,
       "tag": "0007_state_polygons_less_simplify",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789667218660,
+      "tag": "0008_stores_region_all_ufs",
+      "breakpoints": true
     }
   ]
 }

@@ -14,7 +14,7 @@
  *   [State] → [useMemo derivations] → [Componentes] → [Events] → [setState]
  */
 
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
   dataset,
@@ -171,6 +171,32 @@ export default function Dashboard() {
     [region, activeStores, live],
   );
 
+  /** UFs presentes nas lojas cadastradas (para o seletor Regional) */
+  const availableRegions = useMemo(() => {
+    const set = new Set<string>();
+    for (const st of liveStores(live)) set.add(st.region);
+    for (const p of allPolygons) if (p.uf && /^[A-Z]{2}$/.test(p.uf)) set.add(p.uf);
+    if (!set.size) {
+      set.add("SP");
+      set.add("RJ");
+    }
+    return Array.from(set).sort();
+  }, [live, allPolygons]);
+
+  /** Lojas novas (ex.: recém-enviadas) entram automaticamente como visíveis */
+  const knownStoresRef = useRef<string[] | null>(null);
+  useEffect(() => {
+    const prev = knownStoresRef.current;
+    if (prev === null) {
+      knownStoresRef.current = activeStores;
+      setVisibleStores((cur) => Array.from(new Set([...cur, ...activeStores])));
+      return;
+    }
+    const added = activeStores.filter((s) => !prev.includes(s));
+    if (added.length) setVisibleStores((cur) => Array.from(new Set([...cur, ...added])));
+    knownStoresRef.current = activeStores;
+  }, [activeStores]);
+
   // Dados derivados: lojas selecionadas E na região
   const shownStores = useMemo(
     () => regionStores.filter((s) => visibleStores.includes(s)),
@@ -252,7 +278,8 @@ export default function Dashboard() {
     return allPolygons.filter(
       (p) =>
         shownStores.includes(p.store) &&
-        bands.includes(p.band) &&
+        // faixas fora da paleta padrão (ex.: arquivo sem "Faixa") continuam visíveis
+        (bands.includes(p.band) || !(BAND_ORDER as readonly string[]).includes(p.band)) &&
         (p.kind ?? "Entrega") === modality &&
         (q === "" ||
           p.id.toLowerCase().includes(q) ||
@@ -383,8 +410,8 @@ export default function Dashboard() {
    * com polígonos enviados.
    */
   const pickupUfs = useMemo<Region[]>(
-    () => (region === "Todas" ? ["SP", "RJ"] : [region]),
-    [region],
+    () => (region === "Todas" ? (availableRegions as Region[]) : [region]),
+    [region, availableRegions],
   );
 
   /** Malhas estaduais dessas UFs — do banco, com o arquivo local como reserva */
@@ -574,14 +601,21 @@ export default function Dashboard() {
               onChange={(e) => {
                 const r = e.target.value as RegionSelection;
                 setRegion(r);
-                setVisibleStores(storesInRegion(r));
+                setVisibleStores(
+                  r === "Todas"
+                    ? activeStores
+                    : activeStores.filter((st) => (storeRegionOf(live, st) ?? STORE_REGION[st as StoreName]) === r),
+                );
                 setCompareStores([]);
                 setSelectedId(null);
               }}
             >
               <option value="Todas">Todas</option>
-              <option value="SP">SP</option>
-              <option value="RJ">RJ</option>
+              {availableRegions.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
             </select>
           </label>
 
