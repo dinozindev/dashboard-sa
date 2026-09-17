@@ -291,7 +291,7 @@ export default function Dashboard() {
   );
   
   /** Tabela de tarifas do polígono selecionado (com overrides) */
-  const selectedBands = tariffFor(selected, overrides);
+  const selectedBands = bandsOf(selected);
   
   /** Resultado do cálculo de preço para o polígono selecionado + peso atual */
   const selectedPrice = calcPrice(selectedBands, weight);
@@ -310,7 +310,7 @@ export default function Dashboard() {
   const kpis = useMemo(() => {
     const prices: number[] = [];
     for (const p of visible) {
-      const r = calcPrice(tariffFor(p, overrides), weight);
+      const r = calcPrice(bandsOf(p), weight);
       if (r.ok) prices.push(r.total);
     }
     const area = visible.reduce((s, p) => s + p.areaKm2, 0);
@@ -351,7 +351,7 @@ export default function Dashboard() {
    * Mostra: ID, loja, faixa, município, preço (se Entrega).
    */
   const tooltipFor = (rec: PolygonRecord) => {
-    const r = calcPrice(tariffFor(rec, overrides), weight);
+    const r = calcPrice(bandsOf(rec), weight);
     return `<strong>${rec.id}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${
       rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
     }${
