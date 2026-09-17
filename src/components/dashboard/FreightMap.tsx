@@ -40,6 +40,12 @@ interface Props {
   onSelect: (rec: PolygonRecord) => void;
   onMapClick: (lng: number, lat: number) => void;
   fitKey: string;
+  /** Modalidade Retira: usa polígonos estaduais no lugar dos de loja */
+  pickupMode?: boolean;
+  /** Polígonos estaduais (um por UF) usados na modalidade Retira */
+  statePolygons?: StatePolygon[];
+  /** Lojas cujos marcadores devem sempre aparecer (independe dos polígonos) */
+  markerStores?: string[];
 }
 
 /**
@@ -55,6 +61,9 @@ export default function FreightMap({
   onSelect,
   onMapClick,
   fitKey,
+  pickupMode = false,
+  statePolygons = [],
+  markerStores,
 }: Props) {
   // ============================================================================
   // REFS: Mapa e camadas
