@@ -945,7 +945,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h2 className="section-title text-lg">{selected.id}</h2>
+                  <h2 className="section-title text-lg">{polygonLabel(selected)}</h2>
                   <p className="text-xs text-muted-foreground">
                     {selected.store} · faixa {selected.band} ({selected.rMin}–{selected.rMax} km) ·
                     {" "}
