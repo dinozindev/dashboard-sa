@@ -262,7 +262,7 @@ export function availableStoreNames(state: LiveState | null): string[] {
 
 export function storeRegionOf(state: LiveState | null, name: string): Region | null {
   const found = liveStores(state).find((s) => s.name === name);
-  return found ? found.region : null;
+  return found ? (found.region as Region) : null;
 }
 
 /** Região de uma loja conforme o banco (null quando a loja não existe). */
