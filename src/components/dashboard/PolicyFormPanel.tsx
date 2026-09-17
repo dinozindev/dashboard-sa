@@ -411,6 +411,10 @@ export function PolicyFormPanel({
   );
   const currentStep = steps[Math.min(step, steps.length - 1)] as StepDef;
 
+  /** Aviso: Saldo Borderô e Retira Imediata costumam usar janela de envio. */
+  const scheduleNotice = useShippingWindowNotice(currentStep.key === "horarios");
+
+
   useEffect(() => {
     setStep((cur) => Math.min(cur, steps.length - 1));
     setMaxVisited((cur) => Math.min(cur, steps.length - 1));
@@ -543,11 +547,13 @@ export function PolicyFormPanel({
       setSaved(null);
       return;
     }
-    const existing = initialPolicy
-      ? getPolicyDrafts().find((draft) => draft.id === initialPolicy.id)
+    const source = replicating ? null : initialPolicy;
+    const existing = source
+      ? getPolicyDrafts().find((draft) => draft.id === source.id)
       : getPolicyDrafts().find(
           (draft) => draft.store === store && draft.modalities.includes(modality),
         );
+
     const id = existing?.id ?? `pol-${Date.now()}`;
     const draft: ShippingPolicyDraft = {
       id,
