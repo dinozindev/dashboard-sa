@@ -592,7 +592,54 @@ export function PolicyFormPanel({
 
     // Tabela de frete: só vale para políticas de Entrega
     const previousLink = getPolicyTariff(id);
-    if (policyType === "Entrega" && tariffIndex !== null && selectedTariff) {
+    if (policyType === "Entrega" && tariffSource === "upload" && uploadedBands?.length) {
+      const tableName = tariffFileName.replace(/\.(xlsx|xls)$/i, "");
+      try {
+        const { id: tableId } = await saveFreightTable({
+          data: {
+            table: {
+              store,
+              region: regionForStore(store) ?? "SP",
+              name: tableName,
+              source: "upload",
+              fileName: tariffFileName,
+              bands: uploadedBands,
+              policyClientId: id,
+            },
+          },
+        });
+        const idx = pushTariffTable(uploadedBands);
+        const polygonIds =
+          getLive()?.polygons.filter((p) => p.store === store).map((p) => p.id) ?? [];
+        setPolicyTariff({
+          policyId: id,
+          store,
+          modality,
+          tableId,
+          tableIndex: idx,
+          tableName,
+          source: "upload",
+          bandCount: uploadedBands.length,
+          polygonIds,
+          at: new Date().toISOString(),
+        });
+        logAudit({
+          store,
+          module: "Cadastro de Política de Envio",
+          field: `Tabela de frete — ${modality}`,
+          before: previousLink?.tableName ?? "—",
+          after: tableName,
+          action: previousLink ? "Edição" : "Criação",
+          description: `Tabela de frete "${tableName}" (upload de planilha, ${uploadedBands.length} faixas de peso) associada à política ${modality} da loja ${store}.`,
+        });
+      } catch (err) {
+        console.error("Falha ao salvar tabela de frete", err);
+        setErrors((cur) => [
+          ...cur,
+          "Falha ao gravar a tabela de frete no banco. Tente novamente.",
+        ]);
+      }
+    } else if (policyType === "Entrega" && tariffIndex !== null && selectedTariff) {
       const tableName = tariffSource === "upload" ? tariffFileName : selectedTariff.label;
       if (previousLink?.tableName !== tableName || previousLink?.tableIndex !== tariffIndex) {
         setPolicyTariff({
