@@ -379,7 +379,7 @@ export default function Dashboard() {
    */
   const tooltipFor = (rec: PolygonRecord) => {
     const r = calcPrice(bandsOf(rec), weight);
-    return `<strong>${rec.id}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${
+    return `<strong>${polygonLabel(rec)}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${
       rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
     }${
       isPickup
