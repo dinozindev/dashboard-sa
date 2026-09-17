@@ -223,11 +223,12 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     <div className="space-y-4">
       <section className="surface space-y-3 p-4">
         <div>
-          <h2 className="section-title text-lg">Envio de polígonos (loja + política)</h2>
+          <h2 className="section-title text-lg">Envio de polígonos (loja + tipo)</h2>
           <p className="text-xs text-muted-foreground">
-            Envie o GeoJSON com as áreas de uma loja e indique a qual política de envio a coleção
-            pertence. Sem política, a coleção entra como <strong>base</strong> da loja (visível em
-            todas as modalidades). Os dados ficam gravados no banco — visíveis para todos.
+            Envie o GeoJSON com as áreas de uma loja e indique se elas são de{" "}
+            <strong>Entrega</strong> ou de <strong>Retira</strong>. As áreas não dependem de
+            política de envio — o que muda por política é a tabela de frete. Os dados ficam
+            gravados no banco — visíveis para todos.
           </p>
         </div>
 
@@ -291,7 +292,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               checked={replaceExisting}
               onChange={(e) => setReplaceExisting(e.target.checked)}
             />
-            substituir coleção anterior da política
+            substituir a coleção anterior desse tipo
           </label>
         </div>
 
