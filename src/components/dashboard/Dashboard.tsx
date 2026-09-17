@@ -44,7 +44,13 @@ import { Kpis } from "./Kpis";
 import { TariffTable } from "./TariffTable";
 import { PriceBreakdownCard } from "./PriceBreakdown";
 import { RuleSimulator } from "./RuleSimulator";
-import { ScheduleGrid, StatusBadge } from "./SchedulePanel";
+import {
+  ScheduleGrid,
+  ShippingWindowNotice,
+  StatusBadge,
+  useShippingWindowNotice,
+} from "./SchedulePanel";
+
 import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
@@ -97,6 +103,9 @@ export default function Dashboard() {
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
   const [tab, setTab] = useState<TabKey>("operacao");
+  /** Aviso sobre janela de envio (Saldo Borderô e Retira Imediata) */
+  const scheduleNotice = useShippingWindowNotice(false);
+
   const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
   /** Sub-aba dentro de "Políticas de Envio": matriz ou docas */
   const [policyTab, setPolicyTab] = useState<"matriz" | "docas">("matriz");
