@@ -1300,6 +1300,14 @@ export function PolicyFormPanel({
                 ],
                 ["Modalidade", modality || "—"],
                 [
+                  "Tabela de frete",
+                  policyType === "Retira"
+                    ? "não se aplica (Retira)"
+                    : selectedTariff
+                      ? `${tariffLabel} · ${selectedTariff.bandCount} faixas`
+                      : "—",
+                ],
+                [
                   "Dimensões",
                   `soma ${sumOfDimensions} · maior aresta ${largestEdge} · peso cúbico ${cubic} · peso mínimo ${minWeight}`,
                 ],
