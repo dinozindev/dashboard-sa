@@ -47,6 +47,8 @@ interface Props {
   statePolygons?: StatePolygon[];
   /** Lojas cujos marcadores devem sempre aparecer (independe dos polígonos) */
   markerStores?: string[];
+  /** Metadados dos marcadores (nome, nota, centro) — quando omitido, usa o dataset estático */
+  markers?: Array<{ name: string; note: string; center: [number, number] }>;
 }
 
 /**

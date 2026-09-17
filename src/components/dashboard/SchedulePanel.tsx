@@ -91,14 +91,14 @@ export function StatusBadge({
   holidays,
   showStore = true,
 }: {
-  store: StoreName;
+  store: string;
   modality: Modality;
   now: Date;
   holidays: string[];
   showStore?: boolean;
 }) {
   // Obtém status para esta loja/modalidade/hora
-  const s = getStatus(store, modality, now, holidays);
+  const s = getStatus(store as StoreName, modality, now, holidays);
   
   // Se loja não tem horários cadastrados
   if (!s) {
@@ -130,9 +130,9 @@ export function StatusBadge({
  * @param store - Nome da loja
  * @param modality - Modalidade (Entrega ou Retira)
  */
-export function ScheduleGrid({ store, modality }: { store: StoreName; modality: Modality }) {
+export function ScheduleGrid({ store, modality }: { store: string; modality: Modality }) {
   // Obtém grid de horários desta loja/modalidade
-  const grid = SCHEDULES[modality][store];
+  const grid = SCHEDULES[modality][store as StoreName];
   if (!grid) return null;
   
   return (

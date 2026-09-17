@@ -1,7 +1,6 @@
 import { BAND_ORDER, BAND_COLORS, STORE_DASH, STORE_DASH_LABEL } from "@/lib/freight/palette";
-import type { StoreName } from "@/lib/freight/types";
 
-export function Legend({ stores }: { stores: StoreName[] }) {
+export function Legend({ stores }: { stores: string[] }) {
   return (
     <div className="surface p-3 text-xs">
       <p className="eyebrow mb-2">Legenda</p>
