@@ -15,6 +15,27 @@
       "when": 1789662251443,
       "tag": "0001_freight_matrix_and_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789662761899,
+      "tag": "0002_base_collections_and_snapshot_left_join",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789663060404,
+      "tag": "0003_seed_stores_tables_r2",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789663361517,
+      "tag": "0004_seed_freight_tables_v2",
+      "breakpoints": true
     }
   ]
 }

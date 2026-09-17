@@ -17,16 +17,16 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
-  polygons,
-  stores as storeRefs,
+  polygons as staticPolygons,
+  stores as staticStoreRefs,
   STORE_NAMES,
   STORE_REGION,
-  OPS_STORES,
   storesInRegion,
   tariffFor,
   hasSimulation,
   type Overrides,
 } from "@/lib/freight/dataset";
+import { availableStoreNames, liveStores, storeRegionOf, useLive } from "@/lib/freight/live";
 import { BAND_ORDER } from "@/lib/freight/palette";
 import { brl, calcPrice, kg } from "@/lib/freight/pricing";
 import { distanceKm, polygonsAtPoint } from "@/lib/freight/geo";
@@ -58,7 +58,6 @@ import { DocksPanel } from "./DocksPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
 import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
 import { AuditHistoryPanel } from "./AuditHistoryPanel";
-import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 
 // Lazy load do mapa (pesado, carrega sob demanda)
@@ -128,33 +127,49 @@ export default function Dashboard() {
   /** Região selecionada: "SP", "RJ", ou "Todas" */
   const [region, setRegion] = useState<RegionSelection>("Todas");
   
-  /** Lojas visíveis no mapa (subset de STORE_NAMES) */
-  const [visibleStores, setVisibleStores] = useState<StoreName[]>([...STORE_NAMES]);
-  
+  /** Lojas visíveis no mapa (subset dos nomes disponíveis) */
+  const [visibleStores, setVisibleStores] = useState<string[]>([...STORE_NAMES]);
+
   /** Lojas para comparação (modo comparativo) */
-  const [compareStores, setCompareStores] = useState<StoreName[]>([]);
-  
+  const [compareStores, setCompareStores] = useState<string[]>([]);
+
   /** Dropdown de lojas está aberto? */
   const [storesOpen, setStoresOpen] = useState(false);
 
   /** Dropdown de faixas de raio está aberto? */
   const [bandsOpen, setBandsOpen] = useState(false);
 
-  /** Lojas já enviadas na aba "Envio de Polígonos" (persistidas no navegador) */
-  const submittedStores = useSubmittedStores();
+  /**
+   * Estado compartilhado do banco: lojas, políticas, polígonos, tabelas.
+   * Enquanto carrega (live = null), o catálogo estático entra como fallback.
+   */
+  const live = useLive();
 
-  /** Lojas ativas: já cadastradas (Aricanduva/Suzano) + enviadas na simulação */
+  /** Lojas ativas: as cadastradas no banco (fallback: catálogo estático) */
   const activeStores = useMemo(
-    () => STORE_NAMES.filter((s) => BASE_STORES.includes(s) || submittedStores.includes(s)),
-    [submittedStores],
+    () => (live ? availableStoreNames(live) : [...STORE_NAMES]),
+    [live],
   );
+
+  /** Polígonos exibidos: banco quando carregado, senão dataset estático */
+  const allPolygons = live ? live.polygons : staticPolygons;
+
+  /** Política selecionada para filtrar as coleções de polígonos (modalidade) */
+  const [policyFilter, setPolicyFilter] = useState<string>("todas");
 
   // Dados derivados: lojas ativas da região atual
   const regionStores = useMemo(
-    () => storesInRegion(region).filter((s) => activeStores.includes(s)),
-    [region, activeStores],
+    () =>
+      activeStores.filter(
+        (s) =>
+          region === "Todas" ||
+          (live
+            ? storeRegionOf(live, s) === region
+            : STORE_REGION[s as StoreName] === region),
+      ),
+    [region, activeStores, live],
   );
-  
+
   // Dados derivados: lojas selecionadas E na região
   const shownStores = useMemo(
     () => regionStores.filter((s) => visibleStores.includes(s)),
@@ -166,8 +181,8 @@ export default function Dashboard() {
    * mesmo as que ainda não tiveram polígonos de entrega enviados.
    */
   const pickupStores = useMemo(
-    () => storesInRegion(region).filter((s) => visibleStores.includes(s)),
-    [region, visibleStores],
+    () => regionStores.filter((s) => visibleStores.includes(s)),
+    [regionStores, visibleStores],
   );
 
   // ============================================================================
@@ -233,15 +248,19 @@ export default function Dashboard() {
    */
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return polygons.filter(
+    return allPolygons.filter(
       (p) =>
         shownStores.includes(p.store) &&
         bands.includes(p.band) &&
+        (policyFilter === "todas" ||
+          (policyFilter === "sem-politica"
+            ? !p.policyClientId
+            : p.policyClientId === policyFilter)) &&
         (q === "" ||
           p.id.toLowerCase().includes(q) ||
           (p.district ?? "").toLowerCase().includes(q)),
     );
-  }, [shownStores, bands, search]);
+  }, [allPolygons, shownStores, bands, search, policyFilter]);
 
   /**
    * Polígono atualmente selecionado na tabela/simulador.
@@ -361,16 +380,24 @@ export default function Dashboard() {
    */
   const pickupRanking = useMemo(() => {
     if (!isPickup || !point) return [];
-    return storeRefs
+    const refs = live
+      ? liveStores(live).map((s) => ({
+          name: s.name,
+          note: s.note ?? "",
+          region: s.region,
+          center: (s.center ?? [0, 0]) as [number, number],
+        }))
+      : staticStoreRefs.map((s) => ({
+          name: s.name,
+          note: s.note,
+          region: STORE_REGION[s.name],
+          center: s.center,
+        }));
+    return refs
       .filter((s) => pickupStores.includes(s.name))
-      .map((s) => ({
-        name: s.name,
-        note: s.note,
-        uf: STORE_REGION[s.name],
-        km: distanceKm([point.lng, point.lat], s.center),
-      }))
+      .map((s) => ({ ...s, km: distanceKm([point.lng, point.lat], s.center) }))
       .sort((a, b) => a.km - b.km);
-  }, [isPickup, point, pickupStores]);
+  }, [isPickup, point, pickupStores, live]);
 
   const nearestPickupStore = pickupRanking[0] ?? null;
 
@@ -582,7 +609,7 @@ export default function Dashboard() {
                           type="checkbox"
                           className="h-3.5 w-3.5 accent-primary"
                           checked={visibleStores.includes(s)}
-                          onChange={() => toggleStore(s)}
+                          onChange={() => toggleStore(s as StoreName)}
                         />
                         {s}
                       </label>
@@ -662,6 +689,25 @@ export default function Dashboard() {
             </select>
           </label>
 
+          {!isPickup ? (
+            <label className="field-label">
+              Política de envio
+              <select
+                className="input mt-1 w-56"
+                value={policyFilter}
+                onChange={(e) => setPolicyFilter(e.target.value)}
+              >
+                <option value="todas">Todas as coleções</option>
+                <option value="sem-politica">Base (sem política)</option>
+                {(live?.drafts ?? []).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.store} · {d.modalities.join(" / ") || d.policyType}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
           <label className="field-label">
             Peso simulado (kg)
             <input
@@ -722,6 +768,15 @@ export default function Dashboard() {
                   pickupMode={isPickup}
                   statePolygons={activeStatePolygons}
                   markerStores={isPickup ? pickupStores : shownStores}
+                  {...(live
+                    ? {
+                        markers: liveStores(live).map((s) => ({
+                          name: s.name,
+                          note: s.note ?? "",
+                          center: (s.center ?? [0, 0]) as [number, number],
+                        })),
+                      }
+                    : {})}
                 />
               </Suspense>
             </ClientOnly>
@@ -783,7 +838,7 @@ export default function Dashboard() {
                               className="flex items-center justify-between gap-2 text-xs"
                             >
                               <span className="text-muted-foreground">
-                                {s.name} <span className="opacity-60">({s.uf})</span>
+                                {s.name} <span className="opacity-60">({s.region})</span>
                               </span>
                               <span className="tabular-nums font-medium">
                                 {s.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km

@@ -467,7 +467,8 @@ export const linkFreightTable = createServerFn({ method: "POST" })
 export interface PolygonRowPayload {
   clientId: string;
   storeId: string;
-  policyId: string;
+  /** null = coleção base da loja (sem política) */
+  policyId: string | null;
   district?: string | null;
   uf?: string | null;
   band?: string | null;
