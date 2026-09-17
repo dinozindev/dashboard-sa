@@ -354,6 +354,33 @@ export type Database = {
         }
         Relationships: []
       }
+      state_polygons: {
+        Row: {
+          geom: unknown
+          id: string
+          name: string
+          source: string | null
+          uf: string
+          updated_at: string
+        }
+        Insert: {
+          geom: unknown
+          id?: string
+          name: string
+          source?: string | null
+          uf: string
+          updated_at?: string
+        }
+        Update: {
+          geom?: unknown
+          id?: string
+          name?: string
+          source?: string | null
+          uf?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stores: {
         Row: {
           center_lat: number | null
@@ -496,6 +523,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      state_polygons_geo: {
+        Row: {
+          geojson: Json | null
+          id: string | null
+          name: string | null
+          source: string | null
+          uf: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          geojson?: never
+          id?: string | null
+          name?: string | null
+          source?: string | null
+          uf?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          geojson?: never
+          id?: string | null
+          name?: string | null
+          source?: string | null
+          uf?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
@@ -1393,6 +1447,7 @@ export type Database = {
         }
         Returns: string
       }
+      upsert_state_polygon: { Args: { payload: Json }; Returns: number }
     }
     Enums: {
       [_ in never]: never

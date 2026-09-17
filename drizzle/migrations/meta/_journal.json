@@ -43,6 +43,13 @@
       "when": 1789666058567,
       "tag": "0005_polygons_kind_entrega_retira",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789666396152,
+      "tag": "0006_state_polygons_retira",
+      "breakpoints": true
     }
   ]
 }
