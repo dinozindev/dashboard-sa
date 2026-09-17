@@ -4,7 +4,8 @@
  *
  * Para cada loja, o status de cada modalidade de envio. Os dados vivem no
  * banco (tabelas `policy_cells` e `modalities`), então a matriz é a mesma
- * para todas as pessoas.
+ * para todas as pessoas. A estrutura retornada é a mesma do
+ * `shipping-policies.json` (dados padrão), então os componentes não mudam.
  */
 
 import { useEffect, useMemo, useSyncExternalStore } from "react";
@@ -20,24 +21,23 @@ import { logAudit } from "./audit-log";
 import {
   SHIPPING_POLICY_DEFINITIONS,
   policies as basePolicies,
+  type PolicyCell,
+  type PolicyDataset,
   type PolicyStatus,
+  type PolicyStore,
 } from "./policies";
-
-export interface PolicyRow {
-  modality: string;
-  status: PolicyStatus;
-  note: string;
-}
-
-export interface PolicyDataset {
-  modalities: string[];
-  stores: Array<{ name: string; rows: PolicyRow[] }>;
-}
 
 /** Modalidades padrão (definições fixas + customizadas no banco). */
 export const BASE_MODALITIES = SHIPPING_POLICY_DEFINITIONS.map((d) => d.name);
 export const BASE_STORES = basePolicies.stores.map((s) => s.nome);
 export const DEFAULT_STATUS: PolicyStatus = "Não informada";
+export const STATUS_OPTIONS: PolicyStatus[] = [
+  "Ativa",
+  "Inativa",
+  "Em construção",
+  "Não informada",
+  "—",
+];
 
 interface CellPayload {
   store: string;
@@ -46,38 +46,32 @@ interface CellPayload {
   note: string;
 }
 
-/** Status base definido em `shipping-policies.json` (dados originais). */
-const baseStatus = new Map<string, string>();
-for (const store of basePolicies.stores) {
-  for (const [modality, cell] of Object.entries(store.cells)) {
-    if (cell?.status === "Ativa") baseStatus.set(`${store.nome}||${modality}`, "Ativa");
-  }
-}
-
 function buildDataset(live: ReturnType<typeof getLive>): PolicyDataset {
-  const cellMap = new Map<string, { status: string; note: string }>();
+  const dbCells = new Map<string, { status: string; note: string }>();
   for (const c of live?.snapshot.policyCells ?? []) {
-    cellMap.set(`${c.store}||${c.modality}`, { status: c.status, note: c.note ?? "" });
+    dbCells.set(`${c.store}||${c.modality}`, { status: c.status, note: c.note ?? "" });
   }
 
   const custom: string[] = [];
   for (const m of live?.snapshot.customModalities ?? []) {
     if (!BASE_MODALITIES.includes(m)) custom.push(m);
   }
+  const modalities = [...BASE_MODALITIES, ...custom];
 
-  const stores = BASE_STORES.map((name) => ({
-    name,
-    rows: [...BASE_MODALITIES, ...custom].map((modality) => {
-      const cell = cellMap.get(`${name}||${modality}`);
-      return {
-        modality,
-        status: (cell?.status ?? baseStatus.get(`${name}||${modality}`) ?? DEFAULT_STATUS) as PolicyStatus,
-        note: cell?.note ?? "",
+  const stores: PolicyStore[] = basePolicies.stores.map((store) => {
+    const cells: Record<string, PolicyCell> = {};
+    for (const modality of modalities) {
+      const db = dbCells.get(`${store.nome}||${modality}`);
+      const base = store.cells[modality];
+      cells[modality] = {
+        status: (db?.status ?? base?.status ?? DEFAULT_STATUS) as PolicyStatus,
+        note: db?.note ?? base?.note ?? "",
       };
-    }),
-  }));
+    }
+    return { ...store, cells };
+  });
 
-  return { modalities: [...BASE_MODALITIES, ...custom], stores };
+  return { source: basePolicies.source, modalities, stores };
 }
 
 export function usePolicyMatrix() {
@@ -96,8 +90,8 @@ export function getPolicyMatrix(): PolicyDataset {
 export function updateCell(
   storeName: string,
   modality: string,
-  cell: Partial<Pick<PolicyRow, "status" | "note">>,
-  options: { silent?: boolean; previous?: PolicyRow } = {},
+  cell: Partial<Pick<PolicyCell, "status" | "note">>,
+  options: { silent?: boolean; previous?: PolicyCell } = {},
 ) {
   const current = getLive()?.snapshot.policyCells.find(
     (c) => c.store === storeName && c.modality === modality,
@@ -214,36 +208,58 @@ export function removePolicyModality(modality: string): RemoveModalityResult {
   return "removed";
 }
 
-/** Substitui toda a matriz (importação de arquivo JSON). */
+/**
+ * Substitui toda a matriz (importação de arquivo JSON).
+ * Aceita o formato do `shipping-policies.json` (stores com `nome` + `cells`)
+ * ou o formato simplificado (stores com `name` + `rows`).
+ */
 export function replaceMatrix(data: unknown): { ok: boolean; error?: string } {
   if (!data || typeof data !== "object" || !Array.isArray((data as { stores?: unknown }).stores)) {
     return { ok: false, error: "Estrutura inválida" };
   }
   const raw = data as {
     modalities?: string[];
-    stores?: Array<{ name?: string; rows?: Array<{ modality?: string; status?: string; note?: string }> }>;
+    stores?: Array<{
+      nome?: string;
+      name?: string;
+      cells?: Record<string, { status?: string; note?: string }>;
+      rows?: Array<{ modality?: string; status?: string; note?: string }>;
+    }>;
   };
   const cells: CellPayload[] = [];
   for (const store of raw.stores ?? []) {
-    if (!store?.name) continue;
+    const storeName = store?.nome ?? store?.name;
+    if (!storeName) continue;
+    for (const [modality, cell] of Object.entries(store.cells ?? {})) {
+      cells.push({
+        store: storeName,
+        modality,
+        status: cell?.status ?? DEFAULT_STATUS,
+        note: cell?.note ?? "",
+      });
+    }
     for (const row of store.rows ?? []) {
       if (!row?.modality) continue;
       cells.push({
-        store: store.name,
+        store: storeName,
         modality: row.modality,
         status: row.status ?? DEFAULT_STATUS,
         note: row.note ?? "",
       });
     }
   }
-  const customs = (raw.modalities ?? []).filter((m) => m && !BASE_MODALITIES.includes(m));
+  const customs = (raw.modalities ?? []).filter(
+    (m) => m && !BASE_MODALITIES.includes(m) && !basePolicies.modalities.includes(m),
+  );
 
   commitLocal((state) => {
     state.snapshot.policyCells = cells.map((c) => ({ ...c }));
     state.snapshot.customModalities = customs;
     state.snapshot = { ...state.snapshot };
   });
-  void replaceMatrixData({ data: { modalities: [...BASE_MODALITIES, ...customs], cells } })
+  void replaceMatrixData({
+    data: { modalities: [...basePolicies.modalities, ...customs], cells },
+  })
     .then(() => refreshLive())
     .catch(() => void refreshLive());
   return { ok: true };
