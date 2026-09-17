@@ -684,7 +684,7 @@ export default function Dashboard() {
             >
               <Suspense fallback={<div className="h-[620px] w-full animate-pulse bg-muted" />}>
                 <FreightMap
-                  visible={visible}
+                  visible={isPickup ? [] : visible}
                   selectedId={selectedId}
                   tooltipFor={tooltipFor}
                   onSelect={(rec) => {
@@ -692,7 +692,10 @@ export default function Dashboard() {
                     setBandIndex(null);
                   }}
                   onMapClick={(lng, lat) => setPoint({ lng, lat })}
-                  fitKey={`${region}|${shownStores.join(",")}|${search}`}
+                  fitKey={`${region}|${shownStores.join(",")}|${search}|${modality}`}
+                  pickupMode={isPickup}
+                  statePolygons={activeStatePolygons}
+                  markerStores={shownStores}
                 />
               </Suspense>
             </ClientOnly>
