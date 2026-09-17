@@ -70,8 +70,12 @@ const TABS = [
   ["politicas", "Políticas de Envio"],
   ["cadastro", "Cadastro de Política de Envio"],
   ["envio", "Envio de Polígonos"],
+  ["capacidade", "Capacidade Operacional"],
   ["auditoria", "Histórico de Auditoria"],
 ] as const;
+
+/** Aba ainda não finalizada, exibida com selo "Em Construção" */
+const UNDER_CONSTRUCTION_TABS: readonly string[] = ["capacidade"];
 
 type TabKey = (typeof TABS)[number][0];
 
@@ -83,11 +87,11 @@ const PROFILES = {
   },
   editor: {
     label: "Editor",
-    tabs: ["operacao", "politicas", "cadastro", "envio"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "capacidade"] as TabKey[],
   },
   auditor: {
     label: "Auditor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "auditoria"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "capacidade", "auditoria"] as TabKey[],
   },
 } as const;
 
@@ -544,6 +548,11 @@ export default function Dashboard() {
               className={tab === key ? "tab-pill-active" : "tab-pill"}
             >
               {label}
+              {UNDER_CONSTRUCTION_TABS.includes(key) && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-warning/20 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-warning-foreground">
+                  Em Construção
+                </span>
+              )}
             </button>
           ))}
         </nav>
