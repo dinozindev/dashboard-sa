@@ -10,7 +10,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useLive, liveStores, refreshLive, storeRegionOf } from "@/lib/freight/live";
 import { deletePolygonCollection, ensureStore, insertPolygonRows } from "@/lib/freight/remote.functions";
-import { logAudit } from "@/lib/freight/audit-lib-shim";
+import { logAudit } from "@/lib/freight/audit-log";
 import { useSubmittedStores, useDbStores } from "@/lib/freight/submitted-stores";
 
 /** Features aceitas: Feature (Polygon/MultiPolygon) ou geometria direta */
@@ -26,35 +26,30 @@ function centroidOf(coords: number[][][][]): [number, number] {
   let sx = 0;
   let sy = 0;
   let n = 0;
-  for (const [x, y] of coords[0]?.[0] ?? []) {
-    sx += x;
-    sy += y;
+  const ring = coords[0]?.[0] ?? [];
+  for (const point of ring) {
+    sx += point[0] ?? 0;
+    sy += point[1] ?? 0;
     n += 1;
   }
   return n ? [sx / n, sy / n] : [0, 0];
-}
-
-function signedArea(ring: number[][]): number {
-  let a = 0;
-  for (let i = 0; i < ring.length - 1; i += 1) {
-    a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
-  }
-  return a / 2;
 }
 
 /** Área aproximada em km² (equiretangular local) — estimativa para exibição */
 function areaKm2Of(coords: number[][][][]): number {
   const ring = coords[0]?.[0] ?? [];
   if (ring.length < 3) return 0;
-  const latRef = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+  const latRef = ring.reduce((s, p) => s + (p[1] ?? 0), 0) / ring.length;
   const kmPerDegLat = 110.574;
   const kmPerDegLng = 111.32 * Math.cos((latRef * Math.PI) / 180);
   let a = 0;
   for (let i = 0; i < ring.length - 1; i += 1) {
-    const x1 = ring[i][0] * kmPerDegLng;
-    const y1 = ring[i][1] * kmPerDegLat;
-    const x2 = ring[i + 1][0] * kmPerDegLng;
-    const y2 = ring[i + 1][1] * kmPerDegLat;
+    const p1 = ring[i];
+    const p2 = ring[i + 1];
+    const x1 = (p1[0] ?? 0) * kmPerDegLng;
+    const y1 = (p1[1] ?? 0) * kmPerDegLat;
+    const x2 = (p2[0] ?? 0) * kmPerDegLng;
+    const y2 = (p2[1] ?? 0) * kmPerDegLat;
     a += x1 * y2 - x2 * y1;
   }
   return Math.abs(a / 2);
@@ -162,7 +157,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
         return {
           clientId: `${storeName}|${policyClientId ?? "base"}|${Date.now()}|${i}`,
           storeId,
-          policyId: null as string | null,
+          policyId: policyClientId,
           policyClientId,
           district: null,
           uf: region,
