@@ -814,6 +814,8 @@ export function PolicyFormPanel({
                     setTariffIndex(v === "" ? null : Number(v));
                     setTariffSource("existente");
                     setTariffFileName("");
+                    setUploadedBands(null);
+                    setUploadError(null);
                   }}
                 >
                   <option value="">
@@ -837,29 +839,51 @@ export function PolicyFormPanel({
                   type="file"
                   accept=".xlsx"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     e.target.value = "";
                     if (!file) return;
-                    const base = tariffOptions[0];
-                    if (!base) return;
-                    setTariffIndex((cur) => (cur === null ? base.index : cur));
-                    setTariffSource("upload");
-                    setTariffFileName(file.name);
+                    setUploading(true);
+                    setUploadError(null);
+                    try {
+                      const buf = await file.arrayBuffer();
+                      const bands = await parseBandsFromXlsx(buf);
+                      setUploadedBands(bands);
+                      setTariffSource("upload");
+                      setTariffFileName(file.name);
+                    } catch (err) {
+                      setUploadError(
+                        err instanceof Error ? err.message : "Não foi possível ler a planilha.",
+                      );
+                      setUploadedBands(null);
+                      setTariffSource("existente");
+                      setTariffFileName("");
+                    } finally {
+                      setUploading(false);
+                    }
                   }}
                 />
                 <button
                   type="button"
                   className="btn-ghost text-xs"
-                  disabled={policyType === "Retira" || tariffOptions.length === 0}
+                  disabled={policyType === "Retira" || uploading}
                   onClick={() => tariffFileRef.current?.click()}
                 >
-                  Fazer upload de nova tabela (.xlsx)
+                  {uploading ? "Lendo planilha…" : "Fazer upload de nova tabela (.xlsx)"}
                 </button>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Simulação: o arquivo escolhido não é processado — a estrutura reaproveitada é a da
-                  tabela já carregada no projeto para esta loja.
-                </p>
+                {uploadError ? (
+                  <p className="mt-1 text-[11px] font-medium text-danger">{uploadError}</p>
+                ) : uploadedBands?.length ? (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    <strong>{tariffFileName}</strong>: {uploadedBands.length} faixas de peso lidas da
+                    planilha. A tabela será gravada no banco ao salvar.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    A planilha é lida no navegador (colunas de peso e preço) e a tabela é gravada no
+                    banco ao salvar.
+                  </p>
+                )}
               </div>
 
               {policyType === "Entrega" && selectedTariff ? (
