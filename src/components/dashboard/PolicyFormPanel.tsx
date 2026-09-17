@@ -711,6 +711,87 @@ export function PolicyFormPanel({
               ))}
             </div>
           </Section>
+
+          <Section
+            title="Tabela de Frete"
+            hint="Associe a tabela de frete que será usada para calcular o preço de entrega desta política."
+          >
+            {policyType === "Retira" ? (
+              <p className="mb-3 rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+                Políticas de <strong>Retira</strong> não usam tabela de frete — esta seção fica
+                bloqueada e nenhuma tabela é associada.
+              </p>
+            ) : null}
+
+            <div className="space-y-3">
+              <label className="block text-xs text-muted-foreground">
+                Usar tabela já existente
+                <select
+                  className="input mt-1 w-full max-w-md"
+                  disabled={policyType === "Retira" || !store}
+                  value={tariffIndex === null ? "" : String(tariffIndex)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTariffIndex(v === "" ? null : Number(v));
+                    setTariffSource("existente");
+                    setTariffFileName("");
+                  }}
+                >
+                  <option value="">
+                    {store
+                      ? tariffOptions.length
+                        ? "Selecione uma tabela carregada"
+                        : "Nenhuma tabela carregada para esta loja"
+                      : "Selecione a loja primeiro"}
+                  </option>
+                  {tariffOptions.map((t) => (
+                    <option key={t.index} value={t.index}>
+                      {t.label} · {t.bandCount} faixas
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div>
+                <input
+                  ref={tariffFileRef}
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    const base = tariffOptions[0];
+                    if (!base) return;
+                    setTariffIndex((cur) => (cur === null ? base.index : cur));
+                    setTariffSource("upload");
+                    setTariffFileName(file.name);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn-ghost text-xs"
+                  disabled={policyType === "Retira" || tariffOptions.length === 0}
+                  onClick={() => tariffFileRef.current?.click()}
+                >
+                  Fazer upload de nova tabela (.xlsx)
+                </button>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Simulação: o arquivo escolhido não é processado — a estrutura reaproveitada é a da
+                  tabela já carregada no projeto para esta loja.
+                </p>
+              </div>
+
+              {policyType === "Entrega" && selectedTariff ? (
+                <p className="rounded-lg border border-border bg-muted/40 p-2 text-xs">
+                  Tabela <strong>{tariffLabel}</strong> associada a esta política —{" "}
+                  {selectedTariff.bandCount} faixas de peso carregadas ·{" "}
+                  {selectedTariff.polygonIds.length} polígonos de {store}.
+                </p>
+              ) : null}
+            </div>
+          </Section>
         </>
       ) : null}
 
