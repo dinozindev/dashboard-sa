@@ -41,7 +41,7 @@ function fail(error: { message: string } | null) {
 export interface FreightSnapshotDto {
   stores: Array<{
     name: string;
-    region: "SP" | "RJ";
+    region: string;
     note: string | null;
     center: [number, number] | null;
     polygonCount: number;
@@ -113,7 +113,7 @@ type SupabaseClient = ReturnType<typeof publicClient>;
 async function ensureStoreRecord(
   supabase: SupabaseClient,
   name: string,
-  region: "SP" | "RJ",
+  region: string,
 ): Promise<string> {
   const { data: existing } = await supabase
     .from("stores")
@@ -132,7 +132,7 @@ async function ensureStoreRecord(
 
 export const ensureStore = createServerFn({ method: "POST" })
   .inputValidator(
-    (input: { name: string; region: "SP" | "RJ"; note?: string | null; center?: [number, number] | null }) =>
+    (input: { name: string; region: string; note?: string | null; center?: [number, number] | null }) =>
       input,
   )
   .handler(async ({ data }) => {
@@ -165,7 +165,7 @@ export const ensureStore = createServerFn({ method: "POST" })
 export interface PolicyPayload {
   clientId: string;
   store: string;
-  region: "SP" | "RJ";
+  region: string;
   data: object;
 }
 
@@ -313,7 +313,7 @@ export const resetMatrixData = createServerFn({ method: "POST" }).handler(async 
 
 export const setDockLink = createServerFn({ method: "POST" })
   .inputValidator(
-    (input: { store: string; region: "SP" | "RJ"; dock: string; policyClientId: string; linked: boolean }) =>
+    (input: { store: string; region: string; dock: string; policyClientId: string; linked: boolean }) =>
       input,
   )
   .handler(async ({ data }) => {
@@ -365,7 +365,7 @@ export const removePolicyFromAllDocks = createServerFn({ method: "POST" })
 
 export interface FreightTablePayload {
   store: string;
-  region: "SP" | "RJ";
+  region: string;
   name: string;
   source: "existente" | "upload";
   fileName?: string | null;
