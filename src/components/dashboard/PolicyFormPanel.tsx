@@ -445,7 +445,7 @@ export function PolicyFormPanel({
       if (!policyType) errs.push("Selecione o tipo da política (Entrega ou Retira).");
       if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
     }
-    if (key === "dimensoes") {
+    if (key === "dimensoes" && modality === "Pequenos Volumes") {
       if (sumOfDimensions <= 0 && largestEdge <= 0 && cubic <= 0 && minWeight <= 0) {
         errs.push("Informe ao menos um valor das dimensões maior que 0.");
       }

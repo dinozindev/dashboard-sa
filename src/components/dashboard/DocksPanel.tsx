@@ -22,7 +22,7 @@ import {
 const policyLabel = (p: ShippingPolicyDraft) =>
   `${p.modalities.join(" · ") || "Sem modalidade"} (${p.policyType})`;
 
-export function DocksPanel() {
+export function DocksPanel({ canEdit }: { canEdit: boolean }) {
   const drafts = usePolicyDrafts();
   const links = useDockLinks();
   const submitted = useSubmittedStores();
@@ -59,10 +59,11 @@ export function DocksPanel() {
           <h2 className="section-title text-lg">
             {open.dock} · {open.store}
           </h2>
-          <p className="text-xs text-muted-foreground">
-            Associe as políticas de envio desta loja à doca. Uma política pode estar associada a
-            mais de uma doca.
-          </p>
+            <p className="text-xs text-muted-foreground">
+              {canEdit
+                ? "Associe as políticas de envio desta loja à doca. Uma política pode estar associada a mais de uma doca."
+                : "Visualize as políticas de envio associadas a esta doca."}
+            </p>
         </div>
 
         {!storePolicies.length ? (
@@ -86,18 +87,24 @@ export function DocksPanel() {
                       {p.assistedSale ? " · venda assistida" : ""}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className={
-                      "rounded-lg px-3 py-1.5 text-xs font-semibold " +
-                      (isLinked
-                        ? "border border-danger/50 text-danger hover:bg-danger/10"
-                        : "bg-primary text-primary-foreground hover:opacity-90")
-                    }
-                    onClick={() => toggleDockPolicy(open.store, open.dock, p.id, policyLabel(p))}
-                  >
-                    {isLinked ? "Desvincular" : "Associar"}
-                  </button>
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      className={
+                        "rounded-lg px-3 py-1.5 text-xs font-semibold " +
+                        (isLinked
+                          ? "border border-danger/50 text-danger hover:bg-danger/10"
+                          : "bg-primary text-primary-foreground hover:opacity-90")
+                      }
+                      onClick={() => toggleDockPolicy(open.store, open.dock, p.id, policyLabel(p))}
+                    >
+                      {isLinked ? "Desvincular" : "Associar"}
+                    </button>
+                  ) : (
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      {isLinked ? "Associada" : "Não associada"}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -141,14 +148,6 @@ export function DocksPanel() {
           </button>
         ))}
       </div>
-
-      {blocked.length ? (
-        <p className="rounded-lg border border-border bg-muted/40 p-2 text-[11px] text-muted-foreground">
-          Lojas indisponíveis ({blocked.map((s) => s.nome).join(", ")}): cadastre os polígonos desta
-          loja para liberar a política de envio.
-        </p>
-      ) : null}
-
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {stores.map((s) => (
           <div key={s.nome} className="rounded-xl border border-border p-3">

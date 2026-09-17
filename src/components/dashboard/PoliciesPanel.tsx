@@ -30,10 +30,12 @@ function PolicyDetails({
   policy,
   onEdit,
   onRemove,
+  canEdit,
 }: {
   policy: ShippingPolicyDraft;
   onEdit: () => void;
   onRemove: () => void;
+  canEdit: boolean;
 }) {
   const scheduleItems =
     policy.scheduleMode === "janela"
@@ -156,30 +158,34 @@ function PolicyDetails({
           )}
         </div>
       </div>
-      <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
-        <button
-          type="button"
-          className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
-          onClick={onEdit}
-        >
-          Editar
-        </button>
-        <button
-          type="button"
-          className="rounded-lg border border-danger/50 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/10"
-          onClick={onRemove}
-        >
-          Remover
-        </button>
-      </div>
+      {canEdit ? (
+        <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+          <button
+            type="button"
+            className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
+            onClick={onEdit}
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-danger/50 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/10"
+            onClick={onRemove}
+          >
+            Remover
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export function PoliciesPanel({
   onEditPolicy,
+  canEdit,
 }: {
   onEditPolicy: (policy: ShippingPolicyDraft) => void;
+  canEdit: boolean;
 }) {
   const data = usePolicyMatrix();
   const drafts = usePolicyDrafts();
@@ -339,40 +345,42 @@ export function PoliciesPanel({
         ))}
       </div>
 
-      <div className="rounded-lg border border-border p-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="block flex-1 text-xs text-muted-foreground">
-            Nova modalidade
-            <input
-              className="input mt-1 w-full"
-              value={newModality}
-              onChange={(e) => setNewModality(e.target.value)}
-              placeholder="Ex.: Entrega expressa"
-            />
-          </label>
-          <button
-            type="button"
-            className="rounded-lg border border-primary px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
-            onClick={addModality}
-          >
-            Adicionar modalidade
-          </button>
+      {canEdit ? (
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label className="block flex-1 text-xs text-muted-foreground">
+              Nova modalidade
+              <input
+                className="input mt-1 w-full"
+                value={newModality}
+                onChange={(e) => setNewModality(e.target.value)}
+                placeholder="Ex.: Entrega expressa"
+              />
+            </label>
+            <button
+              type="button"
+              className="rounded-lg border border-primary px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10"
+              onClick={addModality}
+            >
+              Adicionar modalidade
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {data.modalities
+              .filter((modality) => !policies.modalities.includes(modality))
+              .map((modality) => (
+                <button
+                  key={modality}
+                  type="button"
+                  className="rounded-full border border-danger/40 px-2.5 py-1 text-[11px] text-danger hover:bg-danger/10"
+                  onClick={() => removeModality(modality)}
+                >
+                  Remover {modality}
+                </button>
+              ))}
+          </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {data.modalities
-            .filter((modality) => !policies.modalities.includes(modality))
-            .map((modality) => (
-              <button
-                key={modality}
-                type="button"
-                className="rounded-full border border-danger/40 px-2.5 py-1 text-[11px] text-danger hover:bg-danger/10"
-                onClick={() => removeModality(modality)}
-              >
-                Remover {modality}
-              </button>
-            ))}
-        </div>
-      </div>
+      ) : null}
 
       {/* {blockedStores.length ? (
         <p className="rounded-lg border border-border bg-muted/40 p-2 text-[11px] text-muted-foreground">
@@ -403,7 +411,6 @@ export function PoliciesPanel({
                 <th key={s.nome} className="px-3 py-2 text-center">
                   {s.nome}
                   <span className="block text-[10px] font-normal normal-case">
-                    {s.centro ? `Centro ${s.centro} · ` : ""}
                     {s.cidade}/{s.uf}
                   </span>
                 </th>
@@ -432,27 +439,40 @@ export function PoliciesPanel({
                   );
                   return (
                     <td key={s.nome} className="px-3 py-1.5 text-center">
-                      <select
-                        aria-label={`Status de ${m} em ${s.nome}`}
-                        value={cell.status}
-                        onChange={(e) =>
-                          updateCell(s.nome, m, { status: e.target.value as PolicyStatus })
-                        }
-                        className={
-                          "w-full min-w-[140px] rounded-md border border-transparent px-2 py-1 text-xs font-medium focus:border-primary focus:outline-none " +
-                          STATUS_CLASS[cell.status]
-                        }
-                      >
-                        {STATUS_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {STATUS_ICON[opt]} {opt}
-                          </option>
-                        ))}
-                      </select>
+                      {canEdit ? (
+                        <select
+                          aria-label={`Status de ${m} em ${s.nome}`}
+                          value={cell.status}
+                          onChange={(e) =>
+                            updateCell(s.nome, m, { status: e.target.value as PolicyStatus })
+                          }
+                          className={
+                            "w-full min-w-[140px] rounded-md border border-transparent px-2 py-1 text-xs font-medium focus:border-primary focus:outline-none " +
+                            STATUS_CLASS[cell.status]
+                          }
+                        >
+                          {STATUS_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {STATUS_ICON[opt]} {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          aria-label={`Status de ${m} em ${s.nome}`}
+                          className={
+                            "inline-block w-full min-w-[140px] rounded-md px-2 py-1 text-xs font-medium " +
+                            STATUS_CLASS[cell.status]
+                          }
+                        >
+                          {STATUS_ICON[cell.status]} {cell.status}
+                        </span>
+                      )}
                       {m === "Pequenos Volumes" ? (
                         <input
                           aria-label={`Preço base de ${m} em ${s.nome}`}
                           value={cell.note}
+                          readOnly={!canEdit}
                           placeholder="Preço base"
                           onChange={(e) => updateCell(s.nome, m, { note: e.target.value })}
                           className="mt-1 w-full min-w-[140px] rounded-md border border-border bg-background px-2 py-1 text-[11px]"
@@ -487,6 +507,7 @@ export function PoliciesPanel({
                   <div key={store.nome} className="min-w-[min(420px,80vw)]">
                     <PolicyDetails
                       policy={policy}
+                      canEdit={canEdit}
                       onEdit={() => {
                         setSelectedModality(null);
                         onEditPolicy(policy);

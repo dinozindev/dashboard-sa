@@ -263,10 +263,6 @@ export default function Dashboard() {
       //       : `${shownStores.length} lojas`,
       // },
       { label: "Peso simulado", value: kg(weight) },
-      {
-        label: "Polígonos sem tabela",
-        value: num(visible.filter((p) => p.tariff === null).length),
-      },
       ...(isPickup
         ? []
         : [
@@ -380,10 +376,10 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1 font-semibold text-white/90">
-              {polygons.length.toLocaleString("pt-BR")} polígonos mapeados
+              {visible.length.toLocaleString("pt-BR")} polígonos mapeados
             </span>
             <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1 font-semibold text-white/90">
-              {activeStores.length} de {STORE_NAMES.length} lojas ativas
+              {activeStores.length} lojas ativas
             </span>
           </div>
         </div>
@@ -430,13 +426,14 @@ export default function Dashboard() {
             </div>
             {policyTab === "matriz" ? (
               <PoliciesPanel
+                canEdit={profile !== "consultor"}
                 onEditPolicy={(policy) => {
                   setEditingPolicy(policy);
                   setTab("cadastro");
                 }}
               />
             ) : (
-              <DocksPanel />
+              <DocksPanel canEdit={profile !== "consultor"} />
             )}
           </div>
         ) : null}

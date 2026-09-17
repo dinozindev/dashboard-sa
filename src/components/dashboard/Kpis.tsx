@@ -40,7 +40,7 @@ interface Kpi {
  */
 export function Kpis({ items }: { items: Kpi[] }) {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
       {items.map((k, i) => (
         <div key={k.label} className="surface-hover relative overflow-hidden p-3.5 pl-4">
           {/* Barra lateral: laranja Obramax alternando com azul para leitura rápida */}
