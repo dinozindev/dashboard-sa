@@ -353,7 +353,7 @@ export default function Dashboard() {
   const pickupRanking = useMemo(() => {
     if (!isPickup || !point) return [];
     return storeRefs
-      .filter((s) => shownStores.includes(s.name))
+      .filter((s) => pickupStores.includes(s.name))
       .map((s) => ({
         name: s.name,
         note: s.note,
@@ -361,7 +361,7 @@ export default function Dashboard() {
         km: distanceKm([point.lng, point.lat], s.center),
       }))
       .sort((a, b) => a.km - b.km);
-  }, [isPickup, point, shownStores]);
+  }, [isPickup, point, pickupStores]);
 
   const nearestPickupStore = pickupRanking[0] ?? null;
 
