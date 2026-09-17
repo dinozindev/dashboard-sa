@@ -448,11 +448,22 @@ export function PolicyFormPanel({
         ? initialPolicy.pickupTimes
         : [{ id: uid(), day: "Todos os dias", time: "00:00" }],
     );
+    const link = getPolicyTariff(initialPolicy.id);
+    setTariffIndex(link ? link.tableIndex : null);
+    setTariffSource(link?.source ?? "existente");
+    setTariffFileName(link?.source === "upload" ? link.tableName : "");
     setErrors([]);
     setSaved(null);
     setStep(0);
     setMaxVisited(ALL_STEPS.length - 1);
   }, [initialPolicy]);
+
+  // Tabela de frete pertence à loja: ao trocar de loja, a associação é limpa.
+  useEffect(() => {
+    setTariffIndex((cur) =>
+      cur !== null && tariffOptions.some((t) => t.index === cur) ? cur : null,
+    );
+  }, [tariffOptions]);
 
   const validateStep = (key: StepKey): string[] => {
     const errs: string[] = [];
