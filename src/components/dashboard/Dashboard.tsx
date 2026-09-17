@@ -17,6 +17,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
+  dataset,
   polygons as staticPolygons,
   stores as staticStoreRefs,
   STORE_NAMES,
@@ -252,15 +253,33 @@ export default function Dashboard() {
       (p) =>
         shownStores.includes(p.store) &&
         bands.includes(p.band) &&
-        (policyFilter === "todas" ||
-          (policyFilter === "sem-politica"
-            ? !p.policyClientId
-            : p.policyClientId === policyFilter)) &&
+        (p.kind ?? "Entrega") === modality &&
         (q === "" ||
           p.id.toLowerCase().includes(q) ||
           (p.district ?? "").toLowerCase().includes(q)),
     );
-  }, [allPolygons, shownStores, bands, search, policyFilter]);
+  }, [allPolygons, shownStores, bands, search, modality]);
+
+  /**
+   * Tabela de frete da política selecionada (a política define o preço,
+   * não quais polígonos aparecem). Null = usa a tabela padrão da loja.
+   */
+  const policyTariffIdx = useMemo(() => {
+    if (!live || policyFilter === "todas" || policyFilter === "sem-politica") return null;
+    const tableId = live.tableByPolicy.get(policyFilter);
+    if (!tableId) return null;
+    return live.tableIndexById.get(tableId) ?? null;
+  }, [live, policyFilter]);
+
+  /** Faixas de peso aplicáveis a um polígono, considerando a política escolhida */
+  const bandsOf = (rec: PolygonRecord | undefined | null) => {
+    if (!rec) return undefined;
+    if (policyTariffIdx !== null) {
+      const base = dataset.tariffs[policyTariffIdx];
+      if (base) return base.map((b, i) => overrides[`${rec.id}#${i}`] ?? b);
+    }
+    return tariffFor(rec, overrides);
+  };
 
   /**
    * Polígono atualmente selecionado na tabela/simulador.
@@ -272,7 +291,7 @@ export default function Dashboard() {
   );
   
   /** Tabela de tarifas do polígono selecionado (com overrides) */
-  const selectedBands = tariffFor(selected, overrides);
+  const selectedBands = bandsOf(selected);
   
   /** Resultado do cálculo de preço para o polígono selecionado + peso atual */
   const selectedPrice = calcPrice(selectedBands, weight);
@@ -291,7 +310,7 @@ export default function Dashboard() {
   const kpis = useMemo(() => {
     const prices: number[] = [];
     for (const p of visible) {
-      const r = calcPrice(tariffFor(p, overrides), weight);
+      const r = calcPrice(bandsOf(p), weight);
       if (r.ok) prices.push(r.total);
     }
     const area = visible.reduce((s, p) => s + p.areaKm2, 0);
@@ -325,14 +344,14 @@ export default function Dashboard() {
             { label: "Frete médio", value: prices.length ? brl(avg) : "—" },
           ]),
     ];
-  }, [visible, weight, overrides, shownStores, isPickup]);
+  }, [visible, weight, overrides, shownStores, isPickup, policyTariffIdx]);
 
   /**
    * Gera tooltip HTML para exibir sobre polígono no mapa.
    * Mostra: ID, loja, faixa, município, preço (se Entrega).
    */
   const tooltipFor = (rec: PolygonRecord) => {
-    const r = calcPrice(tariffFor(rec, overrides), weight);
+    const r = calcPrice(bandsOf(rec), weight);
     return `<strong>${rec.id}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${
       rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
     }${
@@ -691,14 +710,13 @@ export default function Dashboard() {
 
           {!isPickup ? (
             <label className="field-label">
-              Política de envio
+              Política de envio (tabela de frete)
               <select
                 className="input mt-1 w-56"
                 value={policyFilter}
                 onChange={(e) => setPolicyFilter(e.target.value)}
               >
-                <option value="todas">Todas as coleções</option>
-                <option value="sem-politica">Base (sem política)</option>
+                <option value="todas">Tabela padrão da loja</option>
                 {(live?.drafts ?? []).map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.store} · {d.modalities.join(" / ") || d.policyType}

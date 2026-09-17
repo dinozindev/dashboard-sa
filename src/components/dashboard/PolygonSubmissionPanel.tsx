@@ -55,6 +55,8 @@ function areaKm2Of(coords: number[][][][]): number {
   return Math.abs(a / 2);
 }
 
+type Kind = "Entrega" | "Retira";
+
 export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void }) {
   const live = useLive();
   const submitted = useSubmittedStores();
@@ -62,7 +64,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
   const drafts = live?.drafts ?? [];
 
   const [store, setStore] = useState("");
-  const [policyId, setPolicyId] = useState("");
+  const [kind, setKind] = useState<Kind>("Entrega");
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [parsed, setParsed] = useState<{ name: string; count: number; bands: Set<string>; area: number } | null>(null);
   const [geo, setGeo] = useState<AnyGeom[]>([]);
@@ -76,14 +78,13 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     [dbStores, drafts],
   );
 
-  /** Resumo por loja+política já cadastrado no banco */
+  /** Resumo por loja + tipo (Entrega/Retira) já cadastrado no banco */
   const collections = useMemo(() => {
-    const map = new Map<string, { store: string; policy: string; count: number; area: number }>();
+    const map = new Map<string, { store: string; kind: Kind; count: number; area: number }>();
     for (const p of live?.polygons ?? []) {
-      const policy =
-        live?.drafts.find((d) => d.id === p.policyClientId)?.modalities.join(" · ") ?? "Sem política (base)";
-      const key = `${p.store}||${p.policyClientId ?? "base"}`;
-      const cur = map.get(key) ?? { store: p.store, policy, count: 0, area: 0 };
+      const k: Kind = p.kind === "Retira" ? "Retira" : "Entrega";
+      const key = `${p.store}||${k}`;
+      const cur = map.get(key) ?? { store: p.store, kind: k, count: 0, area: 0 };
       cur.count += 1;
       cur.area += p.areaKm2 ?? 0;
       map.set(key, cur);
@@ -140,25 +141,18 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     try {
       const { id: storeId } = await ensureStore({ data: { name: storeName, region } });
 
-      let policyClientId: string | null = null;
-      if (policyId) {
-        const draft = drafts.find((d) => d.id === policyId);
-        if (!draft) throw new Error("Política não encontrada.");
-        policyClientId = draft.id;
-      }
-
-      if (replaceExisting && policyClientId) {
-        await deletePolygonCollection({ data: { storeId, policyClientId } });
+      if (replaceExisting) {
+        await deletePolygonCollection({ data: { storeId, kind } });
       }
 
       const rows = geo.map((g, i) => {
         const coords = asMulti(g);
         const center = centroidOf(coords);
         return {
-          clientId: `${storeName}|${policyClientId ?? "base"}|${Date.now()}|${i}`,
+          clientId: `${storeName}|${kind}|${Date.now()}|${i}`,
           storeId,
-          policyId: policyClientId,
-          policyClientId,
+          policyId: null,
+          kind,
           district: null,
           uf: region,
           band: "—",
@@ -182,11 +176,11 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       logAudit({
         store: storeName,
         module: "Criação de Polígonos",
-        field: policyClientId ? "Polígonos (política)" : "Polígonos (base)",
+        field: `Polígonos (${kind})`,
         before: replaceExisting ? "—" : "0",
         after: String(inserted),
         action: "Adição",
-        description: `${inserted.toLocaleString("pt-BR")} polígonos enviados de ${parsed?.name ?? "arquivo"} para a loja de ${storeName}`,
+        description: `${inserted.toLocaleString("pt-BR")} polígonos de ${kind} enviados de ${parsed?.name ?? "arquivo"} para a loja de ${storeName}`,
       });
 
       setFeedback({
@@ -207,20 +201,20 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     }
   };
 
-  const handleRemoveCollection = async (storeName: string, policyClientId: string) => {
+  const handleRemoveCollection = async (storeName: string, collectionKind: Kind) => {
     const target = liveStores(live).find((s) => s.name === storeName);
     if (!target) return;
-    if (!window.confirm(`Remover a coleção de polígonos de ${storeName} (${policyClientId})?`)) return;
+    if (!window.confirm(`Remover os polígonos de ${collectionKind} da loja de ${storeName}?`)) return;
     const { id: storeId } = await ensureStore({ data: { name: storeName, region: target.region } });
-    await deletePolygonCollection({ data: { storeId, policyClientId } });
+    await deletePolygonCollection({ data: { storeId, kind: collectionKind } });
     logAudit({
       store: storeName,
       module: "Criação de Polígonos",
-      field: "Coleção de polígonos",
+      field: `Polígonos (${collectionKind})`,
       before: "Cadastrada",
       after: "—",
       action: "Remoção",
-      description: `Coleção removida da loja de ${storeName}`,
+      description: `Coleção de ${collectionKind} removida da loja de ${storeName}`,
     });
     await refreshLive();
   };
@@ -229,11 +223,12 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     <div className="space-y-4">
       <section className="surface space-y-3 p-4">
         <div>
-          <h2 className="section-title text-lg">Envio de polígonos (loja + política)</h2>
+          <h2 className="section-title text-lg">Envio de polígonos (loja + tipo)</h2>
           <p className="text-xs text-muted-foreground">
-            Envie o GeoJSON com as áreas de uma loja e indique a qual política de envio a coleção
-            pertence. Sem política, a coleção entra como <strong>base</strong> da loja (visível em
-            todas as modalidades). Os dados ficam gravados no banco — visíveis para todos.
+            Envie o GeoJSON com as áreas de uma loja e indique se elas são de{" "}
+            <strong>Entrega</strong> ou de <strong>Retira</strong>. As áreas não dependem de
+            política de envio — o que muda por política é a tabela de frete. Os dados ficam
+            gravados no banco — visíveis para todos.
           </p>
         </div>
 
@@ -270,18 +265,14 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             />
           </label>
           <label className="field-label">
-            Política de envio
+            Tipo da coleção
             <select
-              className="input mt-1 w-64"
-              value={policyId}
-              onChange={(e) => setPolicyId(e.target.value)}
+              className="input mt-1 w-40"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as Kind)}
             >
-              <option value="">— base (sem política) —</option>
-              {drafts.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.store} · {d.modalities.join(" / ") || d.policyType}
-                </option>
-              ))}
+              <option value="Entrega">Entrega</option>
+              <option value="Retira">Retira</option>
             </select>
           </label>
           <label className="field-label">
@@ -301,7 +292,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               checked={replaceExisting}
               onChange={(e) => setReplaceExisting(e.target.checked)}
             />
-            substituir coleção anterior da política
+            substituir a coleção anterior desse tipo
           </label>
         </div>
 
@@ -362,7 +353,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             <thead className="bg-muted/60 text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-2 py-2 text-left">Loja</th>
-                <th className="px-2 py-2 text-left">Política</th>
+                <th className="px-2 py-2 text-left">Tipo</th>
                 <th className="px-2 py-2 text-right">Polígonos</th>
                 <th className="px-2 py-2 text-right">Área (km²)</th>
                 <th className="px-2 py-2"></th>
@@ -370,9 +361,9 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             </thead>
             <tbody>
               {collections.map((c) => (
-                <tr key={`${c.store}||${c.policy}`} className="border-t border-border">
+                <tr key={`${c.store}||${c.kind}`} className="border-t border-border">
                   <td className="px-2 py-1.5 font-medium">{c.store}</td>
-                  <td className="px-2 py-1.5">{c.policy}</td>
+                  <td className="px-2 py-1.5">{c.kind}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
                     {c.count.toLocaleString("pt-BR")}
                   </td>
@@ -380,19 +371,12 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                     {c.area.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
                   </td>
                   <td className="px-2 py-1.5 text-right">
-                    {c.policy === "Sem política (base)" ? null : (
-                      <button
-                        className="text-[11px] text-danger underline hover:bg-danger/10"
-                        onClick={() =>
-                          void handleRemoveCollection(
-                            c.store,
-                            live?.drafts.find((d) => d.store === c.store)?.id ?? "",
-                          )
-                        }
-                      >
-                        remover
-                      </button>
-                    )}
+                    <button
+                      className="text-[11px] text-danger underline hover:bg-danger/10"
+                      onClick={() => void handleRemoveCollection(c.store, c.kind)}
+                    >
+                      remover
+                    </button>
                   </td>
                 </tr>
               ))}

@@ -68,6 +68,7 @@ export interface FreightSnapshotDto {
     areaKm2: number | null;
     center: [number, number] | null;
     policyClientId: string;
+    kind: "Entrega" | "Retira" | null;
     geojson: { type: string; coordinates: number[][][][] } | null;
   }>;
   dockLinks: Array<{ store: string; dock: string; policyClientId: string }>;
@@ -469,6 +470,8 @@ export interface PolygonRowPayload {
   storeId: string;
   /** null = coleção base da loja (sem política) */
   policyId: string | null;
+  /** Tipo da coleção: "Entrega" (padrão) ou "Retira" */
+  kind?: "Entrega" | "Retira";
   district?: string | null;
   uf?: string | null;
   band?: string | null;
@@ -490,21 +493,16 @@ export const insertPolygonRows = createServerFn({ method: "POST" })
     return { inserted: (inserted.data as number) ?? 0 };
   });
 
+/** Remove a coleção de polígonos de uma loja para um tipo (Entrega/Retira). */
 export const deletePolygonCollection = createServerFn({ method: "POST" })
-  .inputValidator((input: { storeId: string; policyClientId: string }) => input)
+  .inputValidator((input: { storeId: string; kind: "Entrega" | "Retira" }) => input)
   .handler(async ({ data }) => {
     const supabase = publicClient();
-    const { data: policy } = await supabase
-      .from("policies")
-      .select("id")
-      .eq("client_id", data.policyClientId)
-      .maybeSingle();
-    if (!policy?.id) return { ok: true };
     const { error } = await supabase
       .from("polygons")
       .delete()
       .eq("store_id", data.storeId)
-      .eq("policy_id", policy.id);
+      .eq("kind", data.kind);
     fail(error);
     return { ok: true };
   });
