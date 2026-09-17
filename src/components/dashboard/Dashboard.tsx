@@ -152,6 +152,15 @@ export default function Dashboard() {
     [regionStores, visibleStores],
   );
 
+  /**
+   * Retira: todas as lojas da região selecionada servem como ponto de retirada,
+   * mesmo as que ainda não tiveram polígonos de entrega enviados.
+   */
+  const pickupStores = useMemo(
+    () => storesInRegion(region).filter((s) => visibleStores.includes(s)),
+    [region, visibleStores],
+  );
+
   // ============================================================================
   // ESTADO: Filtros de conteúdo
   // ============================================================================
