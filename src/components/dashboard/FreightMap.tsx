@@ -256,7 +256,7 @@ export default function FreightMap({
       
       group.addLayer(layer);
     }
-  }, [visible, selectedId]);
+  }, [visible, selectedId, pickupMode, statePolygons]);
 
   // ============================================================================
   // AJUSTE DE ZOOM
