@@ -29,6 +29,8 @@ audit_log         histórico: data/hora, loja, aba, campo, antes, depois,
 
 Cada política de envio tem a sua **coleção de polígonos** e a sua **tabela de frete**. Assim, no dashboard, o seletor de modalidade mostra apenas os polígonos da modalidade escolhida — por exemplo, só os polígonos de Entrega Agendada, ou só os de Retira Fácil — cada um com o frete da sua própria tabela.
 
+A relação entre polígono e tabela de frete continua como hoje: cada polígono aponta para a faixa de peso correspondente da tabela da sua política, e o painel de detalhes calcula o preço a partir do peso digitado (preço base da faixa + excedente × adicional por kg), com a explicação de cada termo. Como a tabela passa a viver no banco, a edição dela reflete no cálculo para todos.
+
 O cadastro da tabela de frete passa a ser real: na política, você escolhe a tabela já cadastrada da loja ou cadastra uma nova (enviando a planilha), e ela fica gravada no banco ligada àquela política, com todas as faixas de peso.
 
 Polígonos de Retira (contorno estadual) entram na mesma tabela `polygons`, marcados com tipo `Retira` e sem política associada, ligados à regional.
