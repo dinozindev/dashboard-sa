@@ -65,7 +65,7 @@ export const BAND_COLORS: Record<string, string> = {
  * 
  * Formato SVG strokeDasharray: "dash gap dash gap ..."
  */
-export const STORE_DASH: Record<StoreName, string | undefined> = {
+export const STORE_DASH: Record<string, string | undefined> = {
   Aricanduva: undefined,
   Suzano: "6 4",
   Mooca: "2 4",
@@ -85,7 +85,7 @@ export const STORE_DASH: Record<StoreName, string | undefined> = {
  * Aricanduva sempre usa contorno sólido (referência).
  * Outras lojas têm padrões únicos (tracejado, pontilhado, etc).
  */
-export const STORE_DASH_LABEL: Record<StoreName, string> = {
+export const STORE_DASH_LABEL: Record<string, string> = {
   Aricanduva: "contorno sólido",
   Suzano: "tracejado médio",
   Mooca: "pontilhado",
@@ -111,5 +111,5 @@ export const STORE_DASH_LABEL: Record<StoreName, string> = {
  * @param band - Nome da banda (5KM, 10KM, etc)
  * @returns Cor hex (ex: "#e11d48") ou fallback "#64748b" (cinza)
  */
-export const bandColor = (_store: StoreName, band: string) =>
+export const bandColor = (_store: string, band: string) =>
   BAND_COLORS[band] ?? "#777777";

@@ -77,7 +77,9 @@ export interface PolygonRecord {
   /** ID único do polígono (ex: "ari_0_5kg_001") */
   id: string;
   /** Loja responsável por essa área */
-  store: StoreName;
+  store: string;
+  /** Política de envio à qual a coleção do polígono pertence (id no app) */
+  policyClientId?: string;
   /** Município/distrito (ex: "Tatuapé") */
   district: string | null;
   /** Unidade federativa (SP, RJ) */

@@ -1,25 +1,36 @@
 /**
- * EDIÇÃO DOS STATUS DA MATRIZ DE POLÍTICAS
- * ========================================
+ * MATRIZ LOJA × MODALIDADE (ABA "POLÍTICAS DE ENVIO")
+ * ===================================================
  *
- * A matriz original vem de `shipping-policies.json` (somente leitura).
- * As alterações feitas na aba "Políticas de Envio" ficam salvas como JSON
- * no navegador e podem ser exportadas/importadas como arquivo.
+ * Para cada loja, o status de cada modalidade de envio. Os dados vivem no
+ * banco (tabelas `policy_cells` e `modalities`), então a matriz é a mesma
+ * para todas as pessoas. A estrutura retornada é a mesma do
+ * `shipping-policies.json` (dados padrão), então os componentes não mudam.
  */
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { commitLocal, getLive, refreshLive, subscribeLive } from "./live";
+import {
+  addCustomModality,
+  removeCustomModality,
+  replaceMatrixData,
+  resetMatrixData,
+  updatePolicyCell,
+} from "./remote.functions";
 import { logAudit } from "./audit-log";
 import {
-  normalizePolicyDataset,
-  policies,
+  SHIPPING_POLICY_DEFINITIONS,
+  policies as basePolicies,
   type PolicyCell,
   type PolicyDataset,
   type PolicyStatus,
+  type PolicyStore,
 } from "./policies";
 
-
-export const POLICY_MATRIX_STORAGE_KEY = "freight.shipping-policies.v1";
-
+/** Modalidades padrão (definições fixas + customizadas no banco). */
+export const BASE_MODALITIES = SHIPPING_POLICY_DEFINITIONS.map((d) => d.name);
+export const BASE_STORES = basePolicies.stores.map((s) => s.nome);
+export const DEFAULT_STATUS: PolicyStatus = "Não informada";
 export const STATUS_OPTIONS: PolicyStatus[] = [
   "Ativa",
   "Inativa",
@@ -28,204 +39,240 @@ export const STATUS_OPTIONS: PolicyStatus[] = [
   "—",
 ];
 
-function clone(d: PolicyDataset): PolicyDataset {
-  return JSON.parse(JSON.stringify(d)) as PolicyDataset;
+interface CellPayload {
+  store: string;
+  modality: string;
+  status: string;
+  note: string;
 }
 
-const BASE = policies;
-
-let current: PolicyDataset = BASE;
-let hydrated = false;
-const listeners = new Set<() => void>();
-
-function emit() {
-  for (const l of listeners) l();
-}
-
-function persist() {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(POLICY_MATRIX_STORAGE_KEY, JSON.stringify(current));
-  } catch {
-    /* storage indisponível */
+function buildDataset(live: ReturnType<typeof getLive>): PolicyDataset {
+  const dbCells = new Map<string, { status: string; note: string }>();
+  for (const c of live?.snapshot.policyCells ?? []) {
+    dbCells.set(`${c.store}||${c.modality}`, { status: c.status, note: c.note ?? "" });
   }
-}
 
-function isDataset(v: unknown): v is PolicyDataset {
-  const d = v as PolicyDataset | null;
-  return !!d && Array.isArray(d.modalities) && Array.isArray(d.stores);
-}
+  const custom: string[] = [];
+  for (const m of live?.snapshot.customModalities ?? []) {
+    if (!BASE_MODALITIES.includes(m)) custom.push(m);
+  }
+  const modalities = [...BASE_MODALITIES, ...custom];
 
-/**
- * Limpeza única: as células pré-preenchidas de Aricanduva e Suzano vieram da
- * planilha original e não devem existir. Roda uma só vez por navegador; depois
- * disso essas lojas seguem o mesmo fluxo das demais.
- */
-const LEGACY_SEED_STORES = ["Aricanduva", "Suzano"];
-const LEGACY_CLEANUP_KEY = "freight.shipping-policies.legacy-seed-cleared.v1";
-
-function clearLegacySeed(d: PolicyDataset) {
-  let changed = false;
-  for (const store of d.stores) {
-    if (!LEGACY_SEED_STORES.includes(store.nome)) continue;
-    for (const modality of Object.keys(store.cells)) {
-      const cell = store.cells[modality];
-      if (cell && (cell.status !== "Não informada" || cell.note !== "")) {
-        store.cells[modality] = { status: "Não informada", note: "" };
-        changed = true;
-      }
+  const stores: PolicyStore[] = basePolicies.stores.map((store) => {
+    const cells: Record<string, PolicyCell> = {};
+    for (const modality of modalities) {
+      const db = dbCells.get(`${store.nome}||${modality}`);
+      const base = store.cells[modality];
+      cells[modality] = {
+        status: (db?.status ?? base?.status ?? DEFAULT_STATUS) as PolicyStatus,
+        note: db?.note ?? base?.note ?? "",
+      };
     }
-  }
-  return changed;
-}
-
-export function hydratePolicyMatrix() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  try {
-    const raw = window.localStorage.getItem(POLICY_MATRIX_STORAGE_KEY);
-    if (!raw) return;
-    const parsed: unknown = JSON.parse(raw);
-    if (isDataset(parsed)) {
-      current = normalizePolicyDataset(parsed);
-      let done = false;
-      try {
-        done = window.localStorage.getItem(LEGACY_CLEANUP_KEY) === "1";
-      } catch {
-        /* storage indisponível */
-      }
-      if (!done) {
-        if (clearLegacySeed(current)) persist();
-        try {
-          window.localStorage.setItem(LEGACY_CLEANUP_KEY, "1");
-        } catch {
-          /* storage indisponível */
-        }
-      }
-      emit();
-    }
-  } catch {
-    /* JSON inválido */
-  }
-}
-
-export function subscribeMatrix(cb: () => void) {
-  listeners.add(cb);
-  return () => listeners.delete(cb);
-}
-
-export function getMatrix() {
-  return current;
-}
-
-export function updateCell(
-  storeName: string,
-  modality: string,
-  cell: Partial<PolicyCell>,
-  options?: { silent?: boolean },
-) {
-  const next = clone(current);
-  const store = next.stores.find((s) => s.nome === storeName);
-  if (!store) return;
-  const prev = store.cells[modality] ?? { status: "—" as PolicyStatus, note: "" };
-  store.cells[modality] = { ...prev, ...cell };
-  current = next;
-  persist();
-  emit();
-
-  if (options?.silent) return;
-  if (cell.status !== undefined && cell.status !== prev.status) {
-    logAudit({
-      store: storeName,
-      module: "Políticas de Envio",
-      field: `Status — ${modality}`,
-      before: prev.status,
-      after: cell.status,
-      action:
-        cell.status === "Ativa" ? "Ativação" : cell.status === "Inativa" ? "Desativação" : "Edição",
-      description: `Status da modalidade "${modality}" alterado de ${prev.status} para ${cell.status} na loja ${storeName}`,
-    });
-  }
-  if (cell.note !== undefined && cell.note !== prev.note) {
-    logAudit({
-      store: storeName,
-      module: "Políticas de Envio",
-      field: `Observação — ${modality}`,
-      before: prev.note || "—",
-      after: cell.note || "—",
-      action: "Edição",
-      description: `Observação da modalidade "${modality}" alterada na loja ${storeName}`,
-    });
-  }
-}
-
-
-export function addPolicyModality(modalityName: string, activeStoreName: string) {
-  const modality = modalityName.trim();
-  if (!modality) return "empty" as const;
-
-  const alreadyExists = current.modalities.some(
-    (item) => item.toLocaleLowerCase() === modality.toLocaleLowerCase(),
-  );
-  if (alreadyExists) return "exists" as const;
-
-  const next = clone(current);
-  next.modalities.push(modality);
-  next.stores = next.stores.map((store) => ({
-    ...store,
-    cells: {
-      ...store.cells,
-      [modality]: {
-        status: store.nome === activeStoreName ? "Ativa" : "Não informada",
-        note: "",
-      },
-    },
-  }));
-  current = next;
-  persist();
-  emit();
-  return "created" as const;
-}
-
-export function removePolicyModality(modalityName: string) {
-  const modality = modalityName.trim();
-  if (BASE.modalities.includes(modality)) return "protected" as const;
-  if (!current.modalities.includes(modality)) return "not-found" as const;
-
-  const next = clone(current);
-  next.modalities = next.modalities.filter((item) => item !== modality);
-  next.stores = next.stores.map((store) => {
-    const { [modality]: _removed, ...cells } = store.cells;
     return { ...store, cells };
   });
-  current = next;
-  persist();
-  emit();
-  return "removed" as const;
-}
 
-export function replaceMatrix(data: unknown) {
-  if (!isDataset(data)) throw new Error("Arquivo JSON fora do formato esperado.");
-  current = normalizePolicyDataset(data);
-  persist();
-  emit();
-}
-
-export function resetMatrix() {
-  current = BASE;
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.removeItem(POLICY_MATRIX_STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-  }
-  emit();
+  return { source: basePolicies.source, modalities, stores };
 }
 
 export function usePolicyMatrix() {
   useEffect(() => {
-    hydratePolicyMatrix();
+    void refreshLive();
   }, []);
-  return useSyncExternalStore(subscribeMatrix, getMatrix, () => BASE);
+  const live = useSyncExternalStore(subscribeLive, getLive, () => null);
+  return useMemo(() => buildDataset(live), [live]);
+}
+
+export function getPolicyMatrix(): PolicyDataset {
+  return buildDataset(getLive());
+}
+
+/** Atualiza o status/observação de uma célula (gravação otimista + banco). */
+export function updateCell(
+  storeName: string,
+  modality: string,
+  cell: Partial<Pick<PolicyCell, "status" | "note">>,
+  options: { silent?: boolean; previous?: PolicyCell } = {},
+) {
+  const current = getLive()?.snapshot.policyCells.find(
+    (c) => c.store === storeName && c.modality === modality,
+  );
+  const before = current ?? { status: DEFAULT_STATUS as string, note: "" };
+  const next: CellPayload = {
+    store: storeName,
+    modality,
+    status: cell.status ?? before.status,
+    note: cell.note ?? before.note,
+  };
+
+  commitLocal((state) => {
+    const cells = state.snapshot.policyCells;
+    const index = cells.findIndex((c) => c.store === storeName && c.modality === modality);
+    if (index >= 0) cells[index] = next;
+    else cells.push(next);
+    state.snapshot = { ...state.snapshot, policyCells: [...cells] };
+  });
+
+  void updatePolicyCell({ data: next })
+    .then(() => refreshLive())
+    .catch((err) => {
+      console.error("Falha ao salvar status da política", err);
+      void refreshLive();
+    });
+
+  if (options.silent) return;
+
+  const statusChanged = next.status !== before.status;
+  const noteChanged = next.note !== before.note;
+  if (statusChanged || noteChanged) {
+    const field = [statusChanged ? `Status ${modality}` : null, noteChanged ? `Observação ${modality}` : null]
+      .filter(Boolean)
+      .join(" + ");
+    logAudit({
+      store: storeName,
+      module: "Políticas de Envio",
+      field,
+      before: [statusChanged ? before.status : null, noteChanged ? before.note || "—" : null]
+        .filter(Boolean)
+        .join(" / "),
+      after: [statusChanged ? next.status : null, noteChanged ? next.note || "—" : null]
+        .filter(Boolean)
+        .join(" / "),
+      action: statusChanged
+        ? next.status === "Ativa"
+          ? "Ativação"
+          : "Desativação"
+        : "Edição",
+      description: `${modality} da loja ${storeName}`,
+    });
+  }
+}
+
+/** Cria uma nova modalidade customizada para todas as lojas. */
+export function addPolicyModality(
+  modality: string,
+  activeStoreName: string,
+): "created" | "exists" | "empty" {
+  const name = modality.trim();
+  if (!name) return "empty";
+  const live = getLive();
+  const customs = live?.snapshot.customModalities ?? [];
+  if (BASE_MODALITIES.includes(name) || customs.includes(name)) return "exists";
+
+  commitLocal((state) => {
+    if (!state.snapshot.customModalities.includes(name)) {
+      state.snapshot.customModalities = [...state.snapshot.customModalities, name];
+    }
+  });
+  void addCustomModality({ data: { name } })
+    .then(() => refreshLive())
+    .catch(() => void refreshLive());
+
+  logAudit({
+    store: activeStoreName || "Todas",
+    module: "Políticas de Envio",
+    field: `Modalidade "${name}"`,
+    before: "—",
+    after: "Adicionada",
+    action: "Adição",
+    description: "Nova modalidade criada e adicionada a todas as lojas",
+  });
+  return "created";
+}
+
+export type RemoveModalityResult = "removed" | "not-found" | "protected";
+
+/** Remove uma modalidade customizada (modalidades base não podem ser removidas). */
+export function removePolicyModality(modality: string): RemoveModalityResult {
+  if (BASE_MODALITIES.includes(modality)) return "protected";
+  const live = getLive();
+  if (!live?.snapshot.customModalities.includes(modality)) return "not-found";
+
+  commitLocal((state) => {
+    state.snapshot.customModalities = state.snapshot.customModalities.filter((m) => m !== modality);
+    state.snapshot.policyCells = state.snapshot.policyCells.filter((c) => c.modality !== modality);
+    state.snapshot = { ...state.snapshot };
+  });
+  void removeCustomModality({ data: { name: modality } })
+    .then(() => refreshLive())
+    .catch(() => void refreshLive());
+
+  logAudit({
+    store: "Todas",
+    module: "Políticas de Envio",
+    field: `Modalidade "${modality}"`,
+    before: "Cadastrada",
+    after: "—",
+    action: "Remoção",
+    description: "Modalidade customizada removida de todas as lojas",
+  });
+  return "removed";
+}
+
+/**
+ * Substitui toda a matriz (importação de arquivo JSON).
+ * Aceita o formato do `shipping-policies.json` (stores com `nome` + `cells`)
+ * ou o formato simplificado (stores com `name` + `rows`).
+ */
+export function replaceMatrix(data: unknown): { ok: boolean; error?: string } {
+  if (!data || typeof data !== "object" || !Array.isArray((data as { stores?: unknown }).stores)) {
+    return { ok: false, error: "Estrutura inválida" };
+  }
+  const raw = data as {
+    modalities?: string[];
+    stores?: Array<{
+      nome?: string;
+      name?: string;
+      cells?: Record<string, { status?: string; note?: string }>;
+      rows?: Array<{ modality?: string; status?: string; note?: string }>;
+    }>;
+  };
+  const cells: CellPayload[] = [];
+  for (const store of raw.stores ?? []) {
+    const storeName = store?.nome ?? store?.name;
+    if (!storeName) continue;
+    for (const [modality, cell] of Object.entries(store.cells ?? {})) {
+      cells.push({
+        store: storeName,
+        modality,
+        status: cell?.status ?? DEFAULT_STATUS,
+        note: cell?.note ?? "",
+      });
+    }
+    for (const row of store.rows ?? []) {
+      if (!row?.modality) continue;
+      cells.push({
+        store: storeName,
+        modality: row.modality,
+        status: row.status ?? DEFAULT_STATUS,
+        note: row.note ?? "",
+      });
+    }
+  }
+  const customs = (raw.modalities ?? []).filter(
+    (m) => m && !BASE_MODALITIES.includes(m) && !basePolicies.modalities.includes(m),
+  );
+
+  commitLocal((state) => {
+    state.snapshot.policyCells = cells.map((c) => ({ ...c }));
+    state.snapshot.customModalities = customs;
+    state.snapshot = { ...state.snapshot };
+  });
+  void replaceMatrixData({
+    data: { modalities: [...basePolicies.modalities, ...customs], cells },
+  })
+    .then(() => refreshLive())
+    .catch(() => void refreshLive());
+  return { ok: true };
+}
+
+/** Limpa a matriz inteira (volta ao padrão "Não informada"). */
+export function resetMatrix() {
+  commitLocal((state) => {
+    state.snapshot.policyCells = [];
+    state.snapshot.customModalities = [];
+    state.snapshot = { ...state.snapshot };
+  });
+  void resetMatrixData()
+    .then(() => refreshLive())
+    .catch(() => void refreshLive());
 }
