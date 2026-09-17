@@ -18,6 +18,7 @@ import {
 } from "@/lib/freight/remote.functions";
 import { logAudit } from "@/lib/freight/audit-log";
 import { useSubmittedStores, useDbStores } from "@/lib/freight/submitted-stores";
+import { UF_LIST, UF_NAMES } from "@/lib/freight/types";
 
 /** Features aceitas: Feature (Polygon/MultiPolygon) ou geometria direta */
 type AnyGeom = { type: "Polygon" | "MultiPolygon"; coordinates: unknown };
@@ -71,6 +72,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
 
   const [store, setStore] = useState("");
   const [kind, setKind] = useState<Kind>("Entrega");
+  const [uf, setUf] = useState<string>("SP");
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [parsed, setParsed] = useState<{ name: string; count: number; bands: Set<string>; area: number } | null>(null);
   const [geo, setGeo] = useState<AnyGeom[]>([]);
@@ -145,7 +147,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       setFeedback({ kind: "err", text: "Selecione um arquivo GeoJSON." });
       return;
     }
-    const region = storeRegionOf(live, storeName) ?? "SP";
+    const region = uf;
     setSending(true);
     try {
       const { id: storeId } = await ensureStore({ data: { name: storeName, region } });
