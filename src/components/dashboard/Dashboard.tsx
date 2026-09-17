@@ -908,11 +908,25 @@ export default function Dashboard() {
         {/* Horários e capacidade */}
         <section className="grid gap-4 xl:grid-cols-2">
           <div className="space-y-3 surface p-4">
-            <h2 className="section-title text-lg">Horários de atendimento</h2>
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="section-title text-lg">Horários de atendimento</h2>
+              <button
+                type="button"
+                className="btn-ghost text-xs"
+                onClick={() => scheduleNotice.setOpen(true)}
+              >
+                ⓘ Janela de envio
+              </button>
+            </div>
+            <ShippingWindowNotice
+              open={scheduleNotice.open}
+              onClose={() => scheduleNotice.setOpen(false)}
+            />
             {shownStores.map((s) => (
               <ScheduleGrid key={s} store={s} modality={modality} />
             ))}
           </div>
+
           <div className="space-y-3 surface p-4">
             <h2 className="section-title text-lg">Capacidade operacional</h2>
             <CapacityPanel />
