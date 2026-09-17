@@ -565,6 +565,46 @@ export function PolicyFormPanel({
     };
     const result = upsertPolicyDraft(draft);
     logPolicyChanges(existing, draft, modality);
+
+    // Tabela de frete: só vale para políticas de Entrega
+    const previousLink = getPolicyTariff(id);
+    if (policyType === "Entrega" && tariffIndex !== null && selectedTariff) {
+      const tableName = tariffSource === "upload" ? tariffFileName : selectedTariff.label;
+      if (previousLink?.tableName !== tableName || previousLink?.tableIndex !== tariffIndex) {
+        setPolicyTariff({
+          policyId: id,
+          store,
+          modality,
+          tableIndex: tariffIndex,
+          tableName,
+          source: tariffSource,
+          bandCount: selectedTariff.bandCount,
+          polygonIds: selectedTariff.polygonIds,
+          at: new Date().toISOString(),
+        });
+        logAudit({
+          store,
+          module: "Cadastro de Política de Envio",
+          field: `Tabela de frete — ${modality}`,
+          before: previousLink?.tableName ?? "—",
+          after: tableName,
+          action: previousLink ? "Edição" : "Criação",
+          description: `Tabela de frete "${tableName}" associada à política ${modality} da loja ${store} (${selectedTariff.bandCount} faixas de peso, ${selectedTariff.polygonIds.length} polígonos).`,
+        });
+      }
+    } else if (policyType === "Retira" && previousLink) {
+      removePolicyTariff(id);
+      logAudit({
+        store,
+        module: "Cadastro de Política de Envio",
+        field: `Tabela de frete — ${modality}`,
+        before: previousLink.tableName,
+        after: "—",
+        action: "Remoção",
+        description: `Tabela de frete removida da política ${modality} da loja ${store}: políticas de Retira não usam tabela de frete.`,
+      });
+    }
+
     updateCell(store, modality, { status: active ? "Ativa" : "Inativa" }, { silent: true });
     setSaved(id);
     setIoMessage(result === "updated" ? "Política existente atualizada." : null);
