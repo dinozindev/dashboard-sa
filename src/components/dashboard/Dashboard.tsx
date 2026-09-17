@@ -603,6 +603,23 @@ export default function Dashboard() {
         {tab === "envio" ? (
           <PolygonSubmissionPanel onGoToMap={() => setTab("operacao")} />
         ) : null}
+        {tab === "capacidade" ? (
+          <section className="space-y-3">
+            <div className="surface flex flex-wrap items-center gap-3 border-dashed p-4">
+              <span className="rounded-full bg-warning/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-warning-foreground">
+                Em Construção
+              </span>
+              <p className="text-sm text-muted-foreground">
+                Módulo de capacidade operacional em desenvolvimento — os valores abaixo servem
+                apenas como referência.
+              </p>
+            </div>
+            <div className="surface p-4">
+              <h2 className="section-title text-lg">Capacidade operacional</h2>
+              <CapacityPanel />
+            </div>
+          </section>
+        ) : null}
         {tab === "auditoria" ? <AuditHistoryPanel /> : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
@@ -1059,10 +1076,6 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <div className="space-y-3 surface p-4">
-            <h2 className="section-title text-lg">Capacidade operacional</h2>
-            <CapacityPanel />
-          </div>
         </section>
         </div>
 
