@@ -318,6 +318,39 @@ export default function Dashboard() {
       : allMatches;
 
   // ============================================================================
+  // MODALIDADE RETIRA: polígono único por estado + loja mais próxima
+  // ============================================================================
+
+  /** UFs cobertas pelas lojas exibidas (usadas na modalidade Retira) */
+  const pickupUfs = useMemo<Region[]>(
+    () => [...new Set(shownStores.map((s) => STORE_REGION[s]))],
+    [shownStores],
+  );
+
+  /** Polígonos estaduais carregados para essas UFs (vazio = arquivo ausente) */
+  const activeStatePolygons = useMemo(
+    () => (isPickup ? statePolygonsFor(pickupUfs) : []),
+    [isPickup, pickupUfs],
+  );
+
+  /**
+   * Loja mais próxima do ponto clicado (modalidade Retira).
+   * Distância real em linha reta (haversine) entre o ponto e o centro da loja.
+   */
+  const nearestPickupStore = useMemo(() => {
+    if (!isPickup || !point || shownStores.length === 0) return null;
+    const candidates = storeRefs.filter((s) => shownStores.includes(s.name));
+    let best: { name: StoreName; note: string; km: number } | null = null;
+    for (const s of candidates) {
+      const km = distanceKm([point.lng, point.lat], s.center);
+      if (!best || km < best.km) best = { name: s.name, note: s.note, km };
+    }
+    return best;
+  }, [isPickup, point, shownStores]);
+
+
+
+  // ============================================================================
   // EVENT HANDLERS
   // ============================================================================
 
