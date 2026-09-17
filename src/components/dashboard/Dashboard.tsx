@@ -709,10 +709,10 @@ export default function Dashboard() {
                     setBandIndex(null);
                   }}
                   onMapClick={(lng, lat) => setPoint({ lng, lat })}
-                  fitKey={`${region}|${shownStores.join(",")}|${search}|${modality}`}
+                  fitKey={`${region}|${(isPickup ? pickupStores : shownStores).join(",")}|${search}|${modality}`}
                   pickupMode={isPickup}
                   statePolygons={activeStatePolygons}
-                  markerStores={shownStores}
+                  markerStores={isPickup ? pickupStores : shownStores}
                 />
               </Suspense>
             </ClientOnly>
