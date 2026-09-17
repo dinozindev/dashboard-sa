@@ -317,6 +317,8 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               onChange={(e) => {
                 setStore(e.target.value);
                 setNewStore("");
+                const r = storeRegionOf(live, e.target.value);
+                if (r) setUf(r);
                 setFeedback(null);
               }}
             >
