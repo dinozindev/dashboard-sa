@@ -1,6 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
-import { policies, STATUS_CLASS, STATUS_ICON, type PolicyStatus } from "@/lib/freight/policies";
+import {
+  policies,
+  SHIPPING_POLICY_DEFINITIONS,
+  STATUS_CLASS,
+  STATUS_ICON,
+  type PolicyStatus,
+} from "@/lib/freight/policies";
 import {
   addPolicyModality,
   removePolicyModality,
@@ -422,7 +428,12 @@ export function PoliciesPanel({
               <tr key={m} className="border-t border-border">
                 <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium">
                   <div className="flex min-w-[180px] items-center justify-between gap-2">
-                    <span>{m}</span>
+                    <span>
+                      {m}
+                      {SHIPPING_POLICY_DEFINITIONS.find((definition) => definition.name === m)?.id
+                        ? ` · ID ${SHIPPING_POLICY_DEFINITIONS.find((definition) => definition.name === m)?.id}`
+                        : null}
+                    </span>
                     <button
                       type="button"
                       className="rounded-md border border-primary px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"

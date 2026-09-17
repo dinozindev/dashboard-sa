@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { policies } from "@/lib/freight/policies";
+import { policies, shippingPolicyDefinition } from "@/lib/freight/policies";
 import {
   DAY_GROUPS,
   emptyScheduledDelivery,
@@ -105,7 +105,6 @@ function logPolicyChanges(
   const fields: Array<[string, string, string]> = [
     ["Situação da política", onOff(before.active), onOff(after.active)],
     ["Tipo da política", before.policyType, after.policyType],
-    ["Venda assistida", onOff(before.assistedSale), onOff(after.assistedSale)],
     [
       "Entrega Agendada",
       onOff(before.scheduledDelivery.enabled),
@@ -352,7 +351,6 @@ export function PolicyFormPanel({
   const [store, setStore] = useState("");
   const [active, setActive] = useState(true);
   const [policyType, setPolicyType] = useState<PolicyType>("Entrega");
-  const [assistedSale, setAssistedSale] = useState(false);
   const [sched, setSched] = useState<ScheduledDelivery>(() => emptyScheduledDelivery());
   const [modality, setModality] = useState("");
   const [sumOfDimensions, setSum] = useState(0);
@@ -381,9 +379,10 @@ export function PolicyFormPanel({
 
   const effectiveSeller = pickupSeller || store;
 
+  const hasScheduledDelivery = modality === "Retira Televendas" || modality === "Entrega Agendada";
   const steps = useMemo(
-    () => ALL_STEPS.filter((s) => s.key !== "agendada" || assistedSale),
-    [assistedSale],
+    () => ALL_STEPS.filter((s) => s.key !== "agendada" || hasScheduledDelivery),
+    [hasScheduledDelivery],
   );
   const currentStep = steps[Math.min(step, steps.length - 1)] as StepDef;
 
@@ -409,7 +408,6 @@ export function PolicyFormPanel({
     setStore(initialPolicy.store);
     setActive(initialPolicy.active ?? true);
     setPolicyType(initialPolicy.policyType ?? "Entrega");
-    setAssistedSale(!!initialPolicy.assistedSale);
     setSched({ ...emptyScheduledDelivery(), ...(initialPolicy.scheduledDelivery ?? {}) });
     setModality(initialPolicy.modalities[0] ?? "");
     setSum(initialPolicy.dimensions.sumOfDimensions);
@@ -519,8 +517,8 @@ export function PolicyFormPanel({
       store,
       active,
       policyType,
-      assistedSale,
-      scheduledDelivery: assistedSale ? sched : emptyScheduledDelivery(),
+      assistedSale: hasScheduledDelivery,
+      scheduledDelivery: hasScheduledDelivery ? sched : emptyScheduledDelivery(),
       modalities: [modality],
       dimensions: {
         sumOfDimensions,
@@ -617,20 +615,6 @@ export function PolicyFormPanel({
                 </button>
               ))}
             </div>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 accent-primary"
-                checked={assistedSale}
-                onChange={(e) => setAssistedSale(e.target.checked)}
-              />
-              <span>
-                Esta política é de venda assistida?
-                <span className="block text-xs text-muted-foreground">
-                  Ao marcar, a etapa “Entrega Agendada” fica disponível no cadastro.
-                </span>
-              </span>
-            </label>
           </Section>
 
           <Section
@@ -647,7 +631,10 @@ export function PolicyFormPanel({
                       checked={modality === m}
                       onChange={() => setModality(m)}
                     />
-                    <span>{m}</span>
+                    <span>
+                      {m}
+                      {shippingPolicyDefinition(m)?.id ? ` · ID ${shippingPolicyDefinition(m)?.id}` : null}
+                    </span>
                   </label>
                 </div>
               ))}
@@ -1150,10 +1137,9 @@ export function PolicyFormPanel({
                 ["Loja/seller", store || "—"],
                 ["Situação", active ? "Ativa" : "Inativa"],
                 ["Tipo", policyType],
-                ["Venda assistida", assistedSale ? "sim" : "não"],
                 [
                   "Entrega agendada",
-                  assistedSale && sched.enabled
+                  hasScheduledDelivery && sched.enabled
                     ? `até ${sched.maxDays} dia(s)` +
                       (sched.capacityEnabled
                         ? ` · ${sched.unit} · ${sched.windows.length} janela(s)`
@@ -1234,7 +1220,7 @@ export function PolicyFormPanel({
         </div>
       ) : null}
 
-      <Section
+      {/* <Section
         title="Políticas cadastradas"
         hint="Salvas em JSON no navegador — continuam disponíveis ao recarregar a página."
         right={
@@ -1324,7 +1310,7 @@ export function PolicyFormPanel({
             </div>
           ))}
         </div>
-      </Section>
+      </Section> */}
     </div>
   );
 }

@@ -9,7 +9,13 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { logAudit } from "./audit-log";
-import { policies, type PolicyCell, type PolicyDataset, type PolicyStatus } from "./policies";
+import {
+  normalizePolicyDataset,
+  policies,
+  type PolicyCell,
+  type PolicyDataset,
+  type PolicyStatus,
+} from "./policies";
 
 
 export const POLICY_MATRIX_STORAGE_KEY = "freight.shipping-policies.v1";
@@ -81,7 +87,7 @@ export function hydratePolicyMatrix() {
     if (!raw) return;
     const parsed: unknown = JSON.parse(raw);
     if (isDataset(parsed)) {
-      current = parsed;
+      current = normalizePolicyDataset(parsed);
       let done = false;
       try {
         done = window.localStorage.getItem(LEGACY_CLEANUP_KEY) === "1";
@@ -200,7 +206,7 @@ export function removePolicyModality(modalityName: string) {
 
 export function replaceMatrix(data: unknown) {
   if (!isDataset(data)) throw new Error("Arquivo JSON fora do formato esperado.");
-  current = data;
+  current = normalizePolicyDataset(data);
   persist();
   emit();
 }

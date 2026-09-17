@@ -66,12 +66,67 @@ export interface PolicyDataset {
   stores: PolicyStore[];
 }
 
+export interface ShippingPolicyDefinition {
+  name: string;
+  deliveryName: string;
+  pickupName: string;
+  id: number | null;
+}
+
+export const SHIPPING_POLICY_DEFINITIONS: ShippingPolicyDefinition[] = [
+  { name: "Pequenos Volumes", deliveryName: "Entrega Rápida - Peq_Volumes", pickupName: "Entrega Econômica", id: 71 },
+  { name: "Retira Fácil (Clique & Retira)", deliveryName: "", pickupName: "", id: 40 },
+  { name: "Retira Televendas", deliveryName: "", pickupName: "", id: 3 },
+  { name: "Retira Imediata", deliveryName: "Retira Imediata na Loja (VA)", pickupName: "Retira fácil na loja", id: 1 },
+  { name: "Saldo Borderô", deliveryName: "Retira Saldo Borderô", pickupName: "Retira Saldo Borderô", id: 5 },
+  { name: "Retira H+4 Ecommerce", deliveryName: "", pickupName: "", id: null },
+  { name: "Entrega Normal", deliveryName: "", pickupName: "", id: 10 },
+  { name: "Entrega Conforto Manhã", deliveryName: "ENTREGA_CONFORTO_TLV_VA_MANHA", pickupName: "ENTREGA CONFORTO_MANHA", id: 14 },
+  { name: "Entrega Conforto Tarde", deliveryName: "ENTREGA_CONFORTO_TLV_VA_TARDE", pickupName: "ENTREGA CONFORTO_TARDE", id: 16 },
+  { name: "ENTREGA TLV_VA_FRETE GRATIS", deliveryName: "", pickupName: "", id: null },
+  { name: "Entrega Agendada", deliveryName: "Entrega Agendada (TLV_VA)", pickupName: "Entrega Agendada", id: 30 },
+];
+
+export const shippingPolicyDefinition = (name: string) =>
+  SHIPPING_POLICY_DEFINITIONS.find((definition) => definition.name === name);
+
+const MODALITY_ALIASES: Record<string, string> = {
+  "ENTREGA CONFORTO MANHÃ": "Entrega Conforto Manhã",
+  "ENTREGA CONFORTO TARDE": "Entrega Conforto Tarde",
+};
+
+export function normalizePolicyDataset(dataset: PolicyDataset): PolicyDataset {
+  const standardModalities = SHIPPING_POLICY_DEFINITIONS.map((definition) => definition.name);
+  const customModalities = dataset.modalities
+    .map((modality) => MODALITY_ALIASES[modality] ?? modality)
+    .filter((modality) => !standardModalities.includes(modality));
+  const modalities = [...standardModalities, ...customModalities];
+  const stores = dataset.stores.map((store) => {
+    const cells = Object.fromEntries(
+      Object.entries(store.cells).map(([modality, cell]) => [
+        MODALITY_ALIASES[modality] ?? modality,
+        cell,
+      ]),
+    );
+    return {
+      ...store,
+      cells: Object.fromEntries(
+        modalities.map((modality) => [
+          modality,
+          cells[modality] ?? { status: "Não informada" as PolicyStatus, note: "" },
+        ]),
+      ),
+    };
+  });
+  return { ...dataset, modalities, stores };
+}
+
 // ============================================================================
 // 2. DADOS CARREGADOS
 // ============================================================================
 
 /** Dataset completo de políticas importado do JSON */
-export const policies = raw as unknown as PolicyDataset;
+export const policies = normalizePolicyDataset(raw as unknown as PolicyDataset);
 
 // ============================================================================
 // 3. VISUALIZAÇÃO
