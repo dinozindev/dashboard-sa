@@ -96,6 +96,12 @@ type ProfileKey = keyof typeof PROFILES;
 /**
  * DASHBOARD - Componente principal
  */
+/** Nome legível do polígono (padrão Distrito_Faixa_Numero), sem prefixos internos. */
+function polygonLabel(rec: { id: string }): string {
+  const parts = rec.id.split("|");
+  return parts[parts.length - 1] || rec.id;
+}
+
 export default function Dashboard() {
   // ============================================================================
   // ESTADO: Abas principais
