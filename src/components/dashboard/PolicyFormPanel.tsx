@@ -471,6 +471,8 @@ export function PolicyFormPanel({
       if (!store) errs.push("Selecione a loja/seller da política.");
       if (!policyType) errs.push("Selecione o tipo da política (Entrega ou Retira).");
       if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
+      if (policyType === "Entrega" && tariffOptions.length > 0 && tariffIndex === null)
+        errs.push("Associe uma tabela de frete a esta política de entrega.");
     }
     if (key === "dimensoes" && modality === "Pequenos Volumes") {
       if (sumOfDimensions <= 0 && largestEdge <= 0 && cubic <= 0 && minWeight <= 0) {
