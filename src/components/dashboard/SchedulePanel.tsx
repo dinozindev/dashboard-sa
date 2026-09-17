@@ -6,8 +6,70 @@
  * Mostra se está aberto agora e grade semanal de horários.
  */
 
+import { useEffect, useState } from "react";
 import { DAY_LABEL, DAY_ORDER, getStatus, SCHEDULES } from "@/lib/freight/schedule";
 import type { Modality, StoreName } from "@/lib/freight/types";
+
+/**
+ * AVISO DE JANELA DE ENVIO
+ * ========================
+ *
+ * Pop-up informativo: Saldo Borderô e Retira Imediata normalmente trabalham
+ * com janela de envio, e não com horário de coleta.
+ */
+export function ShippingWindowNotice({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Aviso sobre horário de atendimento"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-foreground/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-border bg-card p-4 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="section-title text-base">Horário de atendimento</h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Geralmente as modalidades <strong>Saldo Borderô</strong> e{" "}
+          <strong>Retira Imediata</strong> utilizam <strong>janela de envio</strong>, e não
+          horário de coleta.
+        </p>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            onClick={onClose}
+          >
+            Entendi
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Abre o aviso automaticamente na primeira vez que a tela é exibida. */
+export function useShippingWindowNotice(active: boolean) {
+  const [open, setOpen] = useState(false);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    if (active && !seen) {
+      setSeen(true);
+      setOpen(true);
+    }
+  }, [active, seen]);
+  return { open, setOpen };
+}
+
 
 /**
  * STATUS BADGE: Status de abertura/fechamento.
