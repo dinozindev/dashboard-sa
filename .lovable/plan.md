@@ -12,33 +12,38 @@ O mapa continua recebendo o desenho em GeoJSON: o banco converte na hora da leit
 
 ```text
 stores            lojas (nome, regional SP/RJ, endereço, coordenada)
-  └─ polygons     1 linha por polígono: loja, tipo (Entrega/Retira),
-                  faixa/raio, distrito, área, centro, desenho geográfico
-  └─ docks        docas da loja
   └─ policies     políticas de envio (todos os campos do cadastro atual:
                   tipo, modalidades, dimensões, fins de semana, ponto de
                   retirada, janelas/coletas, entrega agendada, ativa)
+       ├─ freight_tables   tabela de frete cadastrada para a política
+       │    └─ freight_bands  faixas de peso (início, fim, preço base,
+       │                      adicional/kg, %, volume, prazo, seguro)
        ├─ policy_docks     ligação política ↔ doca
-       └─ freight_tables   tabela de frete da política
-             └─ freight_bands  faixas de peso (início, fim, preço base,
-                               adicional/kg, %, volume, prazo, seguro)
+       └─ polygons         coleção de polígonos da política: 1 linha por
+                           polígono (loja, política, faixa/raio, distrito,
+                           área, centro, desenho geográfico)
+  └─ docks        docas da loja
 audit_log         histórico: data/hora, loja, aba, campo, antes, depois,
                   ação, descrição
 ```
 
-Polígonos de Retira (contorno estadual) entram na mesma tabela `polygons`, marcados com tipo `Retira` e sem loja, ligados à regional.
+Cada política de envio tem a sua **coleção de polígonos** e a sua **tabela de frete**. Assim, no dashboard, o seletor de modalidade mostra apenas os polígonos da modalidade escolhida — por exemplo, só os polígonos de Entrega Agendada, ou só os de Retira Fácil — cada um com o frete da sua própria tabela.
+
+O cadastro da tabela de frete passa a ser real: na política, você escolhe a tabela já cadastrada da loja ou cadastra uma nova (enviando a planilha), e ela fica gravada no banco ligada àquela política, com todas as faixas de peso.
+
+Polígonos de Retira (contorno estadual) entram na mesma tabela `polygons`, marcados com tipo `Retira` e sem política associada, ligados à regional.
 
 ## Envio de polígonos vira upload real
 
 A aba "Envio de Polígonos" deixa de apenas ativar lojas fixas e passa a:
 
 1. escolher (ou cadastrar) a loja e a regional;
-2. escolher o tipo: Entrega ou Retira;
+2. escolher a política de envio à qual a coleção pertence (apenas as políticas já cadastradas para aquela loja — é ela que define se é Entrega ou Retira);
 3. selecionar um arquivo `.geojson` do computador;
 4. mostrar a pré-visualização: quantas áreas foram lidas, nomes encontrados, avisos de geometria inválida;
-5. confirmar e gravar no banco.
+5. confirmar e gravar no banco, vinculado à loja e à política escolhidas.
 
-O banco começa vazio — você popula enviando os arquivos de cada loja. Nada é inventado: se o arquivo não tiver um campo esperado, o sistema avisa em vez de preencher sozinho. Também dá para remover o envio de uma loja.
+O banco começa vazio — você popula enviando os arquivos de cada loja. Nada é inventado: se o arquivo não tiver um campo esperado, o sistema avisa em vez de preencher sozinho. Também dá para remover uma coleção enviada (loja + política).
 
 ## Acesso
 
@@ -47,6 +52,8 @@ Sem login por enquanto, como você pediu: os perfis Consultor / Editor / Auditor
 ## O que muda na tela
 
 - Dashboard, Políticas, Cadastro, Docas, Auditoria passam a ler e gravar no banco, com indicadores de carregando/erro.
+- No dashboard, o seletor de modalidade passa a filtrar os polígonos pela política correspondente: escolhendo "Entrega Agendada" aparecem só os polígonos daquela política, com os preços da tabela de frete dela; modalidades sem coleção enviada aparecem vazias, com aviso.
+- No cadastro de política, a seção "Tabela de Frete" grava no banco: escolher tabela já cadastrada da loja ou cadastrar nova (envio da planilha), sempre ligada àquela política.
 - Cadastros feitos por uma pessoa aparecem para as outras ao recarregar.
 - Nada do que existe no seu navegador é migrado automaticamente; o banco parte limpo e é populado pelos envios.
 - Layout, fluxo de cadastro, replicação de política, pop-ups e cálculo de frete continuam iguais.
