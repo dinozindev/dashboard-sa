@@ -719,7 +719,43 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-            {point ? (
+            {isPickup ? (
+              <>
+                {activeStatePolygons.length === 0 ? (
+                  <p className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs font-medium text-danger">
+                    Polígono estadual não carregado. Adicione o contorno oficial de SP/RJ em
+                    <code className="mx-1">src/data/state-polygons.json</code>
+                    para exibir a área de retira — nenhum contorno é desenhado por aproximação.
+                  </p>
+                ) : null}
+                {nearestPickupStore ? (
+                  <div className="surface p-3">
+                    <p className="eyebrow mb-2">Loja de retira mais próxima</p>
+                    <p className="font-display text-base font-bold text-primary">
+                      {nearestPickupStore.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{nearestPickupStore.note}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Distância em linha reta do ponto clicado:{" "}
+                      <strong className="tabular-nums">
+                        {nearestPickupStore.km.toLocaleString("pt-BR", {
+                          maximumFractionDigits: 1,
+                        })}{" "}
+                        km
+                      </strong>
+                    </p>
+                    <div className="mt-3">
+                      <ScheduleGrid store={nearestPickupStore.name} modality="Retira" />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
+                    Modalidade <strong>Retira</strong>: clique em qualquer ponto do estado para ver
+                    a loja de retirada mais próxima e seus horários.
+                  </p>
+                )}
+              </>
+            ) : point ? (
               <div className="surface p-3">
                 <p className="eyebrow mb-2">
                   Comparação no ponto clicado
