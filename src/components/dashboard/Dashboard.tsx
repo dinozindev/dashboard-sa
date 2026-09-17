@@ -321,10 +321,14 @@ export default function Dashboard() {
   // MODALIDADE RETIRA: polígono único por estado + loja mais próxima
   // ============================================================================
 
-  /** UFs cobertas pelas lojas exibidas (usadas na modalidade Retira) */
+  /**
+   * UFs exibidas na Retira: seguem o filtro Regional, não as lojas ativas —
+   * a área de retira cobre o estado inteiro mesmo onde ainda não há loja
+   * com polígonos enviados.
+   */
   const pickupUfs = useMemo<Region[]>(
-    () => [...new Set(shownStores.map((s) => STORE_REGION[s]))],
-    [shownStores],
+    () => (region === "Todas" ? ["SP", "RJ"] : [region]),
+    [region],
   );
 
   /** Polígonos estaduais carregados para essas UFs (vazio = arquivo ausente) */
@@ -334,19 +338,23 @@ export default function Dashboard() {
   );
 
   /**
-   * Loja mais próxima do ponto clicado (modalidade Retira).
-   * Distância real em linha reta (haversine) entre o ponto e o centro da loja.
+   * Ranking de distância entre o ponto clicado e TODAS as lojas exibidas
+   * (haversine, em linha reta). A primeira da lista é a mais próxima.
    */
-  const nearestPickupStore = useMemo(() => {
-    if (!isPickup || !point || shownStores.length === 0) return null;
-    const candidates = storeRefs.filter((s) => shownStores.includes(s.name));
-    let best: { name: StoreName; note: string; km: number } | null = null;
-    for (const s of candidates) {
-      const km = distanceKm([point.lng, point.lat], s.center);
-      if (!best || km < best.km) best = { name: s.name, note: s.note, km };
-    }
-    return best;
+  const pickupRanking = useMemo(() => {
+    if (!isPickup || !point) return [];
+    return storeRefs
+      .filter((s) => shownStores.includes(s.name))
+      .map((s) => ({
+        name: s.name,
+        note: s.note,
+        uf: STORE_REGION[s.name],
+        km: distanceKm([point.lng, point.lat], s.center),
+      }))
+      .sort((a, b) => a.km - b.km);
   }, [isPickup, point, shownStores]);
+
+  const nearestPickupStore = pickupRanking[0] ?? null;
 
 
 
