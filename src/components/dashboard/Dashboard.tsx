@@ -152,6 +152,15 @@ export default function Dashboard() {
     [regionStores, visibleStores],
   );
 
+  /**
+   * Retira: todas as lojas da região selecionada servem como ponto de retirada,
+   * mesmo as que ainda não tiveram polígonos de entrega enviados.
+   */
+  const pickupStores = useMemo(
+    () => storesInRegion(region).filter((s) => visibleStores.includes(s)),
+    [region, visibleStores],
+  );
+
   // ============================================================================
   // ESTADO: Filtros de conteúdo
   // ============================================================================
@@ -321,10 +330,14 @@ export default function Dashboard() {
   // MODALIDADE RETIRA: polígono único por estado + loja mais próxima
   // ============================================================================
 
-  /** UFs cobertas pelas lojas exibidas (usadas na modalidade Retira) */
+  /**
+   * UFs exibidas na Retira: seguem o filtro Regional, não as lojas ativas —
+   * a área de retira cobre o estado inteiro mesmo onde ainda não há loja
+   * com polígonos enviados.
+   */
   const pickupUfs = useMemo<Region[]>(
-    () => [...new Set(shownStores.map((s) => STORE_REGION[s]))],
-    [shownStores],
+    () => (region === "Todas" ? ["SP", "RJ"] : [region]),
+    [region],
   );
 
   /** Polígonos estaduais carregados para essas UFs (vazio = arquivo ausente) */
@@ -334,19 +347,23 @@ export default function Dashboard() {
   );
 
   /**
-   * Loja mais próxima do ponto clicado (modalidade Retira).
-   * Distância real em linha reta (haversine) entre o ponto e o centro da loja.
+   * Ranking de distância entre o ponto clicado e TODAS as lojas exibidas
+   * (haversine, em linha reta). A primeira da lista é a mais próxima.
    */
-  const nearestPickupStore = useMemo(() => {
-    if (!isPickup || !point || shownStores.length === 0) return null;
-    const candidates = storeRefs.filter((s) => shownStores.includes(s.name));
-    let best: { name: StoreName; note: string; km: number } | null = null;
-    for (const s of candidates) {
-      const km = distanceKm([point.lng, point.lat], s.center);
-      if (!best || km < best.km) best = { name: s.name, note: s.note, km };
-    }
-    return best;
-  }, [isPickup, point, shownStores]);
+  const pickupRanking = useMemo(() => {
+    if (!isPickup || !point) return [];
+    return storeRefs
+      .filter((s) => pickupStores.includes(s.name))
+      .map((s) => ({
+        name: s.name,
+        note: s.note,
+        uf: STORE_REGION[s.name],
+        km: distanceKm([point.lng, point.lat], s.center),
+      }))
+      .sort((a, b) => a.km - b.km);
+  }, [isPickup, point, pickupStores]);
+
+  const nearestPickupStore = pickupRanking[0] ?? null;
 
 
 
@@ -692,10 +709,10 @@ export default function Dashboard() {
                     setBandIndex(null);
                   }}
                   onMapClick={(lng, lat) => setPoint({ lng, lat })}
-                  fitKey={`${region}|${shownStores.join(",")}|${search}|${modality}`}
+                  fitKey={`${region}|${(isPickup ? pickupStores : shownStores).join(",")}|${search}|${modality}`}
                   pickupMode={isPickup}
                   statePolygons={activeStatePolygons}
-                  markerStores={shownStores}
+                  markerStores={isPickup ? pickupStores : shownStores}
                 />
               </Suspense>
             </ClientOnly>
@@ -747,6 +764,26 @@ export default function Dashboard() {
                     <div className="mt-3">
                       <ScheduleGrid store={nearestPickupStore.name} modality="Retira" />
                     </div>
+                    {pickupRanking.length > 1 ? (
+                      <div className="mt-3 border-t border-border pt-3">
+                        <p className="eyebrow mb-2">Distância até as demais lojas</p>
+                        <ul className="space-y-1">
+                          {pickupRanking.slice(1).map((s) => (
+                            <li
+                              key={s.name}
+                              className="flex items-center justify-between gap-2 text-xs"
+                            >
+                              <span className="text-muted-foreground">
+                                {s.name} <span className="opacity-60">({s.uf})</span>
+                              </span>
+                              <span className="tabular-nums font-medium">
+                                {s.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
