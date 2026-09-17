@@ -68,6 +68,7 @@ export interface FreightSnapshotDto {
     areaKm2: number | null;
     center: [number, number] | null;
     policyClientId: string;
+    kind: "Entrega" | "Retira" | null;
     geojson: { type: string; coordinates: number[][][][] } | null;
   }>;
   dockLinks: Array<{ store: string; dock: string; policyClientId: string }>;

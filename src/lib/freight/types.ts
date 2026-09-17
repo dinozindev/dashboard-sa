@@ -80,6 +80,8 @@ export interface PolygonRecord {
   store: string;
   /** Política de envio à qual a coleção do polígono pertence (id no app) */
   policyClientId?: string;
+  /** Tipo da coleção: área de Entrega ou de Retira */
+  kind?: "Entrega" | "Retira";
   /** Município/distrito (ex: "Tatuapé") */
   district: string | null;
   /** Unidade federativa (SP, RJ) */
