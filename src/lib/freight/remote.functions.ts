@@ -515,6 +515,39 @@ export const deletePolygonCollection = createServerFn({ method: "POST" })
   });
 
 // ============================================================================
+// MALHAS ESTADUAIS (RETIRA)
+// ============================================================================
+
+/** Grava (ou substitui) a malha estadual de uma UF usada na modalidade Retira. */
+export const upsertStatePolygon = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: { uf: string; name: string; source?: string | null; geojson: string }) => input,
+  )
+  .handler(async ({ data }) => {
+    const supabase = publicClient();
+    const { error } = await supabase.rpc("upsert_state_polygon", {
+      payload: {
+        uf: data.uf,
+        name: data.name,
+        source: data.source ?? null,
+        geojson: data.geojson,
+      },
+    });
+    fail(error);
+    return { ok: true };
+  });
+
+/** Remove a malha estadual de uma UF. */
+export const deleteStatePolygon = createServerFn({ method: "POST" })
+  .inputValidator((input: { uf: string }) => input)
+  .handler(async ({ data }) => {
+    const supabase = publicClient();
+    const { error } = await supabase.from("state_polygons").delete().eq("uf", data.uf);
+    fail(error);
+    return { ok: true };
+  });
+
+// ============================================================================
 // AUDITORIA
 // ============================================================================
 
