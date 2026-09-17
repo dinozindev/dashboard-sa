@@ -22,6 +22,7 @@ import type { PolygonRecord } from "@/lib/freight/types";
 import { bandColor, STORE_DASH } from "@/lib/freight/palette";
 import { boundsOf } from "@/lib/freight/geo";
 import { stores } from "@/lib/freight/dataset";
+import type { StatePolygon } from "@/lib/freight/state-polygons";
 
 /**
  * Props do mapa.
