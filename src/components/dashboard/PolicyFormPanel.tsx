@@ -32,6 +32,11 @@ import {
   removePolicyTariff,
   setPolicyTariff,
 } from "@/lib/freight/policy-tariff-store";
+import { getLive, regionForStore } from "@/lib/freight/live";
+import { pushTariffTable } from "@/lib/freight/dataset";
+import { saveFreightTable } from "@/lib/freight/remote.functions";
+import { parseBandsFromXlsx } from "@/lib/freight/xlsx-bands";
+import type { WeightBand } from "@/lib/freight/types";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
 import { ShippingWindowNotice, useShippingWindowNotice } from "./SchedulePanel";
@@ -371,6 +376,9 @@ export function PolicyFormPanel({
   const [tariffSource, setTariffSource] = useState<"existente" | "upload">("existente");
   const [tariffFileName, setTariffFileName] = useState("");
   const tariffFileRef = useRef<HTMLInputElement>(null);
+  const [uploadedBands, setUploadedBands] = useState<WeightBand[] | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   /** Tabelas de frete já carregadas no projeto para a loja escolhida */
   const tariffOptions = useMemo(() => (store ? tariffTablesForStore(store) : []), [store]);
@@ -541,7 +549,7 @@ export function PolicyFormPanel({
     setStep((cur) => Math.max(0, cur - 1));
   };
 
-  const save = () => {
+  const save = async () => {
     const errs = steps
       .filter((s) => s.key !== "revisao")
       .flatMap((s) => validateStep(s.key));
@@ -584,7 +592,54 @@ export function PolicyFormPanel({
 
     // Tabela de frete: só vale para políticas de Entrega
     const previousLink = getPolicyTariff(id);
-    if (policyType === "Entrega" && tariffIndex !== null && selectedTariff) {
+    if (policyType === "Entrega" && tariffSource === "upload" && uploadedBands?.length) {
+      const tableName = tariffFileName.replace(/\.(xlsx|xls)$/i, "");
+      try {
+        const { id: tableId } = await saveFreightTable({
+          data: {
+            table: {
+              store,
+              region: regionForStore(store) ?? "SP",
+              name: tableName,
+              source: "upload",
+              fileName: tariffFileName,
+              bands: uploadedBands,
+              policyClientId: id,
+            },
+          },
+        });
+        const idx = pushTariffTable(uploadedBands);
+        const polygonIds =
+          getLive()?.polygons.filter((p) => p.store === store).map((p) => p.id) ?? [];
+        setPolicyTariff({
+          policyId: id,
+          store,
+          modality,
+          tableId,
+          tableIndex: idx,
+          tableName,
+          source: "upload",
+          bandCount: uploadedBands.length,
+          polygonIds,
+          at: new Date().toISOString(),
+        });
+        logAudit({
+          store,
+          module: "Cadastro de Política de Envio",
+          field: `Tabela de frete — ${modality}`,
+          before: previousLink?.tableName ?? "—",
+          after: tableName,
+          action: previousLink ? "Edição" : "Criação",
+          description: `Tabela de frete "${tableName}" (upload de planilha, ${uploadedBands.length} faixas de peso) associada à política ${modality} da loja ${store}.`,
+        });
+      } catch (err) {
+        console.error("Falha ao salvar tabela de frete", err);
+        setErrors((cur) => [
+          ...cur,
+          "Falha ao gravar a tabela de frete no banco. Tente novamente.",
+        ]);
+      }
+    } else if (policyType === "Entrega" && tariffIndex !== null && selectedTariff) {
       const tableName = tariffSource === "upload" ? tariffFileName : selectedTariff.label;
       if (previousLink?.tableName !== tableName || previousLink?.tableIndex !== tariffIndex) {
         setPolicyTariff({
@@ -806,6 +861,8 @@ export function PolicyFormPanel({
                     setTariffIndex(v === "" ? null : Number(v));
                     setTariffSource("existente");
                     setTariffFileName("");
+                    setUploadedBands(null);
+                    setUploadError(null);
                   }}
                 >
                   <option value="">
@@ -829,29 +886,51 @@ export function PolicyFormPanel({
                   type="file"
                   accept=".xlsx"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     e.target.value = "";
                     if (!file) return;
-                    const base = tariffOptions[0];
-                    if (!base) return;
-                    setTariffIndex((cur) => (cur === null ? base.index : cur));
-                    setTariffSource("upload");
-                    setTariffFileName(file.name);
+                    setUploading(true);
+                    setUploadError(null);
+                    try {
+                      const buf = await file.arrayBuffer();
+                      const bands = await parseBandsFromXlsx(buf);
+                      setUploadedBands(bands);
+                      setTariffSource("upload");
+                      setTariffFileName(file.name);
+                    } catch (err) {
+                      setUploadError(
+                        err instanceof Error ? err.message : "Não foi possível ler a planilha.",
+                      );
+                      setUploadedBands(null);
+                      setTariffSource("existente");
+                      setTariffFileName("");
+                    } finally {
+                      setUploading(false);
+                    }
                   }}
                 />
                 <button
                   type="button"
                   className="btn-ghost text-xs"
-                  disabled={policyType === "Retira" || tariffOptions.length === 0}
+                  disabled={policyType === "Retira" || uploading}
                   onClick={() => tariffFileRef.current?.click()}
                 >
-                  Fazer upload de nova tabela (.xlsx)
+                  {uploading ? "Lendo planilha…" : "Fazer upload de nova tabela (.xlsx)"}
                 </button>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Simulação: o arquivo escolhido não é processado — a estrutura reaproveitada é a da
-                  tabela já carregada no projeto para esta loja.
-                </p>
+                {uploadError ? (
+                  <p className="mt-1 text-[11px] font-medium text-danger">{uploadError}</p>
+                ) : uploadedBands?.length ? (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    <strong>{tariffFileName}</strong>: {uploadedBands.length} faixas de peso lidas da
+                    planilha. A tabela será gravada no banco ao salvar.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    A planilha é lida no navegador (colunas de peso e preço) e a tabela é gravada no
+                    banco ao salvar.
+                  </p>
+                )}
               </div>
 
               {policyType === "Entrega" && selectedTariff ? (

@@ -123,7 +123,14 @@ function applySnapshot(raw: FreightSnapshotDto) {
             ? [geomRaw.coordinates as unknown as number[][][]]
             : [];
     }
-    const linkedTableId = tableByPolicy.get(p.policyClientId) ?? null;
+    // Polígono com política → tabela vinculada à política; sem política →
+    // tabela padrão da loja (seed das tabelas estáticas, sem policyClientId).
+    const linkedTableId = p.policyClientId
+      ? (tableByPolicy.get(p.policyClientId) ?? null)
+      : ((raw.freightTables ?? []).find(
+          (t) => t.store === p.store && !t.policyClientId,
+        )?.id ?? null);
+    const tableIdx = linkedTableId ? (tableIndexById.get(linkedTableId) ?? null) : null;
     polygons.push({
       id: p.id,
       store: p.store,
@@ -135,7 +142,7 @@ function applySnapshot(raw: FreightSnapshotDto) {
       rMax: p.rMax ?? 0,
       areaKm2: p.areaKm2 ?? 0,
       center: (p.center ?? [0, 0]) as [number, number],
-      tariff: linkedTableId ? (tableIndexById.get(linkedTableId) ?? null) : null,
+      tariff: tableIdx,
       geom,
       policyClientId: p.policyClientId,
     });

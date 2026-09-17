@@ -44,7 +44,7 @@ print('rows:', len(rows))
 total = 0
 for i in range(0, len(rows), 300):
     chunk = rows[i:i+300]
-    res = req('/rest/v1/rpc/insert_polygons', chunk)
+    res = req('/rest/v1/rpc/insert_polygons', {'payload': chunk})
     total += res or 0
     print(f'lote {i//300+1}: {res} inseridas ({i+len(chunk)}/{len(rows)})', flush=True)
 print('total inseridas:', total)
