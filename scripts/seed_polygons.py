@@ -25,7 +25,9 @@ for p in d['polygons']:
     if not sid:
         print('loja ausente:', p['store']); continue
     rows.append({
-        'clientId': 'seed|' + p['id'],
+        # o id do arquivo se repete entre lojas (mesmo distrito atendido por duas lojas),
+        # por isso a loja entra na chave para não haver colisão no banco
+        'clientId': 'seed|' + p['store'] + '|' + p['id'],
         'storeId': sid,
         'policyId': None,
         'district': p.get('district'),
