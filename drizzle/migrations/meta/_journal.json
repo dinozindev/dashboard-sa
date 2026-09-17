@@ -36,6 +36,13 @@
       "when": 1789663361517,
       "tag": "0004_seed_freight_tables_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789666058567,
+      "tag": "0005_polygons_kind_entrega_retira",
+      "breakpoints": true
     }
   ]
 }

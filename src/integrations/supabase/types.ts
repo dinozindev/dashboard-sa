@@ -269,6 +269,7 @@ export type Database = {
           district: string | null
           geom: unknown
           id: string
+          kind: string
           policy_id: string | null
           r_max: number | null
           r_min: number | null
@@ -286,6 +287,7 @@ export type Database = {
           district?: string | null
           geom: unknown
           id?: string
+          kind?: string
           policy_id?: string | null
           r_max?: number | null
           r_min?: number | null
@@ -303,6 +305,7 @@ export type Database = {
           district?: string | null
           geom?: unknown
           id?: string
+          kind?: string
           policy_id?: string | null
           r_max?: number | null
           r_min?: number | null
@@ -435,6 +438,7 @@ export type Database = {
           district: string | null
           geojson: Json | null
           id: string | null
+          kind: string | null
           policy_id: string | null
           r_max: number | null
           r_min: number | null
@@ -451,6 +455,7 @@ export type Database = {
           district?: string | null
           geojson?: never
           id?: string | null
+          kind?: string | null
           policy_id?: string | null
           r_max?: number | null
           r_min?: number | null
@@ -467,6 +472,7 @@ export type Database = {
           district?: string | null
           geojson?: never
           id?: string | null
+          kind?: string | null
           policy_id?: string | null
           r_max?: number | null
           r_min?: number | null
