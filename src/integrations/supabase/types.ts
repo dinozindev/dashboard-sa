@@ -269,7 +269,7 @@ export type Database = {
           district: string | null
           geom: unknown
           id: string
-          policy_id: string
+          policy_id: string | null
           r_max: number | null
           r_min: number | null
           radius: number | null
@@ -286,7 +286,7 @@ export type Database = {
           district?: string | null
           geom: unknown
           id?: string
-          policy_id: string
+          policy_id?: string | null
           r_max?: number | null
           r_min?: number | null
           radius?: number | null
@@ -303,7 +303,7 @@ export type Database = {
           district?: string | null
           geom?: unknown
           id?: string
-          policy_id?: string
+          policy_id?: string | null
           r_max?: number | null
           r_min?: number | null
           radius?: number | null

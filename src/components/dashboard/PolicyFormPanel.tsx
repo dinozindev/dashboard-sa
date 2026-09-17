@@ -463,7 +463,8 @@ export function PolicyFormPanel({
     );
     const link = getPolicyTariff(initialPolicy.id);
     setTariffIndex(link ? link.tableIndex : null);
-    setTariffSource(link?.source ?? "existente");
+    setTariffSource((link?.source as "existente" | "upload") ?? "existente");
+
     setTariffFileName(link?.source === "upload" ? link.tableName : "");
     setErrors([]);
     setSaved(null);
