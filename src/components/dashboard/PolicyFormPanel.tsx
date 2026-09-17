@@ -364,6 +364,18 @@ export function PolicyFormPanel({
   const [cubic, setCubic] = useState(0);
   const [minWeight, setMinWeight] = useState(0);
 
+  /** Tabela de frete associada a esta política (somente para tipo Entrega) */
+  const [tariffIndex, setTariffIndex] = useState<number | null>(null);
+  const [tariffSource, setTariffSource] = useState<"existente" | "upload">("existente");
+  const [tariffFileName, setTariffFileName] = useState("");
+  const tariffFileRef = useRef<HTMLInputElement>(null);
+
+  /** Tabelas de frete já carregadas no projeto para a loja escolhida */
+  const tariffOptions = useMemo(() => (store ? tariffTablesForStore(store) : []), [store]);
+  const selectedTariff = tariffOptions.find((t) => t.index === tariffIndex) ?? null;
+  const tariffLabel = tariffSource === "upload" ? tariffFileName : selectedTariff?.label ?? "";
+
+
   const [saturday, setSaturday] = useState(true);
   const [sunday, setSunday] = useState(false);
   const [holidays, setHolidays] = useState(false);
