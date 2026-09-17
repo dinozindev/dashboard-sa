@@ -55,6 +55,8 @@ function areaKm2Of(coords: number[][][][]): number {
   return Math.abs(a / 2);
 }
 
+type Kind = "Entrega" | "Retira";
+
 export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void }) {
   const live = useLive();
   const submitted = useSubmittedStores();
@@ -62,7 +64,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
   const drafts = live?.drafts ?? [];
 
   const [store, setStore] = useState("");
-  const [policyId, setPolicyId] = useState("");
+  const [kind, setKind] = useState<Kind>("Entrega");
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [parsed, setParsed] = useState<{ name: string; count: number; bands: Set<string>; area: number } | null>(null);
   const [geo, setGeo] = useState<AnyGeom[]>([]);
