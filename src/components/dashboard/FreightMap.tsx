@@ -159,8 +159,11 @@ export default function FreightMap({
    *    - Configura eventos hover e click
    * 4. Adiciona à camada
    */
-  // Markers: apenas das lojas com polígonos ativos no mapa
-  const storeKey = [...new Set(visible.map((p) => p.store))].sort().join("|");
+  // Markers: lojas indicadas (Retira) ou lojas com polígonos ativos no mapa
+  const storeKey = (markerStores ?? [...new Set(visible.map((p) => p.store))])
+    .slice()
+    .sort()
+    .join("|");
   useEffect(() => {
     const group = markersRef.current;
     if (!group) return;
