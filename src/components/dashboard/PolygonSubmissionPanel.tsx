@@ -1,247 +1,416 @@
 /**
- * ENVIO DE POLÍGONOS (SIMULAÇÃO)
- * ==============================
+ * ENVIO DE POLÍGONOS (BANCO)
+ * ==========================
  *
- * Permite selecionar uma loja mockada e "enviar" todos os seus polígonos
- * para o mapa. Os envios ficam salvos em JSON no navegador, então continuam
- * visíveis ao trocar de aba ou recarregar a página.
+ * Envia coleções reais de polígonos (GeoJSON) para o banco, associadas a uma
+ * loja e a uma política de envio. O arquivo é validado, mostrado em
+ * pré-visualização e só é gravado após a confirmação — nada é inventado.
  */
 
-import { useMemo, useState } from "react";
-import { polygons, STORE_REGION } from "@/lib/freight/dataset";
-import {
-  BASE_STORES,
-  PENDING_STORES,
-  clearSubmittedStores,
-  submitStore,
-  unsubmitStore,
-  useSubmittedStores,
-} from "@/lib/freight/submitted-stores";
-import { logAudit } from "@/lib/freight/audit-log";
-import type { StoreName } from "@/lib/freight/types";
+import { useMemo, useRef, useState } from "react";
+import { useLive, liveStores, refreshLive, storeRegionOf } from "@/lib/freight/live";
+import { deletePolygonCollection, ensureStore, insertPolygonRows } from "@/lib/freight/remote.functions";
+import { logAudit } from "@/lib/freight/audit-lib-shim";
+import { useSubmittedStores, useDbStores } from "@/lib/freight/submitted-stores";
 
+/** Features aceitas: Feature (Polygon/MultiPolygon) ou geometria direta */
+type AnyGeom = { type: "Polygon" | "MultiPolygon"; coordinates: unknown };
+
+function asMulti(geom: AnyGeom): number[][][][] {
+  if (geom.type === "MultiPolygon") return geom.coordinates as number[][][][];
+  return [geom.coordinates as number[][][]];
+}
+
+function centroidOf(coords: number[][][][]): [number, number] {
+  // centro aproximado: média dos vértices do primeiro anel externo
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+  for (const [x, y] of coords[0]?.[0] ?? []) {
+    sx += x;
+    sy += y;
+    n += 1;
+  }
+  return n ? [sx / n, sy / n] : [0, 0];
+}
+
+function signedArea(ring: number[][]): number {
+  let a = 0;
+  for (let i = 0; i < ring.length - 1; i += 1) {
+    a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  }
+  return a / 2;
+}
+
+/** Área aproximada em km² (equiretangular local) — estimativa para exibição */
+function areaKm2Of(coords: number[][][][]): number {
+  const ring = coords[0]?.[0] ?? [];
+  if (ring.length < 3) return 0;
+  const latRef = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+  const kmPerDegLat = 110.574;
+  const kmPerDegLng = 111.32 * Math.cos((latRef * Math.PI) / 180);
+  let a = 0;
+  for (let i = 0; i < ring.length - 1; i += 1) {
+    const x1 = ring[i][0] * kmPerDegLng;
+    const y1 = ring[i][1] * kmPerDegLat;
+    const x2 = ring[i + 1][0] * kmPerDegLng;
+    const y2 = ring[i + 1][1] * kmPerDegLat;
+    a += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(a / 2);
+}
 
 export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void }) {
+  const live = useLive();
   const submitted = useSubmittedStores();
-  const [store, setStore] = useState<StoreName>(PENDING_STORES[0] as StoreName);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const dbStores = useDbStores();
+  const drafts = live?.drafts ?? [];
 
-  /** Quantidade de polígonos e faixas por loja mockada */
-  const summary = useMemo(() => {
-    const map = new Map<StoreName, { count: number; bands: Set<string>; area: number }>();
-    for (const p of polygons) {
-      const cur = map.get(p.store) ?? { count: 0, bands: new Set<string>(), area: 0 };
+  const [store, setStore] = useState("");
+  const [policyId, setPolicyId] = useState("");
+  const [replaceExisting, setReplaceExisting] = useState(true);
+  const [parsed, setParsed] = useState<{ name: string; count: number; bands: Set<string>; area: number } | null>(null);
+  const [geo, setGeo] = useState<AnyGeom[]>([]);
+  const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [newStore, setNewStore] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const storeOptions = useMemo(
+    () => Array.from(new Set([...dbStores.map((s) => s.name), ...drafts.map((d) => d.store)])),
+    [dbStores, drafts],
+  );
+
+  /** Resumo por loja+política já cadastrado no banco */
+  const collections = useMemo(() => {
+    const map = new Map<string, { store: string; policy: string; count: number; area: number }>();
+    for (const p of live?.polygons ?? []) {
+      const policy =
+        live?.drafts.find((d) => d.id === p.policyClientId)?.modalities.join(" · ") ?? "Sem política (base)";
+      const key = `${p.store}||${p.policyClientId ?? "base"}`;
+      const cur = map.get(key) ?? { store: p.store, policy, count: 0, area: 0 };
       cur.count += 1;
-      cur.bands.add(p.band);
-      cur.area += p.areaKm2;
-      map.set(p.store, cur);
+      cur.area += p.areaKm2 ?? 0;
+      map.set(key, cur);
     }
-    return map;
-  }, []);
+    return [...map.values()];
+  }, [live]);
 
-  const info = summary.get(store);
+  const onFile = async (file: File | undefined) => {
+    setFeedback(null);
+    setParsed(null);
+    setGeo([]);
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text) as
+        | AnyGeom
+        | { type: "Feature"; geometry: AnyGeom }
+        | { type: "FeatureCollection"; features: Array<{ geometry: AnyGeom }> };
+      let geoms: AnyGeom[] = [];
+      if (json.type === "FeatureCollection") {
+        geoms = (json.features ?? []).map((f) => f.geometry).filter(Boolean);
+      } else if (json.type === "Feature") {
+        geoms = [(json as { geometry: AnyGeom }).geometry];
+      } else {
+        geoms = [json];
+      }
+      geoms = geoms.filter((g) => g && (g.type === "Polygon" || g.type === "MultiPolygon"));
+      if (!geoms.length) throw new Error("Nenhuma geometria Polygon/MultiPolygon encontrada no arquivo.");
+      const bands = new Set<string>();
+      let area = 0;
+      for (const g of geoms) area += areaKm2Of(asMulti(g));
+      setGeo(geoms);
+      setParsed({ name: file.name, count: geoms.length, bands, area });
+    } catch (e) {
+      setFeedback({
+        kind: "err",
+        text: e instanceof Error ? e.message : "Não foi possível ler o arquivo GeoJSON.",
+      });
+    }
+  };
 
-  const handleSubmit = () => {
-    const created = submitStore(store);
-    const count = info?.count ?? 0;
-    if (created) {
+  const handleSubmit = async () => {
+    const storeName = (newStore.trim() || store).trim();
+    if (!storeName) {
+      setFeedback({ kind: "err", text: "Selecione ou informe a loja." });
+      return;
+    }
+    if (!geo.length) {
+      setFeedback({ kind: "err", text: "Selecione um arquivo GeoJSON." });
+      return;
+    }
+    const region = storeRegionOf(live, storeName) ?? "SP";
+    setSending(true);
+    try {
+      const { id: storeId } = await ensureStore({ data: { name: storeName, region } });
+
+      let policyClientId: string | null = null;
+      if (policyId) {
+        const draft = drafts.find((d) => d.id === policyId);
+        if (!draft) throw new Error("Política não encontrada.");
+        policyClientId = draft.id;
+      }
+
+      if (replaceExisting && policyClientId) {
+        await deletePolygonCollection({ data: { storeId, policyClientId } });
+      }
+
+      const rows = geo.map((g, i) => {
+        const coords = asMulti(g);
+        const center = centroidOf(coords);
+        return {
+          clientId: `${storeName}|${policyClientId ?? "base"}|${Date.now()}|${i}`,
+          storeId,
+          policyId: null as string | null,
+          policyClientId,
+          district: null,
+          uf: region,
+          band: "—",
+          radius: null,
+          rMin: null,
+          rMax: null,
+          areaKm2: areaKm2Of(coords),
+          centerLng: center[0],
+          centerLat: center[1],
+          geojson: JSON.stringify({ type: "MultiPolygon", coordinates: coords }),
+        };
+      });
+
+      // envia em lotes de 200 para não estourar o limite da requisição
+      let inserted = 0;
+      for (let i = 0; i < rows.length; i += 200) {
+        const res = await insertPolygonRows({ data: { rows: rows.slice(i, i + 200) } });
+        inserted += res.inserted;
+      }
+
       logAudit({
-        store,
+        store: storeName,
         module: "Criação de Polígonos",
-        field: "Polígonos",
-        before: "0",
-        after: String(count),
+        field: policyClientId ? "Polígonos (política)" : "Polígonos (base)",
+        before: replaceExisting ? "—" : "0",
+        after: String(inserted),
         action: "Adição",
-        description: `${count.toLocaleString("pt-BR")} polígonos adicionados para a loja de ${store}`,
+        description: `${inserted.toLocaleString("pt-BR")} polígonos enviados de ${parsed?.name ?? "arquivo"} para a loja de ${storeName}`,
       });
-      logAudit({
-        store,
-        module: "Políticas de Envio",
-        field: "Disponibilidade da loja",
-        before: "Oculta (sem polígonos)",
-        after: "Disponível",
-        action: "Liberação automática",
-        description: `Loja ${store} liberada para cadastro de política de envio após o envio dos polígonos`,
+
+      setFeedback({
+        kind: "ok",
+        text: `${inserted.toLocaleString("pt-BR")} polígonos de ${storeName} gravados no banco.`,
       });
+      setParsed(null);
+      setGeo([]);
+      if (fileRef.current) fileRef.current.value = "";
+      await refreshLive();
+    } catch (e) {
+      setFeedback({
+        kind: "err",
+        text: e instanceof Error ? e.message : "Falha ao enviar os polígonos.",
+      });
+    } finally {
+      setSending(false);
     }
-    setFeedback(
-      created
-        ? `${count.toLocaleString("pt-BR")} polígonos de ${store} enviados para o mapa.`
-        : `${store} já havia sido enviada — os polígonos continuam no mapa.`,
-    );
   };
 
-  const handleUnsubmit = (s: StoreName) => {
-    const count = summary.get(s)?.count ?? 0;
-    unsubmitStore(s);
+  const handleRemoveCollection = async (storeName: string, policyClientId: string) => {
+    const target = liveStores(live).find((s) => s.name === storeName);
+    if (!target) return;
+    if (!window.confirm(`Remover a coleção de polígonos de ${storeName} (${policyClientId})?`)) return;
+    const { id: storeId } = await ensureStore({ data: { name: storeName, region: target.region } });
+    await deletePolygonCollection({ data: { storeId, policyClientId } });
     logAudit({
-      store: s,
+      store: storeName,
       module: "Criação de Polígonos",
-      field: "Polígonos",
-      before: String(count),
-      after: "0",
+      field: "Coleção de polígonos",
+      before: "Cadastrada",
+      after: "—",
       action: "Remoção",
-      description: `${count.toLocaleString("pt-BR")} polígonos removidos da loja de ${s}`,
+      description: `Coleção removida da loja de ${storeName}`,
     });
+    await refreshLive();
   };
-
-  const handleClear = () => {
-    for (const s of submitted) {
-      logAudit({
-        store: s,
-        module: "Criação de Polígonos",
-        field: "Polígonos",
-        before: String(summary.get(s)?.count ?? 0),
-        after: "0",
-        action: "Remoção",
-        description: `Polígonos da loja de ${s} removidos do mapa (limpeza de envios)`,
-      });
-    }
-    clearSubmittedStores();
-    setFeedback("Todos os envios simulados foram removidos do mapa.");
-  };
-
 
   return (
     <div className="space-y-4">
       <section className="surface space-y-3 p-4">
         <div>
-          <h2 className="section-title text-lg">Envio de polígonos por loja</h2>
+          <h2 className="section-title text-lg">Envio de polígonos (loja + política)</h2>
           <p className="text-xs text-muted-foreground">
-            Selecione uma loja e confirme o envio. Todos os polígonos da loja são plotados de uma
-            vez no mapa da aba <strong>Operação e frete</strong> e permanecem lá, somando-se aos
-            envios anteriores. Aricanduva e Suzano já estão cadastradas na operação.
+            Envie o GeoJSON com as áreas de uma loja e indique a qual política de envio a coleção
+            pertence. Sem política, a coleção entra como <strong>base</strong> da loja (visível em
+            todas as modalidades). Os dados ficam gravados no banco — visíveis para todos.
           </p>
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
           <label className="field-label">
-            Loja
+            Loja existente
             <select
-              className="input mt-1 w-60"
+              className="input mt-1 w-56"
               value={store}
               onChange={(e) => {
-                setStore(e.target.value as StoreName);
+                setStore(e.target.value);
+                setNewStore("");
                 setFeedback(null);
               }}
             >
-              {PENDING_STORES.map((s) => (
+              <option value="">— nova loja —</option>
+              {storeOptions.map((s) => (
                 <option key={s} value={s}>
-                  {s} · {STORE_REGION[s]}
-                  {submitted.includes(s) ? " (enviada)" : ""}
+                  {s}
                 </option>
               ))}
             </select>
           </label>
-          <button type="button" className="btn-primary text-xs" onClick={handleSubmit}>
-            Enviar polígonos
-          </button>
-          <button className="btn-ghost text-xs" onClick={onGoToMap}>
-            Ver no mapa
-          </button>
+          <label className="field-label">
+            ou nova loja
+            <input
+              className="input mt-1 w-44"
+              value={newStore}
+              onChange={(e) => {
+                setNewStore(e.target.value);
+                setStore("");
+              }}
+              placeholder="Ex.: Campinas"
+            />
+          </label>
+          <label className="field-label">
+            Política de envio
+            <select
+              className="input mt-1 w-64"
+              value={policyId}
+              onChange={(e) => setPolicyId(e.target.value)}
+            >
+              <option value="">— base (sem política) —</option>
+              {drafts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.store} · {d.modalities.join(" / ") || d.policyType}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-label">
+            Arquivo GeoJSON
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".geojson,.json,application/geo+json,application/json"
+              className="input mt-1 w-64 text-xs"
+              onChange={(e) => void onFile(e.target.files?.[0])}
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-primary"
+              checked={replaceExisting}
+              onChange={(e) => setReplaceExisting(e.target.checked)}
+            />
+            substituir coleção anterior da política
+          </label>
         </div>
 
-        {info ? (
-          <p className="text-xs text-muted-foreground">
-            {store}: <strong>{info.count.toLocaleString("pt-BR")}</strong> polígonos ·{" "}
-            {[...info.bands].length} faixas de raio ·{" "}
-            {info.area.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km² · tabela de frete
-            com faixas de peso da planilha.
-          </p>
+        {parsed ? (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
+            <p className="font-semibold">{parsed.name}</p>
+            <p className="mt-1 text-muted-foreground">
+              {parsed.count.toLocaleString("pt-BR")} geometria(s) · área aproximada{" "}
+              {parsed.area.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km²
+            </p>
+            <button
+              type="button"
+              className="btn-primary mt-2 text-xs"
+              disabled={sending}
+              onClick={() => void handleSubmit()}
+            >
+              {sending ? "Enviando…" : "Confirmar envio"}
+            </button>
+          </div>
         ) : null}
 
         {feedback ? (
-          <p className="rounded-lg border border-success/40 bg-success/10 p-2 text-xs font-medium text-success">
-            {feedback}
+          <p
+            className={
+              "rounded-lg border p-2 text-xs font-medium " +
+              (feedback.kind === "ok"
+                ? "border-success/40 bg-success/10 text-success"
+                : "border-danger/40 bg-danger/10 text-danger")
+            }
+          >
+            {feedback.text}
           </p>
         ) : null}
+
+        <button className="btn-ghost text-xs" onClick={onGoToMap}>
+          Ver no mapa
+        </button>
       </section>
 
       <section className="surface space-y-3 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="section-title text-base">Lojas ativas no mapa</h3>
-          {submitted.length ? (
-            <button className="btn-ghost text-xs" onClick={handleClear}>
-              Limpar envios
-            </button>
-
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {BASE_STORES.map((s) => (
-            <span
-              key={s}
-              className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold"
-            >
-              {s} · já cadastrada
-            </span>
-          ))}
-          {submitted.map((s) => (
-            <span
-              key={s}
-              className="flex items-center gap-2 rounded-full border border-success/40 bg-success/10 px-3 py-1 text-xs font-semibold text-success"
-            >
-              {s} · enviada
-              <button
-                className="rounded px-1 text-[11px] text-danger underline hover:bg-danger/10 cursor-pointer"
-                onClick={() => handleUnsubmit(s)}
-                aria-label={`Remover ${s} do mapa`}
+        <h3 className="section-title text-base">Coleções cadastradas no banco</h3>
+        {submitted.length ? (
+          <div className="flex flex-wrap gap-2">
+            {submitted.map((s) => (
+              <span
+                key={s}
+                className="rounded-full border border-success/40 bg-success/10 px-3 py-1 text-xs font-semibold text-success"
               >
-                remover
-              </button>
-            </span>
-          ))}
-        </div>
-        {submitted.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Nenhuma loja enviada ainda. O mapa mostra apenas Aricanduva e Suzano.
-          </p>
-        ) : null}
-      </section>
-
-      <section className="surface space-y-2 p-4">
-        <h3 className="section-title text-base">Lojas disponíveis</h3>
+                {s}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Nenhuma loja com polígonos ainda.</p>
+        )}
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-2 py-2 text-left">Loja</th>
-                <th className="px-2 py-2 text-left">Regional</th>
+                <th className="px-2 py-2 text-left">Política</th>
                 <th className="px-2 py-2 text-right">Polígonos</th>
                 <th className="px-2 py-2 text-right">Área (km²)</th>
-                <th className="px-2 py-2 text-left">Situação</th>
+                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {PENDING_STORES.map((s) => {
-                const d = summary.get(s);
-                return (
-                  <tr key={s} className="border-t border-border">
-                    <td className="px-2 py-1.5 font-medium">{s}</td>
-                    <td className="px-2 py-1.5">{STORE_REGION[s]}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">
-                      {(d?.count ?? 0).toLocaleString("pt-BR")}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">
-                      {(d?.area ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      {submitted.includes(s) ? (
-                        <span className="text-success">Enviada</span>
-                      ) : (
-                        <span className="text-muted-foreground">Aguardando envio</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {collections.map((c) => (
+                <tr key={`${c.store}||${c.policy}`} className="border-t border-border">
+                  <td className="px-2 py-1.5 font-medium">{c.store}</td>
+                  <td className="px-2 py-1.5">{c.policy}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {c.count.toLocaleString("pt-BR")}
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {c.area.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    {c.policy === "Sem política (base)" ? null : (
+                      <button
+                        className="text-[11px] text-danger underline hover:bg-danger/10"
+                        onClick={() =>
+                          void handleRemoveCollection(
+                            c.store,
+                            live?.drafts.find((d) => d.store === c.store)?.id ?? "",
+                          )
+                        }
+                      >
+                        remover
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {collections.length === 0 ? (
+                <tr>
+                  <td className="px-2 py-3 text-xs text-muted-foreground" colSpan={5}>
+                    Nenhuma coleção enviada ainda.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
-        {/* <p className="text-[11px] text-muted-foreground">
-          Fonte: Cardapio_Frete_por_Loja_final.xlsx — tarifas nas abas por loja e coordenadas nas
-          abas DE_PARA_&lt;LOJA&gt;.
-        </p> */}
       </section>
     </div>
   );
