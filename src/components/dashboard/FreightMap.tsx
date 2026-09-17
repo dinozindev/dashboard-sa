@@ -67,6 +67,7 @@ export default function FreightMap({
   pickupMode = false,
   statePolygons = [],
   markerStores,
+  markers,
 }: Props) {
   // ============================================================================
   // REFS: Mapa e camadas
@@ -171,7 +172,8 @@ export default function FreightMap({
     if (!group) return;
     group.clearLayers();
     const active = new Set(storeKey ? storeKey.split("|") : []);
-    for (const s of stores) {
+    const list = markers ?? stores;
+    for (const s of list) {
       if (!active.has(s.name)) continue;
       L.marker([s.center[1], s.center[0]], {
         icon: L.divIcon({
@@ -183,7 +185,7 @@ export default function FreightMap({
         .addTo(group)
         .bindPopup(`<strong>${s.name}</strong><br/>${s.note}`);
     }
-  }, [storeKey]);
+  }, [storeKey, markers]);
 
   useEffect(() => {
     const group = layerRef.current;
