@@ -279,7 +279,7 @@ export default function Dashboard() {
       (p) =>
         shownStores.includes(p.store) &&
         // faixas fora da paleta padrão (ex.: arquivo sem "Faixa") continuam visíveis
-        (bands.includes(p.band) || !BAND_ORDER.includes(p.band)) &&
+        (bands.includes(p.band) || !(BAND_ORDER as readonly string[]).includes(p.band)) &&
         (p.kind ?? "Entrega") === modality &&
         (q === "" ||
           p.id.toLowerCase().includes(q) ||
