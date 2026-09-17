@@ -38,12 +38,12 @@ Polígonos de Retira (contorno estadual) entram na mesma tabela `polygons`, marc
 A aba "Envio de Polígonos" deixa de apenas ativar lojas fixas e passa a:
 
 1. escolher (ou cadastrar) a loja e a regional;
-2. escolher o tipo: Entrega ou Retira;
+2. escolher a política de envio à qual a coleção pertence (apenas as políticas já cadastradas para aquela loja — é ela que define se é Entrega ou Retira);
 3. selecionar um arquivo `.geojson` do computador;
 4. mostrar a pré-visualização: quantas áreas foram lidas, nomes encontrados, avisos de geometria inválida;
-5. confirmar e gravar no banco.
+5. confirmar e gravar no banco, vinculado à loja e à política escolhidas.
 
-O banco começa vazio — você popula enviando os arquivos de cada loja. Nada é inventado: se o arquivo não tiver um campo esperado, o sistema avisa em vez de preencher sozinho. Também dá para remover o envio de uma loja.
+O banco começa vazio — você popula enviando os arquivos de cada loja. Nada é inventado: se o arquivo não tiver um campo esperado, o sistema avisa em vez de preencher sozinho. Também dá para remover uma coleção enviada (loja + política).
 
 ## Acesso
 
