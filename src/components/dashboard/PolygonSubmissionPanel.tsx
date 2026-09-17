@@ -228,6 +228,71 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     await refreshLive();
   };
 
+  /** Substitui a malha estadual de uma UF por um novo GeoJSON */
+  const handleStateFile = async (uf: string, name: string, file: File | undefined) => {
+    if (!file) return;
+    setStateFeedback(null);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text) as
+        | AnyGeom
+        | { type: "Feature"; geometry: AnyGeom }
+        | { type: "FeatureCollection"; features: Array<{ geometry: AnyGeom }> };
+      let geoms: AnyGeom[] = [];
+      if (json.type === "FeatureCollection") {
+        geoms = (json.features ?? []).map((f) => f.geometry).filter(Boolean);
+      } else if (json.type === "Feature") {
+        geoms = [(json as { geometry: AnyGeom }).geometry];
+      } else {
+        geoms = [json as AnyGeom];
+      }
+      geoms = geoms.filter((g) => g && (g.type === "Polygon" || g.type === "MultiPolygon"));
+      if (!geoms.length) throw new Error("Nenhuma geometria Polygon/MultiPolygon no arquivo.");
+      const coords = geoms.flatMap((g) => asMulti(g));
+      await upsertStatePolygon({
+        data: {
+          uf,
+          name,
+          source: file.name,
+          geojson: JSON.stringify({ type: "MultiPolygon", coordinates: coords }),
+        },
+      });
+      logAudit({
+        store: `Estado ${uf}`,
+        module: "Criação de Polígonos",
+        field: `Malha estadual (${uf})`,
+        before: "Cadastrada",
+        after: file.name,
+        action: "Alteração",
+        description: `Malha estadual de ${name} substituída por ${file.name} (${coords.length} partes)`,
+      });
+      setStateFeedback({ kind: "ok", text: `Malha de ${name} atualizada no banco.` });
+      await refreshLive();
+    } catch (e) {
+      setStateFeedback({
+        kind: "err",
+        text: e instanceof Error ? e.message : "Falha ao atualizar a malha estadual.",
+      });
+    }
+  };
+
+  /** Remove a malha estadual de uma UF */
+  const handleRemoveState = async (uf: string, name: string) => {
+    if (!window.confirm(`Remover a malha estadual de ${name}?`)) return;
+    await deleteStatePolygon({ data: { uf } });
+    logAudit({
+      store: `Estado ${uf}`,
+      module: "Criação de Polígonos",
+      field: `Malha estadual (${uf})`,
+      before: "Cadastrada",
+      after: "—",
+      action: "Remoção",
+      description: `Malha estadual de ${name} removida`,
+    });
+    setStateFeedback({ kind: "ok", text: `Malha de ${name} removida.` });
+    await refreshLive();
+  };
+
   return (
     <div className="space-y-4">
       <section className="surface space-y-3 p-4">
