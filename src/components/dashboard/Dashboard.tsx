@@ -764,6 +764,26 @@ export default function Dashboard() {
                     <div className="mt-3">
                       <ScheduleGrid store={nearestPickupStore.name} modality="Retira" />
                     </div>
+                    {pickupRanking.length > 1 ? (
+                      <div className="mt-3 border-t border-border pt-3">
+                        <p className="eyebrow mb-2">Distância até as demais lojas</p>
+                        <ul className="space-y-1">
+                          {pickupRanking.slice(1).map((s) => (
+                            <li
+                              key={s.name}
+                              className="flex items-center justify-between gap-2 text-xs"
+                            >
+                              <span className="text-muted-foreground">
+                                {s.name} <span className="opacity-60">({s.uf})</span>
+                              </span>
+                              <span className="tabular-nums font-medium">
+                                {s.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
