@@ -663,6 +663,14 @@ export function PolicyFormPanel({
         Etapa {step + 1} de {steps.length} · {currentStep.title}
       </p>
 
+      {replicating ? (
+        <div className="rounded-xl border border-primary/40 bg-primary/5 p-3 text-xs">
+          Replicando a política de <strong>{replicaFrom}</strong> para{" "}
+          <strong>{store}</strong>. Revise todos os campos e salve para criar a nova política.
+        </div>
+      ) : null}
+
+
       {currentStep.key === "loja" ? (
         <>
           <Section
@@ -921,6 +929,12 @@ export function PolicyFormPanel({
       ) : null}
 
       {currentStep.key === "horarios" ? (
+        <>
+        <ShippingWindowNotice
+          open={scheduleNotice.open}
+          onClose={() => scheduleNotice.setOpen(false)}
+        />
+
         <Section
           title="Horário de funcionamento"
           hint="Defina os horários em que a transportadora faz coletas ou as janelas de tempo em que ela envia os itens para os clientes. Estas configurações influenciam o cálculo do tempo de entrega."
@@ -1418,10 +1432,50 @@ export function PolicyFormPanel({
       </div>
 
       {saved ? (
-        <div className="rounded-xl border border-success/40 bg-success/10 p-3 text-xs text-success">
-          Política salva em JSON ({saved}). Confira o resumo abaixo.
-        </div>
+        <>
+          <div className="rounded-xl border border-success/40 bg-success/10 p-3 text-xs text-success">
+            Política salva em JSON ({saved}). Confira o resumo abaixo.
+          </div>
+
+          <Section
+            title="Replicar para outra loja"
+            hint="Copia esta política para outra loja e reabre o mesmo fluxo de criação, já preenchido, para você revisar cada campo antes de salvar."
+          >
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-xs text-muted-foreground">
+                Loja de destino
+                <select
+                  className="input mt-1 w-full min-w-[220px]"
+                  value={replicaTarget}
+                  onChange={(e) => setReplicaTarget(e.target.value)}
+                >
+                  <option value="">Selecione…</option>
+                  {stores
+                    .filter((s) => s !== store)
+                    .map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="rounded-lg border border-primary px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-40"
+                disabled={!replicaTarget}
+                onClick={startReplication}
+              >
+                Revisar e replicar
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              A tabela de frete não é copiada: ela pertence à loja e deve ser escolhida novamente
+              na revisão.
+            </p>
+          </Section>
+        </>
       ) : null}
+
 
       {/* <Section
         title="Políticas cadastradas"
