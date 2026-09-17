@@ -78,14 +78,13 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     [dbStores, drafts],
   );
 
-  /** Resumo por loja+política já cadastrado no banco */
+  /** Resumo por loja + tipo (Entrega/Retira) já cadastrado no banco */
   const collections = useMemo(() => {
-    const map = new Map<string, { store: string; policy: string; count: number; area: number }>();
+    const map = new Map<string, { store: string; kind: Kind; count: number; area: number }>();
     for (const p of live?.polygons ?? []) {
-      const policy =
-        live?.drafts.find((d) => d.id === p.policyClientId)?.modalities.join(" · ") ?? "Sem política (base)";
-      const key = `${p.store}||${p.policyClientId ?? "base"}`;
-      const cur = map.get(key) ?? { store: p.store, policy, count: 0, area: 0 };
+      const k: Kind = p.kind === "Retira" ? "Retira" : "Entrega";
+      const key = `${p.store}||${k}`;
+      const cur = map.get(key) ?? { store: p.store, kind: k, count: 0, area: 0 };
       cur.count += 1;
       cur.area += p.areaKm2 ?? 0;
       map.set(key, cur);
