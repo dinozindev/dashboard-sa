@@ -619,10 +619,40 @@ export function PolicyFormPanel({
     }
 
     updateCell(store, modality, { status: active ? "Ativa" : "Inativa" }, { silent: true });
+    if (replicating && replicaFrom) {
+      logAudit({
+        store,
+        module: "Cadastro de Política de Envio",
+        field: `Política replicada — ${modality}`,
+        before: replicaFrom,
+        after: store,
+        action: "Criação",
+        description: `Política de envio da modalidade "${modality}" replicada da loja ${replicaFrom} para a loja ${store}.`,
+      });
+    }
+    setReplicating(false);
+    setReplicaFrom("");
+    setReplicaTarget("");
     setSaved(id);
     setIoMessage(result === "updated" ? "Política existente atualizada." : null);
     onFinishEdit?.();
   };
+
+  /** Abre o mesmo fluxo de criação já preenchido, apenas trocando a loja. */
+  const startReplication = () => {
+    if (!replicaTarget) return;
+    setReplicaFrom(store);
+    setStore(replicaTarget);
+    setReplicating(true);
+    setTariffIndex(null);
+    setTariffSource("existente");
+    setTariffFileName("");
+    setSaved(null);
+    setErrors([]);
+    setStep(0);
+    setMaxVisited(steps.length - 1);
+  };
+
 
 
   return (
