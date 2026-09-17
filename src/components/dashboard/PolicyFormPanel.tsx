@@ -549,7 +549,7 @@ export function PolicyFormPanel({
     setStep((cur) => Math.max(0, cur - 1));
   };
 
-  const save = () => {
+  const save = async () => {
     const errs = steps
       .filter((s) => s.key !== "revisao")
       .flatMap((s) => validateStep(s.key));
