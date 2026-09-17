@@ -387,11 +387,12 @@ export default function Dashboard() {
     [region],
   );
 
-  /** Polígonos estaduais carregados para essas UFs (vazio = arquivo ausente) */
-  const activeStatePolygons = useMemo(
-    () => (isPickup ? statePolygonsFor(pickupUfs) : []),
-    [isPickup, pickupUfs],
-  );
+  /** Malhas estaduais dessas UFs — do banco, com o arquivo local como reserva */
+  const activeStatePolygons = useMemo(() => {
+    if (!isPickup) return [];
+    const fromDb = (live?.statePolygons ?? []).filter((s) => pickupUfs.includes(s.uf));
+    return fromDb.length ? fromDb : statePolygonsFor(pickupUfs);
+  }, [isPickup, pickupUfs, live]);
 
   /**
    * Ranking de distância entre o ponto clicado e TODAS as lojas exibidas
