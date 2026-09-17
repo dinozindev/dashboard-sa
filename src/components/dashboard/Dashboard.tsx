@@ -18,7 +18,9 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
   polygons,
+  stores as storeRefs,
   STORE_NAMES,
+  STORE_REGION,
   OPS_STORES,
   storesInRegion,
   tariffFor,
@@ -27,9 +29,16 @@ import {
 } from "@/lib/freight/dataset";
 import { BAND_ORDER } from "@/lib/freight/palette";
 import { brl, calcPrice, kg } from "@/lib/freight/pricing";
-import { polygonsAtPoint } from "@/lib/freight/geo";
+import { distanceKm, polygonsAtPoint } from "@/lib/freight/geo";
 import { HOLIDAYS } from "@/lib/freight/schedule";
-import type { Modality, PolygonRecord, RegionSelection, StoreName } from "@/lib/freight/types";
+import { statePolygonsFor } from "@/lib/freight/state-polygons";
+import type {
+  Modality,
+  PolygonRecord,
+  Region,
+  RegionSelection,
+  StoreName,
+} from "@/lib/freight/types";
 import { Legend } from "./Legend";
 import { Kpis } from "./Kpis";
 import { TariffTable } from "./TariffTable";
