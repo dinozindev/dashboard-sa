@@ -253,15 +253,33 @@ export default function Dashboard() {
       (p) =>
         shownStores.includes(p.store) &&
         bands.includes(p.band) &&
-        (policyFilter === "todas" ||
-          (policyFilter === "sem-politica"
-            ? !p.policyClientId
-            : p.policyClientId === policyFilter)) &&
+        (p.kind ?? "Entrega") === modality &&
         (q === "" ||
           p.id.toLowerCase().includes(q) ||
           (p.district ?? "").toLowerCase().includes(q)),
     );
-  }, [allPolygons, shownStores, bands, search, policyFilter]);
+  }, [allPolygons, shownStores, bands, search, modality]);
+
+  /**
+   * Tabela de frete da política selecionada (a política define o preço,
+   * não quais polígonos aparecem). Null = usa a tabela padrão da loja.
+   */
+  const policyTariffIdx = useMemo(() => {
+    if (!live || policyFilter === "todas" || policyFilter === "sem-politica") return null;
+    const tableId = live.tableByPolicy.get(policyFilter);
+    if (!tableId) return null;
+    return live.tableIndexById.get(tableId) ?? null;
+  }, [live, policyFilter]);
+
+  /** Faixas de peso aplicáveis a um polígono, considerando a política escolhida */
+  const bandsOf = (rec: PolygonRecord | undefined | null) => {
+    if (!rec) return undefined;
+    if (policyTariffIdx !== null) {
+      const base = dataset.tariffs[policyTariffIdx];
+      if (base) return base.map((b, i) => overrides[`${rec.id}#${i}`] ?? b);
+    }
+    return tariffFor(rec, overrides);
+  };
 
   /**
    * Polígono atualmente selecionado na tabela/simulador.
