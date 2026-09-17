@@ -12,21 +12,26 @@ O mapa continua recebendo o desenho em GeoJSON: o banco converte na hora da leit
 
 ```text
 stores            lojas (nome, regional SP/RJ, endereço, coordenada)
-  └─ polygons     1 linha por polígono: loja, tipo (Entrega/Retira),
-                  faixa/raio, distrito, área, centro, desenho geográfico
-  └─ docks        docas da loja
   └─ policies     políticas de envio (todos os campos do cadastro atual:
                   tipo, modalidades, dimensões, fins de semana, ponto de
                   retirada, janelas/coletas, entrega agendada, ativa)
+       ├─ freight_tables   tabela de frete cadastrada para a política
+       │    └─ freight_bands  faixas de peso (início, fim, preço base,
+       │                      adicional/kg, %, volume, prazo, seguro)
        ├─ policy_docks     ligação política ↔ doca
-       └─ freight_tables   tabela de frete da política
-             └─ freight_bands  faixas de peso (início, fim, preço base,
-                               adicional/kg, %, volume, prazo, seguro)
+       └─ polygons         coleção de polígonos da política: 1 linha por
+                           polígono (loja, política, faixa/raio, distrito,
+                           área, centro, desenho geográfico)
+  └─ docks        docas da loja
 audit_log         histórico: data/hora, loja, aba, campo, antes, depois,
                   ação, descrição
 ```
 
-Polígonos de Retira (contorno estadual) entram na mesma tabela `polygons`, marcados com tipo `Retira` e sem loja, ligados à regional.
+Cada política de envio tem a sua **coleção de polígonos** e a sua **tabela de frete**. Assim, no dashboard, o seletor de modalidade mostra apenas os polígonos da modalidade escolhida — por exemplo, só os polígonos de Entrega Agendada, ou só os de Retira Fácil — cada um com o frete da sua própria tabela.
+
+O cadastro da tabela de frete passa a ser real: na política, você escolhe a tabela já cadastrada da loja ou cadastra uma nova (enviando a planilha), e ela fica gravada no banco ligada àquela política, com todas as faixas de peso.
+
+Polígonos de Retira (contorno estadual) entram na mesma tabela `polygons`, marcados com tipo `Retira` e sem política associada, ligados à regional.
 
 ## Envio de polígonos vira upload real
 
