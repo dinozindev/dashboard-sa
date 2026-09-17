@@ -47,8 +47,17 @@ def simplify(points, tol):
     return [p for p, k in zip(points, keep) if k]
 
 
+def simplify_ring(pts, tol):
+    """Anéis fechados têm início == fim; simplifica em duas metades para não
+    degenerar a linha-base do Douglas-Peucker."""
+    if len(pts) < 8:
+        return pts
+    mid = len(pts) // 2
+    return simplify(pts[: mid + 1], tol)[:-1] + simplify(pts[mid:], tol)
+
+
 def ring(coords):
-    pts = simplify([[round(float(x), 5), round(float(y), 5)] for x, y in coords], TOL)
+    pts = simplify_ring([[round(float(x), 5), round(float(y), 5)] for x, y in coords], TOL)
     if len(pts) < 4:
         return None
     if pts[0] != pts[-1]:
