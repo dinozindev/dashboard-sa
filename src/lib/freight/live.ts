@@ -151,6 +151,18 @@ function applySnapshot(raw: FreightSnapshotDto) {
     });
   }
 
+  const statePolygons = (raw.statePolygons ?? []).map((s) => {
+    const g = s.geojson;
+    const geom: number[][][][] = g?.coordinates
+      ? g.type === "MultiPolygon"
+        ? (g.coordinates as unknown as number[][][][])
+        : g.type === "Polygon"
+          ? [g.coordinates as unknown as number[][][]]
+          : []
+      : [];
+    return { uf: s.uf as Region, name: s.name, source: s.source, geom };
+  });
+
   const audit: AuditEntry[] = (raw.audit ?? []).map((a) => ({
     id: a.id,
     at: a.at,
@@ -173,6 +185,7 @@ function applySnapshot(raw: FreightSnapshotDto) {
     tableByPolicy,
     modalitiesByPolicy,
     policyTypeByPolicy,
+    statePolygons,
     audit,
   };
   emit();
