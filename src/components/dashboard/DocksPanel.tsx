@@ -2,15 +2,15 @@
  * DOCAS POR LOJA
  * ==============
  *
- * Lista as lojas liberadas (com polígonos cadastrados) e suas 3 docas fixas.
+ * Lista as lojas cadastradas no banco e suas 3 docas fixas.
  * Ao abrir uma doca, é possível associar ou desvincular as políticas de envio
- * cadastradas para aquela loja. Tudo salvo em JSON no navegador.
+ * cadastradas para aquela loja. Tudo salvo no banco — igual para todos.
  */
 
-import { useMemo, useState } from "react";
-import { policies } from "@/lib/freight/policies";
+import { useEffect, useMemo, useState } from "react";
+import { useSyncExternalStore } from "react";
+import { getLive, liveStores, refreshLive, subscribeLive } from "@/lib/freight/live";
 import { usePolicyDrafts, type ShippingPolicyDraft } from "@/lib/freight/policy-registry";
-import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import {
   DOCKS,
   dockKey,
@@ -22,29 +22,24 @@ import {
 const policyLabel = (p: ShippingPolicyDraft) =>
   `${p.modalities.join(" · ") || "Sem modalidade"} (${p.policyType})`;
 
+type RegionFilter = "Todas" | "SP" | "RJ";
+
 export function DocksPanel({ canEdit }: { canEdit: boolean }) {
+  useEffect(() => {
+    void refreshLive();
+  }, []);
+  const live = useSyncExternalStore(subscribeLive, getLive, () => null);
   const drafts = usePolicyDrafts();
   const links = useDockLinks();
-  const submitted = useSubmittedStores();
   const [open, setOpen] = useState<{ store: string; dock: DockName } | null>(null);
-  const [region, setRegion] = useState<"Todas" | "SP" | "RJ">("Todas");
+  const [region, setRegion] = useState<RegionFilter>("Todas");
 
   const stores = useMemo(
     () =>
-      policies.stores.filter(
-        (s) =>
-          (BASE_STORES.includes(s.nome as never) || submitted.includes(s.nome as never)) &&
-          (region === "Todas" || s.uf === region),
-      ),
-    [submitted, region],
-  );
-
-  const blocked = useMemo(
-    () =>
-      policies.stores.filter(
-        (s) => !BASE_STORES.includes(s.nome as never) && !submitted.includes(s.nome as never),
-      ),
-    [submitted],
+      liveStores(live)
+        .filter((s) => region === "Todas" || s.region === region)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [live, region],
   );
 
   if (open) {
@@ -150,19 +145,19 @@ export function DocksPanel({ canEdit }: { canEdit: boolean }) {
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {stores.map((s) => (
-          <div key={s.nome} className="rounded-xl border border-border p-3">
-            <p className="text-sm font-semibold">{s.nome}</p>
+          <div key={s.name} className="rounded-xl border border-border p-3">
+            <p className="text-sm font-semibold">{s.name}</p>
             <p className="text-[11px] text-muted-foreground">
-              {s.cidade}/{s.uf}
+              Regional {s.region}
             </p>
             <div className="mt-2 space-y-1.5">
               {DOCKS.map((dock) => {
-                const count = (links[dockKey(s.nome, dock)] ?? []).length;
+                const count = (links[dockKey(s.name, dock)] ?? []).length;
                 return (
                   <button
                     key={dock}
                     type="button"
-                    onClick={() => setOpen({ store: s.nome, dock })}
+                    onClick={() => setOpen({ store: s.name, dock })}
                     className="flex w-full items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-left text-xs hover:bg-muted/60"
                   >
                     <span className="font-medium">{dock}</span>
@@ -179,7 +174,7 @@ export function DocksPanel({ canEdit }: { canEdit: boolean }) {
 
       {!stores.length ? (
         <p className="text-xs text-muted-foreground">
-          Nenhuma loja disponível para este filtro.
+          Nenhuma loja cadastrada no banco para este filtro.
         </p>
       ) : null}
     </div>

@@ -32,6 +32,11 @@ import {
   removePolicyTariff,
   setPolicyTariff,
 } from "@/lib/freight/policy-tariff-store";
+import { getLive, regionForStore } from "@/lib/freight/live";
+import { pushTariffTable } from "@/lib/freight/dataset";
+import { saveFreightTable } from "@/lib/freight/remote.functions";
+import { parseBandsFromXlsx } from "@/lib/freight/xlsx-bands";
+import type { WeightBand } from "@/lib/freight/types";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
 import { ShippingWindowNotice, useShippingWindowNotice } from "./SchedulePanel";
@@ -371,6 +376,9 @@ export function PolicyFormPanel({
   const [tariffSource, setTariffSource] = useState<"existente" | "upload">("existente");
   const [tariffFileName, setTariffFileName] = useState("");
   const tariffFileRef = useRef<HTMLInputElement>(null);
+  const [uploadedBands, setUploadedBands] = useState<WeightBand[] | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   /** Tabelas de frete já carregadas no projeto para a loja escolhida */
   const tariffOptions = useMemo(() => (store ? tariffTablesForStore(store) : []), [store]);
