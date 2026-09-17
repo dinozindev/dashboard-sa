@@ -18,7 +18,9 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
   polygons,
+  stores as storeRefs,
   STORE_NAMES,
+  STORE_REGION,
   OPS_STORES,
   storesInRegion,
   tariffFor,
@@ -27,9 +29,16 @@ import {
 } from "@/lib/freight/dataset";
 import { BAND_ORDER } from "@/lib/freight/palette";
 import { brl, calcPrice, kg } from "@/lib/freight/pricing";
-import { polygonsAtPoint } from "@/lib/freight/geo";
+import { distanceKm, polygonsAtPoint } from "@/lib/freight/geo";
 import { HOLIDAYS } from "@/lib/freight/schedule";
-import type { Modality, PolygonRecord, RegionSelection, StoreName } from "@/lib/freight/types";
+import { statePolygonsFor } from "@/lib/freight/state-polygons";
+import type {
+  Modality,
+  PolygonRecord,
+  Region,
+  RegionSelection,
+  StoreName,
+} from "@/lib/freight/types";
 import { Legend } from "./Legend";
 import { Kpis } from "./Kpis";
 import { TariffTable } from "./TariffTable";
@@ -307,6 +316,39 @@ export default function Dashboard() {
     compareStores.length > 0
       ? allMatches.filter((m) => compareStores.includes(m.store))
       : allMatches;
+
+  // ============================================================================
+  // MODALIDADE RETIRA: polígono único por estado + loja mais próxima
+  // ============================================================================
+
+  /** UFs cobertas pelas lojas exibidas (usadas na modalidade Retira) */
+  const pickupUfs = useMemo<Region[]>(
+    () => [...new Set(shownStores.map((s) => STORE_REGION[s]))],
+    [shownStores],
+  );
+
+  /** Polígonos estaduais carregados para essas UFs (vazio = arquivo ausente) */
+  const activeStatePolygons = useMemo(
+    () => (isPickup ? statePolygonsFor(pickupUfs) : []),
+    [isPickup, pickupUfs],
+  );
+
+  /**
+   * Loja mais próxima do ponto clicado (modalidade Retira).
+   * Distância real em linha reta (haversine) entre o ponto e o centro da loja.
+   */
+  const nearestPickupStore = useMemo(() => {
+    if (!isPickup || !point || shownStores.length === 0) return null;
+    const candidates = storeRefs.filter((s) => shownStores.includes(s.name));
+    let best: { name: StoreName; note: string; km: number } | null = null;
+    for (const s of candidates) {
+      const km = distanceKm([point.lng, point.lat], s.center);
+      if (!best || km < best.km) best = { name: s.name, note: s.note, km };
+    }
+    return best;
+  }, [isPickup, point, shownStores]);
+
+
 
   // ============================================================================
   // EVENT HANDLERS
@@ -642,7 +684,7 @@ export default function Dashboard() {
             >
               <Suspense fallback={<div className="h-[620px] w-full animate-pulse bg-muted" />}>
                 <FreightMap
-                  visible={visible}
+                  visible={isPickup ? [] : visible}
                   selectedId={selectedId}
                   tooltipFor={tooltipFor}
                   onSelect={(rec) => {
@@ -650,7 +692,10 @@ export default function Dashboard() {
                     setBandIndex(null);
                   }}
                   onMapClick={(lng, lat) => setPoint({ lng, lat })}
-                  fitKey={`${region}|${shownStores.join(",")}|${search}`}
+                  fitKey={`${region}|${shownStores.join(",")}|${search}|${modality}`}
+                  pickupMode={isPickup}
+                  statePolygons={activeStatePolygons}
+                  markerStores={shownStores}
                 />
               </Suspense>
             </ClientOnly>
@@ -674,7 +719,43 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-            {point ? (
+            {isPickup ? (
+              <>
+                {activeStatePolygons.length === 0 ? (
+                  <p className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs font-medium text-danger">
+                    Polígono estadual não carregado. Adicione o contorno oficial de SP/RJ em
+                    <code className="mx-1">src/data/state-polygons.json</code>
+                    para exibir a área de retira — nenhum contorno é desenhado por aproximação.
+                  </p>
+                ) : null}
+                {nearestPickupStore ? (
+                  <div className="surface p-3">
+                    <p className="eyebrow mb-2">Loja de retira mais próxima</p>
+                    <p className="font-display text-base font-bold text-primary">
+                      {nearestPickupStore.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{nearestPickupStore.note}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Distância em linha reta do ponto clicado:{" "}
+                      <strong className="tabular-nums">
+                        {nearestPickupStore.km.toLocaleString("pt-BR", {
+                          maximumFractionDigits: 1,
+                        })}{" "}
+                        km
+                      </strong>
+                    </p>
+                    <div className="mt-3">
+                      <ScheduleGrid store={nearestPickupStore.name} modality="Retira" />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
+                    Modalidade <strong>Retira</strong>: clique em qualquer ponto do estado para ver
+                    a loja de retirada mais próxima e seus horários.
+                  </p>
+                )}
+              </>
+            ) : point ? (
               <div className="surface p-3">
                 <p className="eyebrow mb-2">
                   Comparação no ponto clicado

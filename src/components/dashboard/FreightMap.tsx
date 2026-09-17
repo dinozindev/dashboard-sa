@@ -22,6 +22,7 @@ import type { PolygonRecord } from "@/lib/freight/types";
 import { bandColor, STORE_DASH } from "@/lib/freight/palette";
 import { boundsOf } from "@/lib/freight/geo";
 import { stores } from "@/lib/freight/dataset";
+import type { StatePolygon } from "@/lib/freight/state-polygons";
 
 /**
  * Props do mapa.
@@ -40,6 +41,12 @@ interface Props {
   onSelect: (rec: PolygonRecord) => void;
   onMapClick: (lng: number, lat: number) => void;
   fitKey: string;
+  /** Modalidade Retira: usa polígonos estaduais no lugar dos de loja */
+  pickupMode?: boolean;
+  /** Polígonos estaduais (um por UF) usados na modalidade Retira */
+  statePolygons?: StatePolygon[];
+  /** Lojas cujos marcadores devem sempre aparecer (independe dos polígonos) */
+  markerStores?: string[];
 }
 
 /**
@@ -55,6 +62,9 @@ export default function FreightMap({
   onSelect,
   onMapClick,
   fitKey,
+  pickupMode = false,
+  statePolygons = [],
+  markerStores,
 }: Props) {
   // ============================================================================
   // REFS: Mapa e camadas
@@ -149,8 +159,11 @@ export default function FreightMap({
    *    - Configura eventos hover e click
    * 4. Adiciona à camada
    */
-  // Markers: apenas das lojas com polígonos ativos no mapa
-  const storeKey = [...new Set(visible.map((p) => p.store))].sort().join("|");
+  // Markers: lojas indicadas (Retira) ou lojas com polígonos ativos no mapa
+  const storeKey = (markerStores ?? [...new Set(visible.map((p) => p.store))])
+    .slice()
+    .sort()
+    .join("|");
   useEffect(() => {
     const group = markersRef.current;
     if (!group) return;
@@ -174,7 +187,33 @@ export default function FreightMap({
     const group = layerRef.current;
     if (!group) return;
     group.clearLayers();
-    
+
+    // Modalidade Retira: um polígono por estado, no lugar dos polígonos de loja
+    if (pickupMode) {
+      for (const sp of statePolygons) {
+        const latlngs = sp.geom.map((poly) =>
+          poly.map((ring) => ring.map(([lng, lat]) => [lat, lng] as [number, number])),
+        );
+        const layer = L.polygon(latlngs, {
+          color: "#0f766e",
+          weight: 2,
+          opacity: 0.95,
+          fillColor: "#0f766e",
+          fillOpacity: 0.15,
+        });
+        layer.bindTooltip(
+          `<strong>${sp.name} (${sp.uf})</strong><br/>Área de retira — clique para ver a loja mais próxima`,
+          { sticky: true, className: "freight-tooltip" },
+        );
+        layer.on("click", (e: L.LeafletMouseEvent) => {
+          L.DomEvent.stopPropagation(e);
+          cb.current.onMapClick(e.latlng.lng, e.latlng.lat);
+        });
+        group.addLayer(layer);
+      }
+      return;
+    }
+
     // Ordena por raio decrescente (maiores primeiro = layering visual correto)
     const ordered = [...visible].sort((a, b) => b.radius - a.radius);
     
@@ -217,7 +256,7 @@ export default function FreightMap({
       
       group.addLayer(layer);
     }
-  }, [visible, selectedId]);
+  }, [visible, selectedId, pickupMode, statePolygons]);
 
   // ============================================================================
   // AJUSTE DE ZOOM

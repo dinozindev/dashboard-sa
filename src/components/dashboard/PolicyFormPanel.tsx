@@ -26,6 +26,12 @@ import { removePolicyFromDocks } from "@/lib/freight/docks-store";
 import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import { readJsonFile } from "@/lib/freight/json-file";
 import { logAudit } from "@/lib/freight/audit-log";
+import { tariffTablesForStore } from "@/lib/freight/tariff-tables";
+import {
+  getPolicyTariff,
+  removePolicyTariff,
+  setPolicyTariff,
+} from "@/lib/freight/policy-tariff-store";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
 
@@ -358,6 +364,18 @@ export function PolicyFormPanel({
   const [cubic, setCubic] = useState(0);
   const [minWeight, setMinWeight] = useState(0);
 
+  /** Tabela de frete associada a esta política (somente para tipo Entrega) */
+  const [tariffIndex, setTariffIndex] = useState<number | null>(null);
+  const [tariffSource, setTariffSource] = useState<"existente" | "upload">("existente");
+  const [tariffFileName, setTariffFileName] = useState("");
+  const tariffFileRef = useRef<HTMLInputElement>(null);
+
+  /** Tabelas de frete já carregadas no projeto para a loja escolhida */
+  const tariffOptions = useMemo(() => (store ? tariffTablesForStore(store) : []), [store]);
+  const selectedTariff = tariffOptions.find((t) => t.index === tariffIndex) ?? null;
+  const tariffLabel = tariffSource === "upload" ? tariffFileName : selectedTariff?.label ?? "";
+
+
   const [saturday, setSaturday] = useState(true);
   const [sunday, setSunday] = useState(false);
   const [holidays, setHolidays] = useState(false);
@@ -430,11 +448,22 @@ export function PolicyFormPanel({
         ? initialPolicy.pickupTimes
         : [{ id: uid(), day: "Todos os dias", time: "00:00" }],
     );
+    const link = getPolicyTariff(initialPolicy.id);
+    setTariffIndex(link ? link.tableIndex : null);
+    setTariffSource(link?.source ?? "existente");
+    setTariffFileName(link?.source === "upload" ? link.tableName : "");
     setErrors([]);
     setSaved(null);
     setStep(0);
     setMaxVisited(ALL_STEPS.length - 1);
   }, [initialPolicy]);
+
+  // Tabela de frete pertence à loja: ao trocar de loja, a associação é limpa.
+  useEffect(() => {
+    setTariffIndex((cur) =>
+      cur !== null && tariffOptions.some((t) => t.index === cur) ? cur : null,
+    );
+  }, [tariffOptions]);
 
   const validateStep = (key: StepKey): string[] => {
     const errs: string[] = [];
@@ -442,6 +471,8 @@ export function PolicyFormPanel({
       if (!store) errs.push("Selecione a loja/seller da política.");
       if (!policyType) errs.push("Selecione o tipo da política (Entrega ou Retira).");
       if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
+      if (policyType === "Entrega" && tariffOptions.length > 0 && tariffIndex === null)
+        errs.push("Associe uma tabela de frete a esta política de entrega.");
     }
     if (key === "dimensoes" && modality === "Pequenos Volumes") {
       if (sumOfDimensions <= 0 && largestEdge <= 0 && cubic <= 0 && minWeight <= 0) {
@@ -534,6 +565,46 @@ export function PolicyFormPanel({
     };
     const result = upsertPolicyDraft(draft);
     logPolicyChanges(existing, draft, modality);
+
+    // Tabela de frete: só vale para políticas de Entrega
+    const previousLink = getPolicyTariff(id);
+    if (policyType === "Entrega" && tariffIndex !== null && selectedTariff) {
+      const tableName = tariffSource === "upload" ? tariffFileName : selectedTariff.label;
+      if (previousLink?.tableName !== tableName || previousLink?.tableIndex !== tariffIndex) {
+        setPolicyTariff({
+          policyId: id,
+          store,
+          modality,
+          tableIndex: tariffIndex,
+          tableName,
+          source: tariffSource,
+          bandCount: selectedTariff.bandCount,
+          polygonIds: selectedTariff.polygonIds,
+          at: new Date().toISOString(),
+        });
+        logAudit({
+          store,
+          module: "Cadastro de Política de Envio",
+          field: `Tabela de frete — ${modality}`,
+          before: previousLink?.tableName ?? "—",
+          after: tableName,
+          action: previousLink ? "Edição" : "Criação",
+          description: `Tabela de frete "${tableName}" associada à política ${modality} da loja ${store} (${selectedTariff.bandCount} faixas de peso, ${selectedTariff.polygonIds.length} polígonos).`,
+        });
+      }
+    } else if (policyType === "Retira" && previousLink) {
+      removePolicyTariff(id);
+      logAudit({
+        store,
+        module: "Cadastro de Política de Envio",
+        field: `Tabela de frete — ${modality}`,
+        before: previousLink.tableName,
+        after: "—",
+        action: "Remoção",
+        description: `Tabela de frete removida da política ${modality} da loja ${store}: políticas de Retira não usam tabela de frete.`,
+      });
+    }
+
     updateCell(store, modality, { status: active ? "Ativa" : "Inativa" }, { silent: true });
     setSaved(id);
     setIoMessage(result === "updated" ? "Política existente atualizada." : null);
@@ -638,6 +709,87 @@ export function PolicyFormPanel({
                   </label>
                 </div>
               ))}
+            </div>
+          </Section>
+
+          <Section
+            title="Tabela de Frete"
+            hint="Associe a tabela de frete que será usada para calcular o preço de entrega desta política."
+          >
+            {policyType === "Retira" ? (
+              <p className="mb-3 rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+                Políticas de <strong>Retira</strong> não usam tabela de frete — esta seção fica
+                bloqueada e nenhuma tabela é associada.
+              </p>
+            ) : null}
+
+            <div className="space-y-3">
+              <label className="block text-xs text-muted-foreground">
+                Usar tabela já existente
+                <select
+                  className="input mt-1 w-full max-w-md"
+                  disabled={policyType === "Retira" || !store}
+                  value={tariffIndex === null ? "" : String(tariffIndex)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTariffIndex(v === "" ? null : Number(v));
+                    setTariffSource("existente");
+                    setTariffFileName("");
+                  }}
+                >
+                  <option value="">
+                    {store
+                      ? tariffOptions.length
+                        ? "Selecione uma tabela carregada"
+                        : "Nenhuma tabela carregada para esta loja"
+                      : "Selecione a loja primeiro"}
+                  </option>
+                  {tariffOptions.map((t) => (
+                    <option key={t.index} value={t.index}>
+                      {t.label} · {t.bandCount} faixas
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div>
+                <input
+                  ref={tariffFileRef}
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    const base = tariffOptions[0];
+                    if (!base) return;
+                    setTariffIndex((cur) => (cur === null ? base.index : cur));
+                    setTariffSource("upload");
+                    setTariffFileName(file.name);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn-ghost text-xs"
+                  disabled={policyType === "Retira" || tariffOptions.length === 0}
+                  onClick={() => tariffFileRef.current?.click()}
+                >
+                  Fazer upload de nova tabela (.xlsx)
+                </button>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Simulação: o arquivo escolhido não é processado — a estrutura reaproveitada é a da
+                  tabela já carregada no projeto para esta loja.
+                </p>
+              </div>
+
+              {policyType === "Entrega" && selectedTariff ? (
+                <p className="rounded-lg border border-border bg-muted/40 p-2 text-xs">
+                  Tabela <strong>{tariffLabel}</strong> associada a esta política —{" "}
+                  {selectedTariff.bandCount} faixas de peso carregadas ·{" "}
+                  {selectedTariff.polygonIds.length} polígonos de {store}.
+                </p>
+              ) : null}
             </div>
           </Section>
         </>
@@ -1147,6 +1299,14 @@ export function PolicyFormPanel({
                     : "desativada",
                 ],
                 ["Modalidade", modality || "—"],
+                [
+                  "Tabela de frete",
+                  policyType === "Retira"
+                    ? "não se aplica (Retira)"
+                    : selectedTariff
+                      ? `${tariffLabel} · ${selectedTariff.bandCount} faixas`
+                      : "—",
+                ],
                 [
                   "Dimensões",
                   `soma ${sumOfDimensions} · maior aresta ${largestEdge} · peso cúbico ${cubic} · peso mínimo ${minWeight}`,
