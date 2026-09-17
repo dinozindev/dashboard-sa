@@ -1,5 +1,20 @@
 {
   "version": "7",
   "dialect": "postgresql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789661948868,
+      "tag": "0000_freight_schema_postgis",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789662251443,
+      "tag": "0001_freight_matrix_and_rpc",
+      "breakpoints": true
+    }
+  ]
 }

@@ -3,11 +3,25 @@
  * ==============================
  *
  * Guarda as políticas cadastradas na aba "Cadastro de Política de Envio".
- * Os dados são persistidos como JSON no navegador (localStorage) e podem ser
- * exportados/importados como arquivo .json, no mesmo formato usado aqui.
+ * A fonte de verdade é o banco: todas as pessoas veem as mesmas políticas.
  */
 
 import { useEffect, useSyncExternalStore } from "react";
+import {
+  commitLocal,
+  getLive,
+  refreshLive,
+  regionForStore,
+  subscribeLive,
+} from "./live";
+import {
+  deletePolicies,
+  replacePolicies,
+  upsertPolicy,
+  type PolicyPayload,
+} from "./remote.functions";
+import { STORE_REGION } from "./dataset";
+import type { StoreName } from "./types";
 
 export interface ShippingWindow {
   id: string;
@@ -89,26 +103,10 @@ export interface ShippingPolicyDraft {
   pickupTimes: PickupTime[];
 }
 
+/** Mantido por compatibilidade com importações antigas. */
 export const POLICY_DRAFTS_STORAGE_KEY = "freight.shipping-policy-drafts.v1";
 
 const EMPTY: ShippingPolicyDraft[] = [];
-
-let items: ShippingPolicyDraft[] = EMPTY;
-let hydrated = false;
-const listeners = new Set<() => void>();
-
-function emit() {
-  for (const l of listeners) l();
-}
-
-function persist() {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(POLICY_DRAFTS_STORAGE_KEY, JSON.stringify(items));
-  } catch {
-    /* storage indisponível — mantém apenas em memória */
-  }
-}
 
 function normalize(list: unknown): ShippingPolicyDraft[] {
   if (!Array.isArray(list)) return [];
@@ -128,78 +126,91 @@ function normalize(list: unknown): ShippingPolicyDraft[] {
     }));
 }
 
-/** Lê o JSON salvo no navegador. Chamada apenas no cliente. */
+function toPayload(draft: ShippingPolicyDraft): PolicyPayload {
+  const fallbackRegion = STORE_REGION[draft.store as StoreName] ?? null;
+  return {
+    clientId: draft.id,
+    store: draft.store,
+    region: regionForStore(draft.store) ?? fallbackRegion ?? "SP",
+    data: draft as unknown as object,
+  };
+}
+
 export function hydratePolicyDrafts() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  try {
-    const raw = window.localStorage.getItem(POLICY_DRAFTS_STORAGE_KEY);
-    if (!raw) return;
-    const parsed = normalize(JSON.parse(raw));
-    items = parsed;
-    persist();
-    emit();
-  } catch {
-    /* JSON inválido — ignora */
-  }
+  void refreshLive();
 }
 
-export function subscribePolicies(cb: () => void) {
-  listeners.add(cb);
-  return () => listeners.delete(cb);
-}
+export const subscribePolicies = subscribeLive;
 
-export function getPolicyDrafts() {
-  return items;
-}
-
-export function addPolicyDraft(draft: ShippingPolicyDraft) {
-  items = [draft, ...items];
-  persist();
-  emit();
-}
-
-export function upsertPolicyDraft(draft: ShippingPolicyDraft) {
-  const existingIndex = items.findIndex(
-    (item) =>
-      item.id === draft.id ||
-      (item.store === draft.store && item.modalities.includes(draft.modalities[0] ?? "")),
-  );
-
-  if (existingIndex === -1) {
-    addPolicyDraft(draft);
-    return "created" as const;
-  }
-
-  items = items.map((item, index) => (index === existingIndex ? draft : item));
-  persist();
-  emit();
-  return "updated" as const;
-}
-
-export function removePolicyDraft(id: string) {
-  items = items.filter((x) => x.id !== id);
-  persist();
-  emit();
-}
-
-export function removePolicyDraftsByModality(modality: string) {
-  const next = items.filter((item) => !item.modalities.includes(modality));
-  if (next.length === items.length) return;
-  items = next;
-  persist();
-  emit();
-}
-
-export function replacePolicyDrafts(list: unknown) {
-  items = normalize(list);
-  persist();
-  emit();
+export function getPolicyDrafts(): ShippingPolicyDraft[] {
+  return getLive()?.drafts ?? EMPTY;
 }
 
 export function usePolicyDrafts() {
   useEffect(() => {
-    hydratePolicyDrafts();
+    void refreshLive();
   }, []);
-  return useSyncExternalStore(subscribePolicies, getPolicyDrafts, () => EMPTY);
+  return useSyncExternalStore(subscribeLive, getPolicyDrafts, () => EMPTY);
+}
+
+/** Cria ou atualiza uma política no banco (atualização otimista local). */
+export function upsertPolicyDraft(draft: ShippingPolicyDraft): "created" | "updated" {
+  let result: "created" | "updated" = "created";
+  commitLocal((state) => {
+    const index = state.drafts.findIndex(
+      (item) =>
+        item.id === draft.id ||
+        (item.store === draft.store && item.modalities.includes(draft.modalities[0] ?? "")),
+    );
+    if (index >= 0) {
+      result = "updated";
+      state.drafts[index] = draft;
+    } else {
+      state.drafts.unshift(draft);
+    }
+  });
+  void upsertPolicy({ data: { draft: toPayload(draft) } })
+    .then(() => refreshLive())
+    .catch((err) => {
+      console.error("Falha ao salvar política no banco", err);
+      void refreshLive();
+    });
+  return result;
+}
+
+export function addPolicyDraft(draft: ShippingPolicyDraft) {
+  upsertPolicyDraft(draft);
+}
+
+export function removePolicyDraft(id: string) {
+  commitLocal((state) => {
+    state.drafts = state.drafts.filter((x) => x.id !== id);
+  });
+  void deletePolicies({ data: { clientIds: [id] } })
+    .then(() => refreshLive())
+    .catch(() => void refreshLive());
+}
+
+export function removePolicyDraftsByModality(modality: string) {
+  const ids = getPolicyDrafts()
+    .filter((item) => item.modalities.includes(modality))
+    .map((item) => item.id);
+  if (!ids.length) return;
+  commitLocal((state) => {
+    state.drafts = state.drafts.filter((item) => !item.modalities.includes(modality));
+  });
+  void deletePolicies({ data: { clientIds: ids } })
+    .then(() => refreshLive())
+    .catch(() => void refreshLive());
+}
+
+/** Substitui todas as políticas (importação de arquivo JSON). */
+export function replacePolicyDrafts(list: unknown) {
+  const drafts = normalize(list);
+  commitLocal((state) => {
+    state.drafts = drafts;
+  });
+  void replacePolicies({ data: { drafts: drafts.map(toPayload) } })
+    .then(() => refreshLive())
+    .catch(() => void refreshLive());
 }

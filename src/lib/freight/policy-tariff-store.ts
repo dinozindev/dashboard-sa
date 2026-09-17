@@ -1,95 +1,117 @@
 /**
- * ASSOCIAÇÃO TABELA DE FRETE ↔ POLÍTICA DE ENVIO
- * ==============================================
+ * TABELAS DE FRETE VINCULADAS ÀS POLÍTICAS
+ * ========================================
  *
- * Cada política de envio (do tipo Entrega) pode ter sua própria tabela de
- * frete, mesmo que duas políticas sejam da mesma loja. A associação também
- * guarda os polígonos da loja aos quais a tabela se aplica.
- *
- * Persistido em localStorage, sem backend real.
+ * A associação política → tabela de frete é gravada no banco
+ * (`freight_tables.policy_client_id`).
  */
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { commitLocal, getLive, refreshLive, subscribeLive } from "./live";
+import { linkFreightTable } from "./remote.functions";
 
 export interface PolicyTariffLink {
+  /** id da política (clientId) */
   policyId: string;
   store: string;
   modality: string;
-  /** Índice da tabela em dataset.tariffs */
-  tableIndex: number;
-  /** Nome exibido da tabela (ou do arquivo "enviado") */
+  /** id da tabela no banco */
+  tableId?: string;
+  /** índice da tabela em `dataset.tariffs` (uso no cálculo) */
+  tableIndex: number | null;
   tableName: string;
-  /** Origem: tabela já carregada ou upload simulado */
-  source: "existente" | "upload";
+  source: string;
   bandCount: number;
   polygonIds: string[];
   at: string;
 }
 
+/** Mantido por compatibilidade com importações antigas. */
 export const POLICY_TARIFFS_STORAGE_KEY = "freight.policy-tariffs.v1";
 
-const EMPTY: Record<string, PolicyTariffLink> = {};
-
-let items: Record<string, PolicyTariffLink> = EMPTY;
-let hydrated = false;
-const listeners = new Set<() => void>();
-
-function emit() {
-  for (const l of listeners) l();
-}
-
-function persist() {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(POLICY_TARIFFS_STORAGE_KEY, JSON.stringify(items));
-  } catch {
-    /* storage indisponível — mantém em memória */
-  }
-}
-
 export function hydratePolicyTariffs() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  try {
-    const raw = window.localStorage.getItem(POLICY_TARIFFS_STORAGE_KEY);
-    if (!raw) return;
-    const parsed: unknown = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      items = parsed as Record<string, PolicyTariffLink>;
-      emit();
-    }
-  } catch {
-    /* JSON inválido — ignora */
+  void refreshLive();
+}
+
+export const subscribePolicyTariffs = subscribeLive;
+
+export function getPolicyTariffs(): Record<string, PolicyTariffLink> {
+  const live = getLive();
+  if (!live) return {};
+  const out: Record<string, PolicyTariffLink> = {};
+  for (const table of live.snapshot.freightTables) {
+    if (!table.policyClientId) continue;
+    const policy = live.drafts.find((d) => d.id === table.policyClientId);
+    out[table.policyClientId] = {
+      policyId: table.policyClientId,
+      store: table.store,
+      modality: policy?.modalities?.[0] ?? "",
+      tableId: table.id,
+      tableIndex: live.tableIndexById.get(table.id) ?? null,
+      tableName: table.name,
+      source: table.source,
+      bandCount: table.bands?.length ?? 0,
+      polygonIds: live.polygons.filter((p) => p.store === table.store).map((p) => p.id),
+      at: table.bands?.length ? String(table.bands[0]?.time ?? "") : "",
+    };
   }
+  return out;
 }
 
-export const subscribePolicyTariffs = (cb: () => void) => {
-  listeners.add(cb);
-  return () => listeners.delete(cb);
-};
-
-export const getPolicyTariffs = () => items;
-
-export const getPolicyTariff = (policyId: string): PolicyTariffLink | undefined =>
-  items[policyId];
-
-export function setPolicyTariff(link: PolicyTariffLink) {
-  items = { ...items, [link.policyId]: link };
-  persist();
-  emit();
-}
-
-export function removePolicyTariff(policyId: string) {
-  if (!items[policyId]) return;
-  const { [policyId]: _removed, ...rest } = items;
-  items = rest;
-  persist();
-  emit();
+export function getPolicyTariff(policyId: string): PolicyTariffLink | null {
+  return getPolicyTariffs()[policyId] ?? null;
 }
 
 export function usePolicyTariffs() {
   useEffect(() => {
-    hydratePolicyTariffs();
+    void refreshLive();
   }, []);
-  return useSyncExternalStore(subscribePolicyTariffs, getPolicyTariffs, () => EMPTY);
+  const live = useSyncExternalStore(subscribeLive, getLive, () => null);
+  return useMemo(() => getPolicyTariffs(), [live]);
+}
+
+/**
+ * Vincula (ou substitui) a tabela de frete de uma política no banco.
+ * `link.tableId` pode ser omitido quando só se conhece o índice local.
+ */
+export function setPolicyTariff(link: PolicyTariffLink) {
+  const live = getLive();
+  let tableId = link.tableId;
+  if (!tableId && link.tableIndex != null) {
+    for (const [id, index] of live?.tableIndexById ?? []) {
+      if (index === link.tableIndex) tableId = id;
+    }
+  }
+
+  commitLocal((state) => {
+    if (tableId) {
+      const table = state.snapshot.freightTables.find((t) => t.id === tableId);
+      if (table) table.policyClientId = link.policyId;
+      state.snapshot = { ...state.snapshot, freightTables: [...state.snapshot.freightTables] };
+    }
+  });
+
+  if (!tableId) {
+    console.error("Tabela de frete não encontrada no banco para vincular à política");
+    return;
+  }
+  void linkFreightTable({ data: { tableId, policyClientId: link.policyId } })
+    .then(() => refreshLive())
+    .catch((err) => {
+      console.error("Falha ao vincular tabela à política", err);
+      void refreshLive();
+    });
+}
+
+export function removePolicyTariff(policyId: string) {
+  const link = getPolicyTariff(policyId);
+  if (!link?.tableId) return;
+  commitLocal((state) => {
+    const table = state.snapshot.freightTables.find((t) => t.id === link.tableId);
+    if (table) table.policyClientId = null;
+    state.snapshot = { ...state.snapshot, freightTables: [...state.snapshot.freightTables] };
+  });
+  void linkFreightTable({ data: { tableId: link.tableId, policyClientId: null } })
+    .then(() => refreshLive())
+    .catch(() => refreshLive());
 }

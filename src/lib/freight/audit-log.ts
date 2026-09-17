@@ -4,13 +4,12 @@
  *
  * Registra automaticamente as alterações feitas nas abas de
  * "Cadastro de Política de Envio", "Políticas de Envio" e "Envio de Polígonos".
- *
- * Os registros são persistidos em JSON no navegador (localStorage) — não há
- * backend. Se o armazenamento estiver indisponível, o registro continua em
- * memória e a aba de auditoria exibe um aviso.
+ * Os registros são gravados no banco: todas as pessoas veem o mesmo histórico.
  */
 
 import { useEffect, useSyncExternalStore } from "react";
+import { commitLocal, getLive, refreshLive, subscribeLive } from "./live";
+import { clearAuditEntries, insertAuditEntries, type AuditRowPayload } from "./remote.functions";
 
 export type AuditAction =
   | "Criação"
@@ -40,67 +39,41 @@ export interface AuditEntry {
   description: string;
 }
 
+/** Mantido por compatibilidade com importações antigas. */
 export const AUDIT_LOG_STORAGE_KEY = "freight.audit-log.v1";
 
 const EMPTY: AuditEntry[] = [];
 const MAX_ENTRIES = 2000;
 
-let items: AuditEntry[] = EMPTY;
-let hydrated = false;
-let storageError: string | null = null;
-const listeners = new Set<() => void>();
+let seq = 0;
+let refreshTimer: number | null = null;
 
-const emit = () => {
-  for (const l of listeners) l();
-};
-
-function persist() {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(AUDIT_LOG_STORAGE_KEY, JSON.stringify(items));
-    storageError = null;
-  } catch {
-    storageError =
-      "Não foi possível salvar o histórico neste navegador (armazenamento cheio ou bloqueado). Os registros valem apenas até recarregar a página.";
-  }
-}
-
-function normalize(list: unknown): AuditEntry[] {
-  if (!Array.isArray(list)) return [];
-  return list.filter((x): x is AuditEntry => !!x && typeof x === "object" && "at" in x);
+/** Recarrega o histórico do banco com um pequeno atraso (agrupa várias gravações). */
+function scheduleRefresh() {
+  if (refreshTimer !== null) return;
+  refreshTimer = window.setTimeout(() => {
+    refreshTimer = null;
+    void refreshLive();
+  }, 1200);
 }
 
 export function hydrateAuditLog() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  try {
-    const raw = window.localStorage.getItem(AUDIT_LOG_STORAGE_KEY);
-    if (!raw) return;
-    const parsed = normalize(JSON.parse(raw));
-    if (parsed.length) {
-      items = parsed;
-      emit();
-    }
-  } catch {
-    /* JSON inválido — ignora */
-  }
+  void refreshLive();
 }
 
-export const subscribeAuditLog = (cb: () => void) => {
-  listeners.add(cb);
-  return () => listeners.delete(cb);
-};
+export const subscribeAuditLog = subscribeLive;
 
-export const getAuditLog = () => items;
+export function getAuditLog(): AuditEntry[] {
+  return getLive()?.audit ?? EMPTY;
+}
 
-export const getAuditStorageError = () => storageError;
+/** Sempre null: o histórico vive no banco, não no navegador. */
+export const getAuditStorageError = () => null;
 
-let seq = 0;
-
-/** Registra uma alteração no histórico (mais recente primeiro). */
+/** Registra uma alteração no histórico (gravação otimista + banco). */
 export function logAudit(entry: Omit<AuditEntry, "id" | "at"> & { at?: string }) {
   const full: AuditEntry = {
-    id: `aud-${Date.now()}-${++seq}`,
+    id: `tmp-${Date.now()}-${++seq}`,
     at: entry.at ?? new Date().toISOString(),
     store: entry.store,
     module: entry.module,
@@ -110,29 +83,42 @@ export function logAudit(entry: Omit<AuditEntry, "id" | "at"> & { at?: string })
     action: entry.action,
     description: entry.description,
   };
-  items = [full, ...items].slice(0, MAX_ENTRIES);
-  persist();
-  emit();
+  commitLocal((state) => {
+    state.audit.unshift(full);
+    if (state.audit.length > MAX_ENTRIES) state.audit.length = MAX_ENTRIES;
+  });
+  const row: AuditRowPayload = {
+    at: full.at,
+    store: full.store,
+    module: full.module,
+    field: full.field,
+    before: full.before,
+    after: full.after,
+    action: full.action,
+    description: full.description,
+  };
+  void insertAuditEntries({ data: { entries: [row] } })
+    .then(scheduleRefresh)
+    .catch((err) => {
+      console.error("Falha ao gravar auditoria no banco", err);
+      scheduleRefresh();
+    });
 }
 
 export function clearAuditLog() {
-  items = EMPTY;
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.removeItem(AUDIT_LOG_STORAGE_KEY);
-      storageError = null;
-    } catch {
-      /* ignore */
-    }
-  }
-  emit();
+  commitLocal((state) => {
+    state.audit.length = 0;
+  });
+  void clearAuditEntries()
+    .then(() => refreshLive())
+    .catch(() => refreshLive());
 }
 
 export function useAuditLog() {
   useEffect(() => {
-    hydrateAuditLog();
+    void refreshLive();
   }, []);
-  return useSyncExternalStore(subscribeAuditLog, getAuditLog, () => EMPTY);
+  return useSyncExternalStore(subscribeLive, getAuditLog, () => EMPTY);
 }
 
 /** Formata data/hora com segundos (pt-BR). */

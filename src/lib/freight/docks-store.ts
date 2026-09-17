@@ -3,10 +3,12 @@
  * ==============
  *
  * Cada loja possui 3 docas fixas. As associações entre docas e políticas de
- * envio ficam salvas em JSON no navegador (localStorage), sem backend.
+ * envio ficam gravadas no banco — visíveis para todas as pessoas.
  */
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { commitLocal, getLive, refreshLive, regionForStore, subscribeLive } from "./live";
+import { removePolicyFromAllDocks, setDockLink } from "./remote.functions";
 import { logAudit } from "./audit-log";
 
 export const DOCKS = ["Doca Principal", "Doca Televendas", "Doca Venda Assistida"] as const;
@@ -15,62 +17,41 @@ export type DockName = (typeof DOCKS)[number];
 /** chave: `${loja}||${doca}` → ids de políticas associadas */
 export type DockLinks = Record<string, string[]>;
 
+/** Mantido por compatibilidade com importações antigas. */
 export const DOCK_LINKS_STORAGE_KEY = "freight.dock-links.v1";
-
-const EMPTY: DockLinks = {};
-
-let links: DockLinks = EMPTY;
-let hydrated = false;
-const listeners = new Set<() => void>();
-
-const emit = () => {
-  for (const l of listeners) l();
-};
 
 export const dockKey = (store: string, dock: DockName) => `${store}||${dock}`;
 
-function persist() {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(DOCK_LINKS_STORAGE_KEY, JSON.stringify(links));
-  } catch {
-    /* storage indisponível */
-  }
+export function hydrateDockLinks() {
+  void refreshLive();
 }
 
-function normalize(value: unknown): DockLinks {
-  if (!value || typeof value !== "object") return {};
+export const subscribeDockLinks = subscribeLive;
+
+function buildLinks(live: ReturnType<typeof getLive>): DockLinks {
   const out: DockLinks = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (Array.isArray(v)) out[k] = v.filter((x): x is string => typeof x === "string");
+  for (const link of live?.snapshot.dockLinks ?? []) {
+    const key = `${link.store}||${link.dock}`;
+    (out[key] ??= []).push(link.policyClientId);
   }
   return out;
 }
 
-export function hydrateDockLinks() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  try {
-    const raw = window.localStorage.getItem(DOCK_LINKS_STORAGE_KEY);
-    if (!raw) return;
-    const parsed = normalize(JSON.parse(raw));
-    if (Object.keys(parsed).length) {
-      links = parsed;
-      emit();
-    }
-  } catch {
-    /* JSON inválido */
-  }
+export function getDockLinks(): DockLinks {
+  return buildLinks(getLive());
 }
 
-export const subscribeDockLinks = (cb: () => void) => {
-  listeners.add(cb);
-  return () => listeners.delete(cb);
-};
+export function getDockPolicies(store: string, dock: DockName) {
+  return getDockLinks()[dockKey(store, dock)] ?? [];
+}
 
-export const getDockLinks = () => links;
-
-export const getDockPolicies = (store: string, dock: DockName) => links[dockKey(store, dock)] ?? [];
+export function useDockLinks() {
+  useEffect(() => {
+    void refreshLive();
+  }, []);
+  const live = useSyncExternalStore(subscribeLive, getLive, () => null);
+  return useMemo(() => buildLinks(live), [live]);
+}
 
 /** Vincula ou desvincula uma política de uma doca, registrando na auditoria. */
 export function toggleDockPolicy(
@@ -79,13 +60,26 @@ export function toggleDockPolicy(
   policyId: string,
   policyLabel: string,
 ) {
-  const key = dockKey(store, dock);
-  const current = links[key] ?? [];
+  const current = getDockPolicies(store, dock);
   const linked = current.includes(policyId);
-  const next = linked ? current.filter((id) => id !== policyId) : [...current, policyId];
-  links = { ...links, [key]: next };
-  persist();
-  emit();
+  commitLocal((state) => {
+    if (linked) {
+      state.snapshot.dockLinks = state.snapshot.dockLinks.filter(
+        (l) => !(l.store === store && l.dock === dock && l.policyClientId === policyId),
+      );
+    } else {
+      state.snapshot.dockLinks.push({ store, dock, policyClientId: policyId });
+    }
+  });
+
+  void setDockLink({
+    data: { store, region: regionForStore(store) ?? "SP", dock, policyClientId: policyId, linked: !linked },
+  })
+    .then(() => refreshLive())
+    .catch((err) => {
+      console.error("Falha ao associar política à doca", err);
+      void refreshLive();
+    });
 
   logAudit({
     store,
@@ -104,21 +98,15 @@ export function toggleDockPolicy(
 /** Remove uma política de todas as docas (usado ao excluir a política). */
 export function removePolicyFromDocks(policyId: string) {
   let changed = false;
-  const next: DockLinks = {};
-  for (const [k, v] of Object.entries(links)) {
-    const filtered = v.filter((id) => id !== policyId);
-    if (filtered.length !== v.length) changed = true;
-    next[k] = filtered;
-  }
+  commitLocal((state) => {
+    const before = state.snapshot.dockLinks.length;
+    state.snapshot.dockLinks = state.snapshot.dockLinks.filter(
+      (l) => l.policyClientId !== policyId,
+    );
+    changed = state.snapshot.dockLinks.length !== before;
+  });
   if (!changed) return;
-  links = next;
-  persist();
-  emit();
-}
-
-export function useDockLinks() {
-  useEffect(() => {
-    hydrateDockLinks();
-  }, []);
-  return useSyncExternalStore(subscribeDockLinks, getDockLinks, () => EMPTY);
+  void removePolicyFromAllDocks({ data: { policyClientId: policyId } })
+    .then(() => refreshLive())
+    .catch(() => void refreshLive());
 }

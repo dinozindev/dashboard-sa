@@ -153,3 +153,21 @@ export function hasSimulation(rec: PolygonRecord | undefined | null, overrides: 
  * Uso: polygonById.get("ari_0_5kg_001")
  */
 export const polygonById = new Map(polygons.map((p) => [p.id, p]));
+
+// ============================================================================
+// 7. TABELAS DE FRETE VINDAS DO BANCO
+// ============================================================================
+
+/** Número de tabelas estáticas (carregadas do JSON original) */
+const BASE_TARIFF_COUNT = dataset.tariffs.length;
+
+/** Descarta as tabelas vindas do banco (mantém apenas as estáticas). */
+export function resetLiveTariffs() {
+  dataset.tariffs.length = BASE_TARIFF_COUNT;
+}
+
+/** Adiciona uma tabela de frete do banco e devolve o índice dela. */
+export function pushTariffTable(bands: WeightBand[]) {
+  dataset.tariffs.push(bands);
+  return dataset.tariffs.length - 1;
+}
