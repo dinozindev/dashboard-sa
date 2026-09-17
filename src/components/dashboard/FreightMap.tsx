@@ -187,7 +187,33 @@ export default function FreightMap({
     const group = layerRef.current;
     if (!group) return;
     group.clearLayers();
-    
+
+    // Modalidade Retira: um polígono por estado, no lugar dos polígonos de loja
+    if (pickupMode) {
+      for (const sp of statePolygons) {
+        const latlngs = sp.geom.map((poly) =>
+          poly.map((ring) => ring.map(([lng, lat]) => [lat, lng] as [number, number])),
+        );
+        const layer = L.polygon(latlngs, {
+          color: "#0f766e",
+          weight: 2,
+          opacity: 0.95,
+          fillColor: "#0f766e",
+          fillOpacity: 0.15,
+        });
+        layer.bindTooltip(
+          `<strong>${sp.name} (${sp.uf})</strong><br/>Área de retira — clique para ver a loja mais próxima`,
+          { sticky: true, className: "freight-tooltip" },
+        );
+        layer.on("click", (e: L.LeafletMouseEvent) => {
+          L.DomEvent.stopPropagation(e);
+          cb.current.onMapClick(e.latlng.lng, e.latlng.lat);
+        });
+        group.addLayer(layer);
+      }
+      return;
+    }
+
     // Ordena por raio decrescente (maiores primeiro = layering visual correto)
     const ordered = [...visible].sort((a, b) => b.radius - a.radius);
     
