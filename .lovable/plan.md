@@ -52,6 +52,8 @@ Sem login por enquanto, como você pediu: os perfis Consultor / Editor / Auditor
 ## O que muda na tela
 
 - Dashboard, Políticas, Cadastro, Docas, Auditoria passam a ler e gravar no banco, com indicadores de carregando/erro.
+- No dashboard, o seletor de modalidade passa a filtrar os polígonos pela política correspondente: escolhendo "Entrega Agendada" aparecem só os polígonos daquela política, com os preços da tabela de frete dela; modalidades sem coleção enviada aparecem vazias, com aviso.
+- No cadastro de política, a seção "Tabela de Frete" grava no banco: escolher tabela já cadastrada da loja ou cadastrar nova (envio da planilha), sempre ligada àquela política.
 - Cadastros feitos por uma pessoa aparecem para as outras ao recarregar.
 - Nada do que existe no seu navegador é migrado automaticamente; o banco parte limpo e é populado pelos envios.
 - Layout, fluxo de cadastro, replicação de política, pop-ups e cálculo de frete continuam iguais.
