@@ -263,7 +263,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
         field: `Malha estadual (${uf})`,
         before: "Cadastrada",
         after: file.name,
-        action: "Alteração",
+        action: "Edição",
         description: `Malha estadual de ${name} substituída por ${file.name} (${coords.length} partes)`,
       });
       setStateFeedback({ kind: "ok", text: `Malha de ${name} atualizada no banco.` });
