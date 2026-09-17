@@ -71,6 +71,13 @@ export interface FreightSnapshotDto {
     kind: "Entrega" | "Retira" | null;
     geojson: { type: string; coordinates: number[][][][] } | null;
   }>;
+  statePolygons: Array<{
+    uf: string;
+    name: string;
+    source: string | null;
+    updatedAt: string;
+    geojson: { type: string; coordinates: number[][][][] } | null;
+  }>;
   dockLinks: Array<{ store: string; dock: string; policyClientId: string }>;
   policyCells: Array<{ store: string; modality: string; status: string; note: string }>;
   customModalities: string[];
