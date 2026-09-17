@@ -34,6 +34,8 @@ import {
 } from "@/lib/freight/policy-tariff-store";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
+import { ShippingWindowNotice, useShippingWindowNotice } from "./SchedulePanel";
+
 
 const DAYS = [
   "Todos os dias",
@@ -394,6 +396,11 @@ export function PolicyFormPanel({
 
   const [errors, setErrors] = useState<string[]>([]);
   const [saved, setSaved] = useState<string | null>(null);
+  /** Replicação: política salva sendo copiada para outra loja */
+  const [replicating, setReplicating] = useState(false);
+  const [replicaFrom, setReplicaFrom] = useState("");
+  const [replicaTarget, setReplicaTarget] = useState("");
+
 
   const effectiveSeller = pickupSeller || store;
 
