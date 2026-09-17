@@ -64,6 +64,29 @@ function areaKm2Of(coords: number[][][][]): number {
 
 type Kind = "Entrega" | "Retira";
 
+/** Lê um campo do GeoJSON aceitando variações de nome, sem presumir ordem */
+function pick(props: Record<string, unknown>, keys: string[]): unknown {
+  const lower = new Map(Object.entries(props).map(([k, v]) => [k.toLowerCase(), v]));
+  for (const k of keys) {
+    const v = lower.get(k.toLowerCase());
+    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+  }
+  return undefined;
+}
+
+/** Faixa declarada no arquivo (ex.: "5KM"); "—" quando ausente */
+function bandOf(props: Record<string, unknown>): string {
+  const v = pick(props, ["Faixa", "band", "faixa_km", "Banda"]);
+  return v === undefined ? "\u2014" : String(v).trim().toUpperCase();
+}
+
+function numOf(props: Record<string, unknown>, keys: string[]): number | null {
+  const v = pick(props, keys);
+  if (v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void }) {
   const live = useLive();
   const submitted = useSubmittedStores();
@@ -76,6 +99,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [parsed, setParsed] = useState<{ name: string; count: number; bands: Set<string>; area: number } | null>(null);
   const [geo, setGeo] = useState<AnyGeom[]>([]);
+  const [props, setProps] = useState<Array<Record<string, unknown>>>([]);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [newStore, setNewStore] = useState("");
@@ -114,20 +138,32 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
         | AnyGeom
         | { type: "Feature"; geometry: AnyGeom }
         | { type: "FeatureCollection"; features: Array<{ geometry: AnyGeom }> };
-      let geoms: AnyGeom[] = [];
+      let feats: Array<{ geometry: AnyGeom; properties?: Record<string, unknown> }> = [];
       if (json.type === "FeatureCollection") {
-        geoms = (json.features ?? []).map((f) => f.geometry).filter(Boolean);
+        feats = ((json.features ?? []) as Array<{
+          geometry: AnyGeom;
+          properties?: Record<string, unknown>;
+        }>).filter((f) => f?.geometry);
       } else if (json.type === "Feature") {
-        geoms = [(json as { geometry: AnyGeom }).geometry];
+        feats = [json as { geometry: AnyGeom; properties?: Record<string, unknown> }];
       } else {
-        geoms = [json];
+        feats = [{ geometry: json as AnyGeom }];
       }
-      geoms = geoms.filter((g) => g && (g.type === "Polygon" || g.type === "MultiPolygon"));
-      if (!geoms.length) throw new Error("Nenhuma geometria Polygon/MultiPolygon encontrada no arquivo.");
+      feats = feats.filter(
+        (f) => f.geometry && (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon"),
+      );
+      if (!feats.length) throw new Error("Nenhuma geometria Polygon/MultiPolygon encontrada no arquivo.");
+      const geoms = feats.map((f) => f.geometry);
+      const attrs = feats.map((f) => f.properties ?? {});
       const bands = new Set<string>();
+      for (const a of attrs) {
+        const b = bandOf(a);
+        if (b !== "\u2014") bands.add(b);
+      }
       let area = 0;
       for (const g of geoms) area += areaKm2Of(asMulti(g));
       setGeo(geoms);
+      setProps(attrs);
       setParsed({ name: file.name, count: geoms.length, bands, area });
     } catch (e) {
       setFeedback({
@@ -159,17 +195,19 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       const rows = geo.map((g, i) => {
         const coords = asMulti(g);
         const center = centroidOf(coords);
+        const attrs = props[i] ?? {};
+        const districtValue = pick(attrs, ["NM_DIST", "distrito", "district", "Nome_Poligono", "PolygonName"]);
         return {
           clientId: `${storeName}|${kind}|${Date.now()}|${i}`,
           storeId,
           policyId: null,
           kind,
-          district: null,
+          district: districtValue === undefined ? null : String(districtValue),
           uf: region,
-          band: "—",
-          radius: null,
-          rMin: null,
-          rMax: null,
+          band: bandOf(attrs),
+          radius: numOf(attrs, ["Raio", "radius"]),
+          rMin: numOf(attrs, ["Raio_Min", "rMin"]),
+          rMax: numOf(attrs, ["Raio_Max", "rMax"]),
           areaKm2: areaKm2Of(coords),
           centerLng: center[0],
           centerLat: center[1],
@@ -200,6 +238,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       });
       setParsed(null);
       setGeo([]);
+      setProps([]);
       if (fileRef.current) fileRef.current.value = "";
       await refreshLive();
     } catch (e) {
