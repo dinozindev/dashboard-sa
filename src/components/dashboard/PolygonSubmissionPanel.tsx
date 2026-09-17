@@ -176,11 +176,11 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       logAudit({
         store: storeName,
         module: "Criação de Polígonos",
-        field: policyClientId ? "Polígonos (política)" : "Polígonos (base)",
+        field: `Polígonos (${kind})`,
         before: replaceExisting ? "—" : "0",
         after: String(inserted),
         action: "Adição",
-        description: `${inserted.toLocaleString("pt-BR")} polígonos enviados de ${parsed?.name ?? "arquivo"} para a loja de ${storeName}`,
+        description: `${inserted.toLocaleString("pt-BR")} polígonos de ${kind} enviados de ${parsed?.name ?? "arquivo"} para a loja de ${storeName}`,
       });
 
       setFeedback({
