@@ -339,6 +339,20 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             />
           </label>
           <label className="field-label">
+            Estado (UF)
+            <select
+              className="input mt-1 w-44"
+              value={uf}
+              onChange={(e) => setUf(e.target.value)}
+            >
+              {UF_LIST.map((u) => (
+                <option key={u} value={u}>
+                  {u} — {UF_NAMES[u]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-label">
             Tipo da coleção
             <select
               className="input mt-1 w-40"
