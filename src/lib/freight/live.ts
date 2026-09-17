@@ -39,6 +39,8 @@ export interface LiveState {
   modalitiesByPolicy: Map<string, string[]>;
   /** Tipo de cada política (clientId → "Entrega" | "Retira") */
   policyTypeByPolicy: Map<string, string>;
+  /** Malhas estaduais (modalidade Retira) gravadas no banco */
+  statePolygons: Array<{ uf: Region; name: string; source: string | null; geom: number[][][][] }>;
   /** Registros de auditoria */
   audit: AuditEntry[];
 }
