@@ -1126,7 +1126,9 @@ export function PolicyFormPanel({
             </div>
           )}
         </Section>
+        </>
       ) : null}
+
 
       {currentStep.key === "agendada" ? (
         <Section
