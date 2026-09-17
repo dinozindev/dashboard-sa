@@ -17,7 +17,7 @@ import json
 import os
 
 SRC_SP = "/mnt/user-uploads/Polígono_SP.txt"
-SRC_RJ = "/mnt/user-uploads/RIO_DE_JANEIRO_RETIRA.geojson"
+SRC_RJ = "/mnt/user-uploads/RIO_GEOJSON.geojson"
 OUT = "src/data/state-polygons.json"
 TOL = 0.004  # ~400 m: suficiente para o contorno estadual
 
@@ -113,7 +113,7 @@ def build_rj():
 
 def main():
     data = {
-        "source": "Polígono_SP.txt e RIO_DE_JANEIRO_RETIRA.geojson enviados pelo usuário "
+        "source": "Polígono_SP.txt e RIO_GEOJSON.geojson enviados pelo usuário "
         "(contornos reais, apenas simplificados para exibição).",
         "generatedBy": "scripts/build-state-polygons.py",
         "states": [build_sp(), build_rj()],
