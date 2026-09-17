@@ -77,6 +77,9 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [newStore, setNewStore] = useState("");
+  const [stateFeedback, setStateFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(
+    null,
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   const storeOptions = useMemo(
