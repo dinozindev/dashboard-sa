@@ -81,7 +81,7 @@ export function ComparePanel({
     if (!cur || m.radius < cur.radius) byStore.set(m.store, m);
   }
   const entries = [...byStore.entries()].map(([store, rec]) => {
-    const bands = tariffFor(rec, overrides);
+    const bands = bandsFor ? bandsFor(rec) : tariffFor(rec, overrides);
     return { store, rec, price: calcPrice(bands, weight) };
   });
   const valid = entries.filter((e) => e.price.ok);

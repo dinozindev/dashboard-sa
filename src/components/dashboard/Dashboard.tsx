@@ -997,6 +997,7 @@ export default function Dashboard() {
                   modality={modality}
                   now={now}
                   holidays={HOLIDAYS}
+                  bandsFor={(rec) => bandsOf(rec)}
                 />
               </div>
             ) : (
