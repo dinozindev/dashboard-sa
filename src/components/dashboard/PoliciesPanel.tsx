@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
+import { liveStores, useLive } from "@/lib/freight/live";
 import {
   policies,
   SHIPPING_POLICY_DEFINITIONS,
@@ -196,20 +197,43 @@ export function PoliciesPanel({
   const data = usePolicyMatrix();
   const drafts = usePolicyDrafts();
   const submitted = useSubmittedStores();
-  const [region, setRegion] = useState<"Todas" | "SP" | "RJ">("Todas");
+  const live = useLive();
+  const [region, setRegion] = useState("Todas");
 
   /** Lojas liberadas: só entram na listagem quando têm polígonos cadastrados. */
   const availableStores = useMemo(
-    () =>
-      data.stores.filter(
+    () => {
+      const matrixStores = data.stores.filter(
         (s) =>
           BASE_STORES.includes(s.nome as never) || submitted.includes(s.nome as never),
-      ),
-    [data.stores, submitted],
+      );
+      const knownStores = new Set(matrixStores.map((s) => s.nome));
+      const extraStores = liveStores(live)
+        .filter((s) => s.polygonCount > 0 && !knownStores.has(s.name))
+        .map((s) => ({
+          centro: null,
+          tipo: "",
+          nome: s.name,
+          uf: s.region,
+          cidade: s.name,
+          cells: Object.fromEntries(
+            data.modalities.map((modality) => [
+              modality,
+              { status: "Não informada" as PolicyStatus, note: "" },
+            ]),
+          ),
+        }));
+      return [...matrixStores, ...extraStores];
+    },
+    [data.modalities, data.stores, live, submitted],
   );
   const blockedStores = useMemo(
     () => data.stores.filter((s) => !availableStores.includes(s)),
     [data.stores, availableStores],
+  );
+  const availableRegions = useMemo(
+    () => Array.from(new Set(availableStores.map((s) => s.uf))).sort(),
+    [availableStores],
   );
   const shownStores = useMemo(
     () => availableStores.filter((s) => region === "Todas" || s.uf === region),
@@ -327,28 +351,21 @@ export function PoliciesPanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">Filtrar lojas:</span>
-        {(
-          [
-            ["Todas", "Todas as lojas"],
-            ["SP", "Somente SP"],
-            ["RJ", "Somente RJ"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setRegion(value)}
-            className={
-              "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
-              (region === value
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border hover:bg-muted/60")
-            }
+        <label className="field-label">
+          Regional
+          <select
+            className="input mt-1 w-32"
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
           >
-            {label}
-          </button>
-        ))}
+            <option value="Todas">Todas</option>
+            {availableRegions.map((availableRegion) => (
+              <option key={availableRegion} value={availableRegion}>
+                {availableRegion}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {canEdit ? (

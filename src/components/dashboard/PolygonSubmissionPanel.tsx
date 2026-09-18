@@ -42,6 +42,29 @@ function centroidOf(coords: number[][][][]): [number, number] {
   return n ? [sx / n, sy / n] : [0, 0];
 }
 
+function markerCenterOf(
+  geometries: AnyGeom[],
+  attributes: Array<Record<string, unknown>>,
+): [number, number] {
+  const centers = geometries.map((geometry, index) => ({
+    center: centroidOf(asMulti(geometry)),
+    radius: numOf(attributes[index] ?? {}, ["Raio", "radius"]),
+  }));
+  const radii = centers
+    .map(({ radius }) => radius)
+    .filter((radius): radius is number => radius !== null);
+  const smallestRadius = radii.length ? Math.min(...radii) : null;
+  const baseCenters =
+    smallestRadius === null
+      ? centers
+      : centers.filter(({ radius }) => radius === smallestRadius);
+  const total = baseCenters.reduce<[number, number]>(
+    ([lng, lat], { center: [centerLng, centerLat] }) => [lng + centerLng, lat + centerLat],
+    [0, 0],
+  );
+  return [total[0] / baseCenters.length, total[1] / baseCenters.length];
+}
+
 /** Área aproximada em km² (equiretangular local) — estimativa para exibição */
 function areaKm2Of(coords: number[][][][]): number {
   const ring = coords[0]?.[0] ?? [];
@@ -87,6 +110,13 @@ function numOf(props: Record<string, unknown>, keys: string[]): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function ufCodeOf(value: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (/^[A-Za-z]{2}$/.test(trimmed)) return trimmed.toUpperCase();
+  return Object.entries(UF_NAMES).find(([, name]) => name === trimmed)?.[0] ?? trimmed;
+}
+
 export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void }) {
   const live = useLive();
   const submitted = useSubmittedStores();
@@ -115,11 +145,18 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
 
   /** Resumo por loja + tipo (Entrega/Retira) já cadastrado no banco */
   const collections = useMemo(() => {
-    const map = new Map<string, { store: string; kind: Kind; count: number; area: number }>();
+    const map = new Map<
+      string,
+      { store: string; kind: Kind; ufs: Set<string>; count: number; area: number }
+    >();
     for (const p of live?.polygons ?? []) {
       const k: Kind = p.kind === "Retira" ? "Retira" : "Entrega";
       const key = `${p.store}||${k}`;
-      const cur = map.get(key) ?? { store: p.store, kind: k, count: 0, area: 0 };
+      const cur =
+        map.get(key) ??
+        { store: p.store, kind: k, ufs: new Set<string>(), count: 0, area: 0 };
+      const ufCode = ufCodeOf(p.uf);
+      if (ufCode) cur.ufs.add(ufCode);
       cur.count += 1;
       cur.area += p.areaKm2 ?? 0;
       map.set(key, cur);
@@ -186,7 +223,10 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     const region = uf;
     setSending(true);
     try {
-      const { id: storeId } = await ensureStore({ data: { name: storeName, region } });
+      const markerCenter = markerCenterOf(geo, props);
+      const { id: storeId } = await ensureStore({
+        data: { name: storeName, region, center: markerCenter },
+      });
 
       if (replaceExisting) {
         await deletePolygonCollection({ data: { storeId, kind } });
@@ -203,7 +243,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             ? `${districtValue ?? storeName}_${bandOf(attrs)}_${String(i + 1).padStart(3, "0")}`
             : String(nameValue);
         return {
-          clientId: `${storeName}|${kind}|${polygonName}`,
+          clientId: `${storeId}|${kind}|${polygonName}`,
           storeId,
           policyId: null,
           kind,
@@ -490,6 +530,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               <tr>
                 <th className="px-2 py-2 text-left">Loja</th>
                 <th className="px-2 py-2 text-left">Tipo</th>
+                <th className="px-2 py-2 text-left">Estado</th>
                 <th className="px-2 py-2 text-right">Polígonos</th>
                 <th className="px-2 py-2 text-right">Área (km²)</th>
                 <th className="px-2 py-2"></th>
@@ -500,6 +541,9 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                 <tr key={`${c.store}||${c.kind}`} className="border-t border-border">
                   <td className="px-2 py-1.5 font-medium">{c.store}</td>
                   <td className="px-2 py-1.5">{c.kind}</td>
+                  <td className="px-2 py-1.5">
+                    {[...c.ufs].sort().join(", ") || "—"}
+                  </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
                     {c.count.toLocaleString("pt-BR")}
                   </td>
@@ -518,7 +562,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               ))}
               {collections.length === 0 ? (
                 <tr>
-                  <td className="px-2 py-3 text-xs text-muted-foreground" colSpan={5}>
+                  <td className="px-2 py-3 text-xs text-muted-foreground" colSpan={6}>
                     Nenhuma coleção enviada ainda.
                   </td>
                 </tr>

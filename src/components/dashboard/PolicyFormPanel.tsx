@@ -343,12 +343,14 @@ export function PolicyFormPanel({
   /** Regra: só lojas com polígonos cadastrados podem ter política de envio. */
   const stores = useMemo(
     () =>
-      policies.stores
-        .map((s) => s.nome)
-        .filter(
-          (nome) =>
-            BASE_STORES.includes(nome as never) || submitted.includes(nome as never),
-        ),
+      Array.from(
+        new Set([
+          ...policies.stores
+            .map((s) => s.nome)
+            .filter((nome) => BASE_STORES.includes(nome as never)),
+          ...submitted,
+        ]),
+      ),
     [submitted],
   );
   const matrix = usePolicyMatrix();

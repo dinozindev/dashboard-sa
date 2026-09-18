@@ -142,7 +142,16 @@ export const ensureStore = createServerFn({ method: "POST" })
       .select("id, note, center_lng, center_lat")
       .eq("name", data.name)
       .maybeSingle();
-    if (existing?.id) return { id: existing.id as string, created: false };
+    if (existing?.id) {
+      if (data.center) {
+        const { error } = await supabase
+          .from("stores")
+          .update({ center_lng: data.center[0], center_lat: data.center[1] })
+          .eq("id", existing.id);
+        fail(error);
+      }
+      return { id: existing.id as string, created: false };
+    }
     const { data: created, error } = await supabase
       .from("stores")
       .insert({

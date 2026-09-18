@@ -18,7 +18,6 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
   dataset,
-  polygons as staticPolygons,
   stores as staticStoreRefs,
   STORE_NAMES,
   STORE_REGION,
@@ -158,12 +157,12 @@ export default function Dashboard() {
 
   /** Lojas ativas: as cadastradas no banco (fallback: catálogo estático) */
   const activeStores = useMemo(
-    () => (live ? availableStoreNames(live) : [...STORE_NAMES]),
+    () => (live ? availableStoreNames(live) : []),
     [live],
   );
 
   /** Polígonos exibidos: banco quando carregado, senão dataset estático */
-  const allPolygons = live ? live.polygons : staticPolygons;
+  const allPolygons = live ? live.polygons : [];
 
   /** Política selecionada para filtrar as coleções de polígonos (modalidade) */
   const [policyFilter, setPolicyFilter] = useState<string>("todas");
@@ -220,6 +219,31 @@ export default function Dashboard() {
   const pickupStores = useMemo(
     () => regionStores.filter((s) => visibleStores.includes(s)),
     [regionStores, visibleStores],
+  );
+
+  const mapMarkers = useMemo(
+    () =>
+      liveStores(live).map((store) => {
+        const storePolygons = (live?.polygons ?? []).filter((polygon) => polygon.store === store.name);
+        const radii = storePolygons
+          .map((polygon) => polygon.radius)
+          .filter((radius): radius is number => Number.isFinite(radius));
+        const smallestRadius = radii.length ? Math.min(...radii) : null;
+        const basePolygons =
+          smallestRadius === null
+            ? storePolygons
+            : storePolygons.filter((polygon) => polygon.radius === smallestRadius);
+        const center = basePolygons.length
+          ? [
+              basePolygons.reduce((total, polygon) => total + polygon.center[0], 0) /
+                basePolygons.length,
+              basePolygons.reduce((total, polygon) => total + polygon.center[1], 0) /
+                basePolygons.length,
+            ] as [number, number]
+          : ((store.center ?? [0, 0]) as [number, number]);
+        return { name: store.name, note: store.note ?? "", center };
+      }),
+    [live],
   );
 
   // ============================================================================
@@ -853,15 +877,7 @@ export default function Dashboard() {
                   pickupMode={isPickup}
                   statePolygons={activeStatePolygons}
                   markerStores={isPickup ? pickupStores : shownStores}
-                  {...(live
-                    ? {
-                        markers: liveStores(live).map((s) => ({
-                          name: s.name,
-                          note: s.note ?? "",
-                          center: (s.center ?? [0, 0]) as [number, number],
-                        })),
-                      }
-                    : {})}
+                  markers={mapMarkers}
                 />
               </Suspense>
             </ClientOnly>
