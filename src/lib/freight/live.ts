@@ -40,7 +40,14 @@ export interface LiveState {
   /** Tipo de cada política (clientId → "Entrega" | "Retira") */
   policyTypeByPolicy: Map<string, string>;
   /** Malhas estaduais (modalidade Retira) gravadas no banco */
-  statePolygons: Array<{ uf: Region; name: string; source: string | null; geom: number[][][][] }>;
+  statePolygons: Array<{
+    uf: Region;
+    name: string;
+    /** Nome do polígono de retira no banco (ex.: SAO_PAULO_RETIRA) */
+    polygonName: string | null;
+    source: string | null;
+    geom: number[][][][];
+  }>;
   /** Registros de auditoria */
   audit: AuditEntry[];
 }

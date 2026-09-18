@@ -74,6 +74,8 @@ export interface FreightSnapshotDto {
   statePolygons: Array<{
     uf: string;
     name: string;
+    /** Nome do polígono de retira (ex.: SAO_PAULO_RETIRA) usado para associar a tabela de frete */
+    polygonName: string | null;
     source: string | null;
     updatedAt: string;
     geojson: { type: string; coordinates: number[][][][] } | null;
@@ -530,7 +532,13 @@ export const deletePolygonCollection = createServerFn({ method: "POST" })
 /** Grava (ou substitui) a malha estadual de uma UF usada na modalidade Retira. */
 export const upsertStatePolygon = createServerFn({ method: "POST" })
   .inputValidator(
-    (input: { uf: string; name: string; source?: string | null; geojson: string }) => input,
+    (input: {
+      uf: string;
+      name: string;
+      polygonName?: string | null;
+      source?: string | null;
+      geojson: string;
+    }) => input,
   )
   .handler(async ({ data }) => {
     const supabase = publicClient();
@@ -538,6 +546,7 @@ export const upsertStatePolygon = createServerFn({ method: "POST" })
       payload: {
         uf: data.uf,
         name: data.name,
+        polygonName: data.polygonName ?? null,
         source: data.source ?? null,
         geojson: data.geojson,
       },
