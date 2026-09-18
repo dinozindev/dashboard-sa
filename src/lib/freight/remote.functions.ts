@@ -417,7 +417,12 @@ export const saveFreightTable = createServerFn({ method: "POST" })
       tableId = existing.id as string;
       const { error } = await supabase
         .from("freight_tables")
-        .update({ source: t.source, file_name: t.fileName ?? null, policy_id: policyId })
+        .update({
+          source: t.source,
+          file_name: t.fileName ?? null,
+          policy_id: policyId,
+          polygon_name: t.polygonName ?? null,
+        })
         .eq("id", tableId);
       fail(error);
       const { error: delBands } = await supabase
@@ -434,6 +439,7 @@ export const saveFreightTable = createServerFn({ method: "POST" })
           name: t.name,
           source: t.source,
           file_name: t.fileName ?? null,
+          polygon_name: t.polygonName ?? null,
         })
         .select("id")
         .single();
