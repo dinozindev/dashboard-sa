@@ -133,12 +133,12 @@ function applySnapshot(raw: FreightSnapshotDto) {
             : [];
     }
     // Polígono com política → tabela vinculada à política; sem política →
-    // tabela padrão da loja (seed das tabelas estáticas, sem policyClientId).
+    // tabela padrão da loja: a primeira sem política e, se todas já estiverem
+    // vinculadas a alguma política, qualquer tabela daquela loja.
+    const storeTables = (raw.freightTables ?? []).filter((t) => t.store === p.store);
     const linkedTableId = p.policyClientId
       ? (tableByPolicy.get(p.policyClientId) ?? null)
-      : ((raw.freightTables ?? []).find(
-          (t) => t.store === p.store && !t.policyClientId,
-        )?.id ?? null);
+      : ((storeTables.find((t) => !t.policyClientId) ?? storeTables[0])?.id ?? null);
     const tableIdx = linkedTableId ? (tableIndexById.get(linkedTableId) ?? null) : null;
     polygons.push({
       id: p.id,
