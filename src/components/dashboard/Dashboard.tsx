@@ -966,6 +966,38 @@ export default function Dashboard() {
                     para exibir a área de retira — nenhum contorno é desenhado por aproximação.
                   </p>
                 ) : null}
+                {activeStatePolygons.length ? (
+                  <div className="surface p-3">
+                    <p className="eyebrow mb-2">
+                      Frete da retira
+                      {modalityFilter === "todas" ? "" : ` · ${modalityFilter}`}
+                    </p>
+                    <ul className="space-y-1">
+                      {activeStatePolygons.map((s) => {
+                        const link = s.polygonName
+                          ? pickupTariffByPolygon.get(s.polygonName)
+                          : undefined;
+                        return (
+                          <li
+                            key={s.uf}
+                            className="flex items-center justify-between gap-2 text-xs"
+                          >
+                            <span className="text-muted-foreground">
+                              {s.polygonName ?? s.name}
+                            </span>
+                            <span className="tabular-nums font-medium">
+                              {link ? (link.price != null ? brl(link.price) : "—") : "Sem tabela"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Valor único por estado, sem adicional por peso excedente. A tabela é enviada no
+                      cadastro da política de Retira.
+                    </p>
+                  </div>
+                ) : null}
                 {nearestPickupStore ? (
                   <div className="surface p-3">
                     <p className="eyebrow mb-2">Loja de retira mais próxima</p>
