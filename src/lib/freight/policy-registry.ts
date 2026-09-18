@@ -20,6 +20,7 @@ import {
   upsertPolicy,
   type PolicyPayload,
 } from "./remote.functions";
+import { updateCell } from "./policy-status-store";
 import { STORE_REGION } from "./dataset";
 import type { StoreName } from "./types";
 
