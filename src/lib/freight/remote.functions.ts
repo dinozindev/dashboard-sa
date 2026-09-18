@@ -382,6 +382,8 @@ export interface FreightTablePayload {
   name: string;
   source: "existente" | "upload";
   fileName?: string | null;
+  /** Nome do polígono associado (tabelas de Retira) */
+  polygonName?: string | null;
   bands: WeightBand[];
   policyClientId?: string | null;
 }
