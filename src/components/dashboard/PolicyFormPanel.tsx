@@ -29,7 +29,6 @@ import { logAudit } from "@/lib/freight/audit-log";
 import { tariffTablesForStore } from "@/lib/freight/tariff-tables";
 import {
   getPolicyTariff,
-  removePolicyTariff,
   setPolicyTariff,
 } from "@/lib/freight/policy-tariff-store";
 import { getLive, regionForStore } from "@/lib/freight/live";
