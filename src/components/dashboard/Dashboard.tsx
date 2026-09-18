@@ -32,6 +32,7 @@ import { brl, calcPrice, kg } from "@/lib/freight/pricing";
 import { distanceKm, polygonsAtPoint } from "@/lib/freight/geo";
 import { HOLIDAYS } from "@/lib/freight/schedule";
 import { statePolygonsFor } from "@/lib/freight/state-polygons";
+import { SHIPPING_POLICY_DEFINITIONS } from "@/lib/freight/policies";
 import type {
   Modality,
   PolygonRecord,
@@ -164,8 +165,8 @@ export default function Dashboard() {
   /** Polígonos exibidos: banco quando carregado, senão dataset estático */
   const allPolygons = live ? live.polygons : [];
 
-  /** Política selecionada para filtrar as coleções de polígonos (modalidade) */
-  const [policyFilter, setPolicyFilter] = useState<string>("todas");
+  /** Modalidade escolhida para definir a tabela de frete usada no cálculo */
+  const [modalityFilter, setModalityFilter] = useState<string>("todas");
 
   // Dados derivados: lojas ativas da região atual
   const regionStores = useMemo(
