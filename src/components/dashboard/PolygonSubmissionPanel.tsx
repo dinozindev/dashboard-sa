@@ -42,27 +42,34 @@ function centroidOf(coords: number[][][][]): [number, number] {
   return n ? [sx / n, sy / n] : [0, 0];
 }
 
+/**
+ * Posição do marcador da loja.
+ *
+ * A loja fica no centro da MENOR área enviada (a faixa mais interna). Usar a
+ * média das áreas de menor raio levava o marcador para o meio do caminho entre
+ * cidades diferentes atendidas pela mesma loja.
+ */
 function markerCenterOf(
   geometries: AnyGeom[],
   attributes: Array<Record<string, unknown>>,
 ): [number, number] {
-  const centers = geometries.map((geometry, index) => ({
-    center: centroidOf(asMulti(geometry)),
-    radius: numOf(attributes[index] ?? {}, ["Raio", "radius"]),
-  }));
-  const radii = centers
+  const items = geometries.map((geometry, index) => {
+    const coords = asMulti(geometry);
+    return {
+      center: centroidOf(coords),
+      radius: numOf(attributes[index] ?? {}, ["Raio", "radius"]),
+      area: areaKm2Of(coords),
+    };
+  });
+  if (!items.length) return [0, 0];
+  const radii = items
     .map(({ radius }) => radius)
     .filter((radius): radius is number => radius !== null);
   const smallestRadius = radii.length ? Math.min(...radii) : null;
-  const baseCenters =
-    smallestRadius === null
-      ? centers
-      : centers.filter(({ radius }) => radius === smallestRadius);
-  const total = baseCenters.reduce<[number, number]>(
-    ([lng, lat], { center: [centerLng, centerLat] }) => [lng + centerLng, lat + centerLat],
-    [0, 0],
-  );
-  return [total[0] / baseCenters.length, total[1] / baseCenters.length];
+  const pool =
+    smallestRadius === null ? items : items.filter(({ radius }) => radius === smallestRadius);
+  const best = pool.reduce((a, b) => (b.area < a.area ? b : a));
+  return best.center;
 }
 
 /** Área aproximada em km² (equiretangular local) — estimativa para exibição */
