@@ -18,7 +18,7 @@ export function Legend({ stores }: { stores: string[] }) {
         ))}
       </div>
 
-      <p className="mb-1 font-medium text-foreground">Loja (padrão do contorno)</p>
+      {/* <p className="mb-1 font-medium text-foreground">Loja (padrão do contorno)</p>
       <div className="space-y-1">
         {stores.map((store) => (
           <div key={store} className="flex items-center gap-2 text-muted-foreground">
@@ -37,7 +37,7 @@ export function Legend({ stores }: { stores: string[] }) {
             <span className="text-[10px]">({STORE_DASH_LABEL[store]})</span>
           </div>
         ))}
-      </div>
+      </div> */}
     </div>
   );
 }
