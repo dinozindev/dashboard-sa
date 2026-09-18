@@ -189,12 +189,16 @@ export default function Dashboard() {
     const set = new Set<string>();
     for (const st of liveStores(live)) set.add(st.region);
     for (const p of allPolygons) if (p.uf && /^[A-Z]{2}$/.test(p.uf)) set.add(p.uf);
+    // Malhas estaduais de Retira também criam a regional correspondente
+    for (const sp of live?.statePolygons ?? [])
+      if (sp.uf && /^[A-Z]{2}$/.test(sp.uf)) set.add(sp.uf);
     if (!set.size) {
       set.add("SP");
       set.add("RJ");
     }
     return Array.from(set).sort();
   }, [live, allPolygons]);
+
 
   /** Lojas novas (ex.: recém-enviadas) entram automaticamente como visíveis */
   const knownStoresRef = useRef<string[] | null>(null);
