@@ -645,6 +645,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             <thead className="bg-muted/60 text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-2 py-2 text-left">Estado</th>
+                <th className="px-2 py-2 text-left">Nome do polígono</th>
                 <th className="px-2 py-2 text-right">Partes</th>
                 <th className="px-2 py-2 text-right">Pontos</th>
                 <th className="px-2 py-2 text-left">Substituir</th>
@@ -657,6 +658,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                   <td className="px-2 py-1.5 font-medium">
                     {s.name} ({s.uf})
                   </td>
+                  <td className="px-2 py-1.5 font-mono text-[11px]">{s.polygonName ?? "—"}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{s.geom.length}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
                     {s.geom
