@@ -905,7 +905,7 @@ export function PolicyFormPanel({
                 <input
                   ref={tariffFileRef}
                   type="file"
-                  accept=".xlsx"
+                  accept=".xlsx,.xls"
                   className="hidden"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
@@ -915,8 +915,9 @@ export function PolicyFormPanel({
                     setUploadError(null);
                     try {
                       const buf = await file.arrayBuffer();
-                      const bands = await parseBandsFromXlsx(buf);
-                      setUploadedBands(bands);
+                      const sheet = await parseFreightSheet(buf);
+                      setUploadedBands(sheet.bands);
+                      setUploadedPolygonName(sheet.polygonName);
                       setTariffSource("upload");
                       setTariffFileName(file.name);
                     } catch (err) {
@@ -924,6 +925,7 @@ export function PolicyFormPanel({
                         err instanceof Error ? err.message : "Não foi possível ler a planilha.",
                       );
                       setUploadedBands(null);
+                      setUploadedPolygonName(null);
                       setTariffSource("existente");
                       setTariffFileName("");
                     } finally {
