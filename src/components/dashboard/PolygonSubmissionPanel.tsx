@@ -437,49 +437,53 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     <div className="space-y-4">
       <section className="surface space-y-3 p-4">
         <div>
-          <h2 className="section-title text-lg">Envio de polígonos (loja + tipo)</h2>
+          <h2 className="section-title text-lg">Envio de polígonos</h2>
           <p className="text-xs text-muted-foreground">
-            Envie o GeoJSON com as áreas de uma loja e indique se elas são de{" "}
-            <strong>Entrega</strong> ou de <strong>Retira</strong>. As áreas não dependem de
-            política de envio — o que muda por política é a tabela de frete. Os dados ficam
-            gravados no banco — visíveis para todos.
+            Áreas de <strong>Entrega</strong> pertencem a uma loja; áreas de{" "}
+            <strong>Retira</strong> pertencem a um <strong>estado</strong> (não há loja). As áreas
+            não dependem de política de envio — o que muda por política é a tabela de frete. Os
+            dados ficam gravados no banco — visíveis para todos.
           </p>
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
-          <label className="field-label">
-            Loja existente
-            <select
-              className="input mt-1 w-56"
-              value={store}
-              onChange={(e) => {
-                setStore(e.target.value);
-                setNewStore("");
-                const r = storeRegionOf(live, e.target.value);
-                if (r) setUf(r);
-                setFeedback(null);
-              }}
-            >
-              <option value="">— nova loja —</option>
-              {storeOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field-label">
-            ou nova loja
-            <input
-              className="input mt-1 w-44"
-              value={newStore}
-              onChange={(e) => {
-                setNewStore(e.target.value);
-                setStore("");
-              }}
-              placeholder="Ex.: Campinas"
-            />
-          </label>
+          {kind === "Entrega" ? (
+            <>
+              <label className="field-label">
+                Loja existente
+                <select
+                  className="input mt-1 w-56"
+                  value={store}
+                  onChange={(e) => {
+                    setStore(e.target.value);
+                    setNewStore("");
+                    const r = storeRegionOf(live, e.target.value);
+                    if (r) setUf(r);
+                    setFeedback(null);
+                  }}
+                >
+                  <option value="">— nova loja —</option>
+                  {storeOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                ou nova loja
+                <input
+                  className="input mt-1 w-44"
+                  value={newStore}
+                  onChange={(e) => {
+                    setNewStore(e.target.value);
+                    setStore("");
+                  }}
+                  placeholder="Ex.: Campinas"
+                />
+              </label>
+            </>
+          ) : null}
           <label className="field-label">
             Estado (UF)
             <select
