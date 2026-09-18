@@ -102,9 +102,11 @@ export async function parseFreightSheet(data: ArrayBuffer): Promise<FreightSheet
   };
 
   const bands: WeightBand[] = [];
+  let polygonName: string | null = null;
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
     if (!row || !row.length) continue;
+    if (!polygonName) polygonName = text(row, "polygonName");
     const ws = toNumber(cell(row, "ws"));
     const we = toNumber(cell(row, "we"));
     const amc = toNumber(cell(row, "amc"));
@@ -125,5 +127,5 @@ export async function parseFreightSheet(data: ArrayBuffer): Promise<FreightSheet
 
   bands.sort((a, b) => (a.ws ?? -1) - (b.ws ?? -1));
   if (!bands.length) throw new Error("A planilha não contém faixas de peso válidas.");
-  return bands;
+  return { bands, polygonName };
 }
