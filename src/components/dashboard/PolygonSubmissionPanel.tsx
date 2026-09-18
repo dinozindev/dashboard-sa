@@ -217,7 +217,54 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     }
   };
 
+  /** Retira: a área é do ESTADO, não de uma loja — grava a malha estadual. */
+  const handleSubmitState = async () => {
+    if (!geo.length) {
+      setFeedback({ kind: "err", text: "Selecione um arquivo GeoJSON." });
+      return;
+    }
+    setSending(true);
+    try {
+      const name = UF_NAMES[uf] ?? uf;
+      const coords = geo.flatMap((g) => asMulti(g));
+      await upsertStatePolygon({
+        data: {
+          uf,
+          name,
+          source: parsed?.name ?? "arquivo",
+          geojson: JSON.stringify({ type: "MultiPolygon", coordinates: coords }),
+        },
+      });
+      logAudit({
+        store: `Estado ${uf}`,
+        module: "Criação de Polígonos",
+        field: `Malha estadual (${uf})`,
+        before: "—",
+        after: parsed?.name ?? "arquivo",
+        action: "Adição",
+        description: `Área de Retira do estado de ${name} enviada (${coords.length} partes)`,
+      });
+      setFeedback({ kind: "ok", text: `Área de Retira de ${name} gravada no banco.` });
+      setParsed(null);
+      setGeo([]);
+      setProps([]);
+      if (fileRef.current) fileRef.current.value = "";
+      await refreshLive();
+    } catch (e) {
+      setFeedback({
+        kind: "err",
+        text: e instanceof Error ? e.message : "Falha ao enviar a área de Retira.",
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSubmit = async () => {
+    if (kind === "Retira") {
+      await handleSubmitState();
+      return;
+    }
     const storeName = (newStore.trim() || store).trim();
     if (!storeName) {
       setFeedback({ kind: "err", text: "Selecione ou informe a loja." });
