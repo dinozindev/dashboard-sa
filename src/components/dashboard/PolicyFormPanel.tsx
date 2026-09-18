@@ -876,7 +876,7 @@ export function PolicyFormPanel({
                 Usar tabela já existente
                 <select
                   className="input mt-1 w-full max-w-md"
-                  disabled={policyType === "Retira" || !store}
+                  disabled={!store}
                   value={tariffIndex === null ? "" : String(tariffIndex)}
                   onChange={(e) => {
                     const v = e.target.value;
