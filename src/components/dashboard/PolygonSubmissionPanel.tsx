@@ -519,7 +519,9 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               onChange={(e) => void onFile(e.target.files?.[0])}
             />
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <label
+            className={`flex items-center gap-1.5 text-xs text-muted-foreground ${kind === "Retira" ? "hidden" : ""}`}
+          >
             <input
               type="checkbox"
               className="h-3.5 w-3.5 accent-primary"
