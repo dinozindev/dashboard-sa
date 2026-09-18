@@ -487,6 +487,31 @@ export default function Dashboard() {
   }, [isPickup, pickupUfs, live]);
 
   /**
+   * Tabelas de frete de Retira: cada tabela traz o nome do polígono estadual
+   * (ex.: SAO_PAULO_RETIRA) e um valor fixo, sem adicional por peso excedente.
+   * A associação respeita a modalidade escolhida no filtro.
+   */
+  const pickupTariffByPolygon = useMemo(() => {
+    const map = new Map<string, { price: number | null; table: string; store: string }>();
+    if (!live) return map;
+    for (const table of live.snapshot.freightTables) {
+      const name = table.polygonName;
+      if (!name) continue;
+      if (modalityFilter !== "todas") {
+        const draft = live.drafts.find((d) => d.id === table.policyClientId);
+        if (!draft || !draft.modalities.includes(modalityFilter)) continue;
+      }
+      const first = table.bands?.[0];
+      map.set(name, {
+        price: first?.amc ?? null,
+        table: table.name,
+        store: table.store,
+      });
+    }
+    return map;
+  }, [live, modalityFilter]);
+
+  /**
    * Ranking de distância entre o ponto clicado e TODAS as lojas exibidas
    * (haversine, em linha reta). A primeira da lista é a mais próxima.
    */
