@@ -35,7 +35,7 @@ import {
 import { getLive, regionForStore } from "@/lib/freight/live";
 import { pushTariffTable } from "@/lib/freight/dataset";
 import { saveFreightTable } from "@/lib/freight/remote.functions";
-import { parseBandsFromXlsx } from "@/lib/freight/xlsx-bands";
+import { parseFreightSheet } from "@/lib/freight/xlsx-bands";
 import type { WeightBand } from "@/lib/freight/types";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
@@ -380,6 +380,8 @@ export function PolicyFormPanel({
   const [existingTariffName, setExistingTariffName] = useState<string | null>(null);
   const tariffFileRef = useRef<HTMLInputElement>(null);
   const [uploadedBands, setUploadedBands] = useState<WeightBand[] | null>(null);
+  /** Nome do polígono lido da planilha (Retira: ex. SAO_PAULO_RETIRA) */
+  const [uploadedPolygonName, setUploadedPolygonName] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
