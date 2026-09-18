@@ -654,7 +654,7 @@ export function PolicyFormPanel({
           "Falha ao gravar a tabela de frete no banco. Tente novamente.",
         ]);
       }
-    } else if (policyType === "Entrega" && tariffIndex !== null && selectedTariff) {
+    } else if (tariffIndex !== null && selectedTariff) {
       const tableName = tariffSource === "upload" ? tariffFileName : selectedTariff.label;
       if (previousLink?.tableName !== tableName || previousLink?.tableIndex !== tariffIndex) {
         setPolicyTariff({
@@ -678,17 +678,6 @@ export function PolicyFormPanel({
           description: `Tabela de frete "${tableName}" associada à política ${modality} da loja ${store} (${selectedTariff.bandCount} faixas de peso, ${selectedTariff.polygonIds.length} polígonos).`,
         });
       }
-    } else if (policyType === "Retira" && previousLink) {
-      removePolicyTariff(id);
-      logAudit({
-        store,
-        module: "Cadastro de Política de Envio",
-        field: `Tabela de frete — ${modality}`,
-        before: previousLink.tableName,
-        after: "—",
-        action: "Remoção",
-        description: `Tabela de frete removida da política ${modality} da loja ${store}: políticas de Retira não usam tabela de frete.`,
-      });
     }
 
     updateCell(store, modality, { status: active ? "Ativa" : "Inativa" }, { silent: true });
