@@ -858,11 +858,12 @@ export function PolicyFormPanel({
           >
             {policyType === "Retira" ? (
               <p className="mb-3 rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
-                Políticas de <strong>Retira</strong> não usam tabela de frete — esta seção fica
-                bloqueada e nenhuma tabela é associada.
+                Políticas de <strong>Retira</strong> usam um único polígono — o estado inteiro. Envie
+                a planilha com a coluna <strong>PolygonName</strong> (ex.: SAO_PAULO_RETIRA): o valor
+                é fixo, sem adicional por peso excedente.
               </p>
             ) : null}
-            {existingTariffName && policyType === "Entrega" ? (
+            {existingTariffName ? (
               <p className="mb-3 rounded-lg border border-success/40 bg-success/10 p-2 text-xs text-success">
                 Esta política já possui a tabela <strong>{existingTariffName}</strong> enviada e
                 associada no banco. Você pode selecionar outra tabela ou enviar uma nova para
@@ -939,14 +940,20 @@ export function PolicyFormPanel({
                   disabled={policyType === "Retira" || uploading}
                   onClick={() => tariffFileRef.current?.click()}
                 >
-                  {uploading ? "Lendo planilha…" : "Fazer upload de nova tabela (.xlsx)"}
+                  {uploading ? "Lendo planilha…" : "Fazer upload de nova tabela (.xlsx/.xls)"}
                 </button>
                 {uploadError ? (
                   <p className="mt-1 text-[11px] font-medium text-danger">{uploadError}</p>
                 ) : uploadedBands?.length ? (
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    <strong>{tariffFileName}</strong>: {uploadedBands.length} faixas de peso lidas da
-                    planilha. A tabela será gravada no banco ao salvar.
+                    <strong>{tariffFileName}</strong>: {uploadedBands.length}{" "}
+                    {uploadedBands.length === 1 ? "faixa lida" : "faixas de peso lidas"} da planilha.
+                    {uploadedPolygonName
+                      ? ` Polígono associado: ${uploadedPolygonName}.`
+                      : policyType === "Retira"
+                        ? " A planilha não traz a coluna PolygonName — informe-a para associar ao polígono estadual."
+                        : ""}{" "}
+                    A tabela será gravada no banco ao salvar.
                   </p>
                 ) : (
                   <p className="mt-1 text-[11px] text-muted-foreground">
