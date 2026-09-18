@@ -825,16 +825,16 @@ export default function Dashboard() {
 
           {!isPickup ? (
             <label className="field-label">
-              Política de envio (tabela de frete)
+              Modalidade (tabela de frete)
               <select
                 className="input mt-1 w-56"
-                value={policyFilter}
-                onChange={(e) => setPolicyFilter(e.target.value)}
+                value={modalityFilter}
+                onChange={(e) => setModalityFilter(e.target.value)}
               >
                 <option value="todas">Tabela padrão da loja</option>
-                {(live?.drafts ?? []).map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.store} · {d.modalities.join(" / ") || d.policyType}
+                {modalityOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
                   </option>
                 ))}
               </select>
