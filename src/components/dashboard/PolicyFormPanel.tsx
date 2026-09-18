@@ -377,6 +377,7 @@ export function PolicyFormPanel({
   const [tariffIndex, setTariffIndex] = useState<number | null>(null);
   const [tariffSource, setTariffSource] = useState<"existente" | "upload">("existente");
   const [tariffFileName, setTariffFileName] = useState("");
+  const [existingTariffName, setExistingTariffName] = useState<string | null>(null);
   const tariffFileRef = useRef<HTMLInputElement>(null);
   const [uploadedBands, setUploadedBands] = useState<WeightBand[] | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -445,7 +446,10 @@ export function PolicyFormPanel({
     }));
 
   useEffect(() => {
-    if (!initialPolicy) return;
+    if (!initialPolicy) {
+      setExistingTariffName(null);
+      return;
+    }
     setStore(initialPolicy.store);
     setActive(initialPolicy.active ?? true);
     setPolicyType(initialPolicy.policyType ?? "Entrega");
@@ -472,6 +476,7 @@ export function PolicyFormPanel({
         : [{ id: uid(), day: "Todos os dias", time: "00:00" }],
     );
     const link = getPolicyTariff(initialPolicy.id);
+    setExistingTariffName(link?.tableName ?? null);
     setTariffIndex(link ? link.tableIndex : null);
     setTariffSource((link?.source as "existente" | "upload") ?? "existente");
 
@@ -495,7 +500,12 @@ export function PolicyFormPanel({
       if (!store) errs.push("Selecione a loja/seller da política.");
       if (!policyType) errs.push("Selecione o tipo da política (Entrega ou Retira).");
       if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
-      if (policyType === "Entrega" && tariffOptions.length > 0 && tariffIndex === null)
+      if (
+        policyType === "Entrega" &&
+        tariffOptions.length > 0 &&
+        tariffIndex === null &&
+        !existingTariffName
+      )
         errs.push("Associe uma tabela de frete a esta política de entrega.");
     }
     if (key === "dimensoes" && modality === "Pequenos Volumes") {
@@ -848,6 +858,13 @@ export function PolicyFormPanel({
               <p className="mb-3 rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
                 Políticas de <strong>Retira</strong> não usam tabela de frete — esta seção fica
                 bloqueada e nenhuma tabela é associada.
+              </p>
+            ) : null}
+            {existingTariffName && policyType === "Entrega" ? (
+              <p className="mb-3 rounded-lg border border-success/40 bg-success/10 p-2 text-xs text-success">
+                Esta política já possui a tabela <strong>{existingTariffName}</strong> enviada e
+                associada no banco. Você pode selecionar outra tabela ou enviar uma nova para
+                substituir a atual.
               </p>
             ) : null}
 
