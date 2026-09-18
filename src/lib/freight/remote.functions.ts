@@ -54,6 +54,8 @@ export interface FreightSnapshotDto {
     name: string;
     source: string;
     fileName: string | null;
+    /** Nome do polígono associado (usado nas tabelas de Retira, ex.: SAO_PAULO_RETIRA) */
+    polygonName?: string | null;
     bands: WeightBand[];
   }>;
   polygons: Array<{
