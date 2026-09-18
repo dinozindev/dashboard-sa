@@ -33,6 +33,9 @@ import { distanceKm, polygonsAtPoint } from "@/lib/freight/geo";
 import { HOLIDAYS } from "@/lib/freight/schedule";
 import { statePolygonsFor } from "@/lib/freight/state-polygons";
 import { SHIPPING_POLICY_DEFINITIONS } from "@/lib/freight/policies";
+
+/** Tabelas de frete já existentes (sem política) pertencem a esta modalidade */
+const LEGACY_MODALITY = "Entrega Normal";
 import type {
   Modality,
   PolygonRecord,
