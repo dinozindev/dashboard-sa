@@ -359,6 +359,7 @@ export type Database = {
       }
       state_polygons: {
         Row: {
+          geojson_cache: Json | null
           geom: unknown
           id: string
           name: string
@@ -368,6 +369,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          geojson_cache?: Json | null
           geom: unknown
           id?: string
           name: string
@@ -377,6 +379,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           name?: string
@@ -541,7 +544,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          geojson?: never
+          geojson?: Json | null
           id?: string | null
           name?: string | null
           polygon_name?: string | null
@@ -550,7 +553,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          geojson?: never
+          geojson?: Json | null
           id?: string | null
           name?: string | null
           polygon_name?: string | null
