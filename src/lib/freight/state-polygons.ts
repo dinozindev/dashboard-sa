@@ -20,6 +20,8 @@ export interface StatePolygon {
   uf: Region;
   /** Nome do estado */
   name: string;
+  /** Nome do polígono no banco (ex.: SAO_PAULO_RETIRA) — ausente no arquivo local */
+  polygonName?: string | null;
   /** GeoJSON MultiPolygon: [polígono][anel][ponto][lng,lat] */
   geom: number[][][][];
 }
