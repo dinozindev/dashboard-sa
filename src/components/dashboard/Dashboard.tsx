@@ -323,23 +323,46 @@ export default function Dashboard() {
   }, [allPolygons, shownStores, bands, search, modality]);
 
   /**
-   * Tabela de frete da política selecionada (a política define o preço,
-   * não quais polígonos aparecem). Null = usa a tabela padrão da loja.
+   * Tabela de frete de cada loja para a modalidade escolhida.
+   * Cada política de envio carrega sua própria tabela; as tabelas antigas
+   * (sem política vinculada) contam como "Entrega Normal".
    */
-  const policyTariffIdx = useMemo(() => {
-    if (!live || policyFilter === "todas" || policyFilter === "sem-politica") return null;
-    const tableId = live.tableByPolicy.get(policyFilter);
-    if (!tableId) return null;
-    return live.tableIndexById.get(tableId) ?? null;
-  }, [live, policyFilter]);
+  const tariffIdxByStore = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!live || modalityFilter === "todas") return map;
+    for (const table of live.snapshot.freightTables) {
+      if (!table.policyClientId) continue;
+      const draft = live.drafts.find((d) => d.id === table.policyClientId);
+      if (!draft || !draft.modalities.includes(modalityFilter)) continue;
+      const idx = live.tableIndexById.get(table.id);
+      if (idx != null) map.set(table.store, idx);
+    }
+    if (modalityFilter === LEGACY_MODALITY) {
+      for (const table of live.snapshot.freightTables) {
+        if (table.policyClientId || map.has(table.store)) continue;
+        const idx = live.tableIndexById.get(table.id);
+        if (idx != null) map.set(table.store, idx);
+      }
+    }
+    return map;
+  }, [live, modalityFilter]);
 
-  /** Faixas de peso aplicáveis a um polígono, considerando a política escolhida */
+  /** Modalidades disponíveis para o filtro (padrão + personalizadas do banco) */
+  const modalityOptions = useMemo(() => {
+    const names = SHIPPING_POLICY_DEFINITIONS.map((d) => d.name);
+    const extra = (live?.snapshot.customModalities ?? []).filter((m) => !names.includes(m));
+    return [...names, ...extra];
+  }, [live]);
+
+  /** Faixas de peso aplicáveis a um polígono, considerando a modalidade escolhida */
   const bandsOf = (rec: PolygonRecord | undefined | null) => {
     if (!rec) return undefined;
-    if (policyTariffIdx !== null) {
-      const base = dataset.tariffs[policyTariffIdx];
+    const idx = tariffIdxByStore.get(rec.store);
+    if (idx != null) {
+      const base = dataset.tariffs[idx];
       if (base) return base.map((b, i) => overrides[`${rec.id}#${i}`] ?? b);
     }
+    if (modalityFilter !== "todas") return undefined;
     return tariffFor(rec, overrides);
   };
 
