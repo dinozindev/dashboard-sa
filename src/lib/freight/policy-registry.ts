@@ -20,6 +20,7 @@ import {
   upsertPolicy,
   type PolicyPayload,
 } from "./remote.functions";
+import { updateCell } from "./policy-status-store";
 import { STORE_REGION } from "./dataset";
 import type { StoreName } from "./types";
 
@@ -153,6 +154,17 @@ export function usePolicyDrafts() {
   return useSyncExternalStore(subscribeLive, getPolicyDrafts, () => EMPTY);
 }
 
+/**
+ * Reflete a política na matriz "Políticas de Envio": toda política criada
+ * entra como Ativa, a não ser que tenha sido marcada como inativa.
+ */
+function syncMatrixStatus(draft: ShippingPolicyDraft) {
+  const status = draft.active ? "Ativa" : "Inativa";
+  for (const modality of draft.modalities) {
+    updateCell(draft.store, modality, { status }, { silent: true });
+  }
+}
+
 /** Cria ou atualiza uma política no banco (atualização otimista local). */
 export function upsertPolicyDraft(draft: ShippingPolicyDraft): "created" | "updated" {
   let result: "created" | "updated" = "created";
@@ -175,6 +187,7 @@ export function upsertPolicyDraft(draft: ShippingPolicyDraft): "created" | "upda
       console.error("Falha ao salvar política no banco", err);
       void refreshLive();
     });
+  syncMatrixStatus(draft);
   return result;
 }
 
