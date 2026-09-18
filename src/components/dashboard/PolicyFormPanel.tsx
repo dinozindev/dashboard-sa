@@ -604,9 +604,9 @@ export function PolicyFormPanel({
     const result = upsertPolicyDraft(draft);
     logPolicyChanges(existing, draft, modality);
 
-    // Tabela de frete: só vale para políticas de Entrega
+    // Tabela de frete: Entrega (por faixa de peso) e Retira (valor fixo do estado)
     const previousLink = getPolicyTariff(id);
-    if (policyType === "Entrega" && tariffSource === "upload" && uploadedBands?.length) {
+    if (tariffSource === "upload" && uploadedBands?.length) {
       const tableName = tariffFileName.replace(/\.(xlsx|xls)$/i, "");
       try {
         const { id: tableId } = await saveFreightTable({
@@ -617,6 +617,7 @@ export function PolicyFormPanel({
               name: tableName,
               source: "upload",
               fileName: tariffFileName,
+              polygonName: uploadedPolygonName,
               bands: uploadedBands,
               policyClientId: id,
             },
@@ -644,7 +645,7 @@ export function PolicyFormPanel({
           before: previousLink?.tableName ?? "—",
           after: tableName,
           action: previousLink ? "Edição" : "Criação",
-          description: `Tabela de frete "${tableName}" (upload de planilha, ${uploadedBands.length} faixas de peso) associada à política ${modality} da loja ${store}.`,
+          description: `Tabela de frete "${tableName}" (upload de planilha, ${uploadedBands.length} faixas de peso) associada à política ${modality} da loja ${store}${uploadedPolygonName ? ` · polígono ${uploadedPolygonName}` : ""}.`,
         });
       } catch (err) {
         console.error("Falha ao salvar tabela de frete", err);
