@@ -35,6 +35,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   time: ["timecost", "prazo"],
   country: ["country", "pais"],
   minIns: ["minimumvalueinsurance", "valorminimoseguro", "seguro"],
+  polygonName: ["polygonname", "nomepoligono", "nomedopoligono", "poligono"],
 };
 
 function toNumber(v: unknown): number | null {
@@ -47,8 +48,19 @@ function toNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Lê o conteúdo de um arquivo .xlsx e devolve as faixas de peso ordenadas. */
+export interface FreightSheet {
+  bands: WeightBand[];
+  /** Nome do polígono informado na planilha (ex.: SAO_PAULO_RETIRA), quando houver */
+  polygonName: string | null;
+}
+
+/** Lê o conteúdo de um arquivo .xlsx/.xls e devolve as faixas de peso ordenadas. */
 export async function parseBandsFromXlsx(data: ArrayBuffer): Promise<WeightBand[]> {
+  return (await parseFreightSheet(data)).bands;
+}
+
+/** Lê a planilha e devolve faixas de peso + nome do polígono (quando presente). */
+export async function parseFreightSheet(data: ArrayBuffer): Promise<FreightSheet> {
   const XLSX = await import("xlsx");
   const wb = XLSX.read(data, { type: "array" });
   const sheetName = wb.SheetNames[0];
@@ -90,9 +102,11 @@ export async function parseBandsFromXlsx(data: ArrayBuffer): Promise<WeightBand[
   };
 
   const bands: WeightBand[] = [];
+  let polygonName: string | null = null;
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
     if (!row || !row.length) continue;
+    if (!polygonName) polygonName = text(row, "polygonName");
     const ws = toNumber(cell(row, "ws"));
     const we = toNumber(cell(row, "we"));
     const amc = toNumber(cell(row, "amc"));
@@ -113,5 +127,5 @@ export async function parseBandsFromXlsx(data: ArrayBuffer): Promise<WeightBand[
 
   bands.sort((a, b) => (a.ws ?? -1) - (b.ws ?? -1));
   if (!bands.length) throw new Error("A planilha não contém faixas de peso válidas.");
-  return bands;
+  return { bands, polygonName };
 }

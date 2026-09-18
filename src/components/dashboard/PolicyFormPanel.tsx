@@ -29,13 +29,12 @@ import { logAudit } from "@/lib/freight/audit-log";
 import { tariffTablesForStore } from "@/lib/freight/tariff-tables";
 import {
   getPolicyTariff,
-  removePolicyTariff,
   setPolicyTariff,
 } from "@/lib/freight/policy-tariff-store";
 import { getLive, regionForStore } from "@/lib/freight/live";
 import { pushTariffTable } from "@/lib/freight/dataset";
 import { saveFreightTable } from "@/lib/freight/remote.functions";
-import { parseBandsFromXlsx } from "@/lib/freight/xlsx-bands";
+import { parseFreightSheet } from "@/lib/freight/xlsx-bands";
 import type { WeightBand } from "@/lib/freight/types";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
@@ -380,6 +379,8 @@ export function PolicyFormPanel({
   const [existingTariffName, setExistingTariffName] = useState<string | null>(null);
   const tariffFileRef = useRef<HTMLInputElement>(null);
   const [uploadedBands, setUploadedBands] = useState<WeightBand[] | null>(null);
+  /** Nome do polígono lido da planilha (Retira: ex. SAO_PAULO_RETIRA) */
+  const [uploadedPolygonName, setUploadedPolygonName] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -602,9 +603,9 @@ export function PolicyFormPanel({
     const result = upsertPolicyDraft(draft);
     logPolicyChanges(existing, draft, modality);
 
-    // Tabela de frete: só vale para políticas de Entrega
+    // Tabela de frete: Entrega (por faixa de peso) e Retira (valor fixo do estado)
     const previousLink = getPolicyTariff(id);
-    if (policyType === "Entrega" && tariffSource === "upload" && uploadedBands?.length) {
+    if (tariffSource === "upload" && uploadedBands?.length) {
       const tableName = tariffFileName.replace(/\.(xlsx|xls)$/i, "");
       try {
         const { id: tableId } = await saveFreightTable({
@@ -615,6 +616,7 @@ export function PolicyFormPanel({
               name: tableName,
               source: "upload",
               fileName: tariffFileName,
+              polygonName: uploadedPolygonName,
               bands: uploadedBands,
               policyClientId: id,
             },
@@ -642,7 +644,7 @@ export function PolicyFormPanel({
           before: previousLink?.tableName ?? "—",
           after: tableName,
           action: previousLink ? "Edição" : "Criação",
-          description: `Tabela de frete "${tableName}" (upload de planilha, ${uploadedBands.length} faixas de peso) associada à política ${modality} da loja ${store}.`,
+          description: `Tabela de frete "${tableName}" (upload de planilha, ${uploadedBands.length} faixas de peso) associada à política ${modality} da loja ${store}${uploadedPolygonName ? ` · polígono ${uploadedPolygonName}` : ""}.`,
         });
       } catch (err) {
         console.error("Falha ao salvar tabela de frete", err);
@@ -651,7 +653,7 @@ export function PolicyFormPanel({
           "Falha ao gravar a tabela de frete no banco. Tente novamente.",
         ]);
       }
-    } else if (policyType === "Entrega" && tariffIndex !== null && selectedTariff) {
+    } else if (tariffIndex !== null && selectedTariff) {
       const tableName = tariffSource === "upload" ? tariffFileName : selectedTariff.label;
       if (previousLink?.tableName !== tableName || previousLink?.tableIndex !== tariffIndex) {
         setPolicyTariff({
@@ -675,17 +677,6 @@ export function PolicyFormPanel({
           description: `Tabela de frete "${tableName}" associada à política ${modality} da loja ${store} (${selectedTariff.bandCount} faixas de peso, ${selectedTariff.polygonIds.length} polígonos).`,
         });
       }
-    } else if (policyType === "Retira" && previousLink) {
-      removePolicyTariff(id);
-      logAudit({
-        store,
-        module: "Cadastro de Política de Envio",
-        field: `Tabela de frete — ${modality}`,
-        before: previousLink.tableName,
-        after: "—",
-        action: "Remoção",
-        description: `Tabela de frete removida da política ${modality} da loja ${store}: políticas de Retira não usam tabela de frete.`,
-      });
     }
 
     updateCell(store, modality, { status: active ? "Ativa" : "Inativa" }, { silent: true });
@@ -856,11 +847,12 @@ export function PolicyFormPanel({
           >
             {policyType === "Retira" ? (
               <p className="mb-3 rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
-                Políticas de <strong>Retira</strong> não usam tabela de frete — esta seção fica
-                bloqueada e nenhuma tabela é associada.
+                Políticas de <strong>Retira</strong> usam um único polígono — o estado inteiro. Envie
+                a planilha com a coluna <strong>PolygonName</strong> (ex.: SAO_PAULO_RETIRA): o valor
+                é fixo, sem adicional por peso excedente.
               </p>
             ) : null}
-            {existingTariffName && policyType === "Entrega" ? (
+            {existingTariffName ? (
               <p className="mb-3 rounded-lg border border-success/40 bg-success/10 p-2 text-xs text-success">
                 Esta política já possui a tabela <strong>{existingTariffName}</strong> enviada e
                 associada no banco. Você pode selecionar outra tabela ou enviar uma nova para
@@ -873,7 +865,7 @@ export function PolicyFormPanel({
                 Usar tabela já existente
                 <select
                   className="input mt-1 w-full max-w-md"
-                  disabled={policyType === "Retira" || !store}
+                  disabled={!store}
                   value={tariffIndex === null ? "" : String(tariffIndex)}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -903,7 +895,7 @@ export function PolicyFormPanel({
                 <input
                   ref={tariffFileRef}
                   type="file"
-                  accept=".xlsx"
+                  accept=".xlsx,.xls"
                   className="hidden"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
@@ -913,8 +905,9 @@ export function PolicyFormPanel({
                     setUploadError(null);
                     try {
                       const buf = await file.arrayBuffer();
-                      const bands = await parseBandsFromXlsx(buf);
-                      setUploadedBands(bands);
+                      const sheet = await parseFreightSheet(buf);
+                      setUploadedBands(sheet.bands);
+                      setUploadedPolygonName(sheet.polygonName);
                       setTariffSource("upload");
                       setTariffFileName(file.name);
                     } catch (err) {
@@ -922,6 +915,7 @@ export function PolicyFormPanel({
                         err instanceof Error ? err.message : "Não foi possível ler a planilha.",
                       );
                       setUploadedBands(null);
+                      setUploadedPolygonName(null);
                       setTariffSource("existente");
                       setTariffFileName("");
                     } finally {
@@ -935,14 +929,20 @@ export function PolicyFormPanel({
                   disabled={policyType === "Retira" || uploading}
                   onClick={() => tariffFileRef.current?.click()}
                 >
-                  {uploading ? "Lendo planilha…" : "Fazer upload de nova tabela (.xlsx)"}
+                  {uploading ? "Lendo planilha…" : "Fazer upload de nova tabela (.xlsx/.xls)"}
                 </button>
                 {uploadError ? (
                   <p className="mt-1 text-[11px] font-medium text-danger">{uploadError}</p>
                 ) : uploadedBands?.length ? (
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    <strong>{tariffFileName}</strong>: {uploadedBands.length} faixas de peso lidas da
-                    planilha. A tabela será gravada no banco ao salvar.
+                    <strong>{tariffFileName}</strong>: {uploadedBands.length}{" "}
+                    {uploadedBands.length === 1 ? "faixa lida" : "faixas de peso lidas"} da planilha.
+                    {uploadedPolygonName
+                      ? ` Polígono associado: ${uploadedPolygonName}.`
+                      : policyType === "Retira"
+                        ? " A planilha não traz a coluna PolygonName — informe-a para associar ao polígono estadual."
+                        : ""}{" "}
+                    A tabela será gravada no banco ao salvar.
                   </p>
                 ) : (
                   <p className="mt-1 text-[11px] text-muted-foreground">

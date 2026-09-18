@@ -71,6 +71,13 @@
       "when": 1789740404900,
       "tag": "0009_state_polygons_polygon_name",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789753824828,
+      "tag": "0010_freight_tables_polygon_name",
+      "breakpoints": true
     }
   ]
 }

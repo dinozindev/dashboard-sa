@@ -54,6 +54,8 @@ export interface FreightSnapshotDto {
     name: string;
     source: string;
     fileName: string | null;
+    /** Nome do polígono associado (usado nas tabelas de Retira, ex.: SAO_PAULO_RETIRA) */
+    polygonName?: string | null;
     bands: WeightBand[];
   }>;
   polygons: Array<{
@@ -380,6 +382,8 @@ export interface FreightTablePayload {
   name: string;
   source: "existente" | "upload";
   fileName?: string | null;
+  /** Nome do polígono associado (tabelas de Retira) */
+  polygonName?: string | null;
   bands: WeightBand[];
   policyClientId?: string | null;
 }
@@ -413,7 +417,12 @@ export const saveFreightTable = createServerFn({ method: "POST" })
       tableId = existing.id as string;
       const { error } = await supabase
         .from("freight_tables")
-        .update({ source: t.source, file_name: t.fileName ?? null, policy_id: policyId })
+        .update({
+          source: t.source,
+          file_name: t.fileName ?? null,
+          policy_id: policyId,
+          polygon_name: t.polygonName ?? null,
+        })
         .eq("id", tableId);
       fail(error);
       const { error: delBands } = await supabase
@@ -430,6 +439,7 @@ export const saveFreightTable = createServerFn({ method: "POST" })
           name: t.name,
           source: t.source,
           file_name: t.fileName ?? null,
+          polygon_name: t.polygonName ?? null,
         })
         .select("id")
         .single();
