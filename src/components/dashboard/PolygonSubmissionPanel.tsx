@@ -689,7 +689,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               ))}
               {(live?.statePolygons ?? []).length === 0 ? (
                 <tr>
-                  <td className="px-2 py-3 text-xs text-muted-foreground" colSpan={5}>
+                  <td className="px-2 py-3 text-xs text-muted-foreground" colSpan={6}>
                     Nenhuma malha estadual gravada no banco.
                   </td>
                 </tr>
