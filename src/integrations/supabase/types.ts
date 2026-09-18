@@ -110,6 +110,7 @@ export type Database = {
           id: string
           name: string
           policy_id: string | null
+          polygon_name: string | null
           source: string
           store_id: string
         }
@@ -119,6 +120,7 @@ export type Database = {
           id?: string
           name: string
           policy_id?: string | null
+          polygon_name?: string | null
           source?: string
           store_id: string
         }
@@ -128,6 +130,7 @@ export type Database = {
           id?: string
           name?: string
           policy_id?: string | null
+          polygon_name?: string | null
           source?: string
           store_id?: string
         }
