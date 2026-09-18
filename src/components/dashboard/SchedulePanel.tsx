@@ -137,7 +137,13 @@ export function ScheduleGrid({ store, modality }: { store: string; modality: Mod
   
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
-      <table className="w-full text-xs">
+      <table className="w-full table-fixed text-xs">
+        <colgroup>
+          <col className="w-[18%]" />
+          {DAY_ORDER.map((day) => (
+            <col key={day} className="w-[11.714%]" />
+          ))}
+        </colgroup>
         {/* CABEÇALHO: dias da semana */}
         <thead className="bg-muted/60 uppercase tracking-wide text-muted-foreground">
           <tr>

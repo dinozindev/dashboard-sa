@@ -1103,8 +1103,8 @@ export default function Dashboard() {
         </section>
 
         {/* Horários e capacidade */}
-        <section className="grid gap-4 xl:grid-cols-2">
-          <div className="space-y-3 surface p-4">
+        <section className="w-full">
+          <div className="w-full space-y-3 surface p-4">
             <div className="flex items-start justify-between gap-2">
               <h2 className="section-title text-lg">Horários de atendimento</h2>
               <button
