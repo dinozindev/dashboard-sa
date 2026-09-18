@@ -359,6 +359,7 @@ export type Database = {
           geom: unknown
           id: string
           name: string
+          polygon_name: string | null
           source: string | null
           uf: string
           updated_at: string
@@ -367,6 +368,7 @@ export type Database = {
           geom: unknown
           id?: string
           name: string
+          polygon_name?: string | null
           source?: string | null
           uf: string
           updated_at?: string
@@ -375,6 +377,7 @@ export type Database = {
           geom?: unknown
           id?: string
           name?: string
+          polygon_name?: string | null
           source?: string | null
           uf?: string
           updated_at?: string
@@ -529,6 +532,7 @@ export type Database = {
           geojson: Json | null
           id: string | null
           name: string | null
+          polygon_name: string | null
           source: string | null
           uf: string | null
           updated_at: string | null
@@ -537,6 +541,7 @@ export type Database = {
           geojson?: never
           id?: string | null
           name?: string | null
+          polygon_name?: string | null
           source?: string | null
           uf?: string | null
           updated_at?: string | null
@@ -545,6 +550,7 @@ export type Database = {
           geojson?: never
           id?: string | null
           name?: string | null
+          polygon_name?: string | null
           source?: string | null
           uf?: string | null
           updated_at?: string | null
