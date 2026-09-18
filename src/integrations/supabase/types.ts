@@ -267,6 +267,7 @@ export type Database = {
           client_id: string
           created_at: string
           district: string | null
+          geojson_cache: Json | null
           geom: unknown
           id: string
           kind: string
@@ -285,6 +286,7 @@ export type Database = {
           client_id: string
           created_at?: string
           district?: string | null
+          geojson_cache?: Json | null
           geom: unknown
           id?: string
           kind?: string
@@ -303,6 +305,7 @@ export type Database = {
           client_id?: string
           created_at?: string
           district?: string | null
+          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           kind?: string
@@ -483,7 +486,7 @@ export type Database = {
           center_lng?: number | null
           client_id?: string | null
           district?: string | null
-          geojson?: never
+          geojson?: Json | null
           id?: string | null
           kind?: string | null
           policy_id?: string | null
@@ -500,7 +503,7 @@ export type Database = {
           center_lng?: number | null
           client_id?: string | null
           district?: string | null
-          geojson?: never
+          geojson?: Json | null
           id?: string | null
           kind?: string | null
           policy_id?: string | null
