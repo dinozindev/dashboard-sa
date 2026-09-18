@@ -429,7 +429,7 @@ export default function Dashboard() {
             { label: "Frete médio", value: prices.length ? brl(avg) : "—" },
           ]),
     ];
-  }, [visible, weight, overrides, shownStores, isPickup, policyTariffIdx]);
+  }, [visible, weight, overrides, shownStores, isPickup, tariffIdxByStore]);
 
   /**
    * Gera tooltip HTML para exibir sobre polígono no mapa.
