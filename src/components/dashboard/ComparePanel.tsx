@@ -2,7 +2,7 @@ import { brl, calcPrice } from "@/lib/freight/pricing";
 import { stores, tariffFor, type Overrides } from "@/lib/freight/dataset";
 import { distanceKm, isInSaoPauloState } from "@/lib/freight/geo";
 import { activePickupModalities } from "@/lib/freight/policies";
-import type { Modality, PolygonRecord } from "@/lib/freight/types";
+import type { Modality, PolygonRecord, WeightBand } from "@/lib/freight/types";
 import { StatusBadge } from "./SchedulePanel";
 
 interface Props {
@@ -13,9 +13,23 @@ interface Props {
   modality: Modality;
   now: Date;
   holidays: string[];
+  /**
+   * Faixas de peso do polígono segundo a modalidade escolhida no painel.
+   * Sem ela, cai na tabela padrão da loja (comportamento antigo).
+   */
+  bandsFor?: (rec: PolygonRecord) => WeightBand[] | undefined;
 }
 
-export function ComparePanel({ point, matches, weight, overrides, modality, now, holidays }: Props) {
+export function ComparePanel({
+  point,
+  matches,
+  weight,
+  overrides,
+  modality,
+  now,
+  holidays,
+  bandsFor,
+}: Props) {
   const isPickup = modality === "Retira";
 
   if (matches.length === 0) {
@@ -67,7 +81,7 @@ export function ComparePanel({ point, matches, weight, overrides, modality, now,
     if (!cur || m.radius < cur.radius) byStore.set(m.store, m);
   }
   const entries = [...byStore.entries()].map(([store, rec]) => {
-    const bands = tariffFor(rec, overrides);
+    const bands = bandsFor ? bandsFor(rec) : tariffFor(rec, overrides);
     return { store, rec, price: calcPrice(bands, weight) };
   });
   const valid = entries.filter((e) => e.price.ok);
