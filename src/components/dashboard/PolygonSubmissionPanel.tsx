@@ -42,27 +42,34 @@ function centroidOf(coords: number[][][][]): [number, number] {
   return n ? [sx / n, sy / n] : [0, 0];
 }
 
+/**
+ * Posição do marcador da loja.
+ *
+ * A loja fica no centro da MENOR área enviada (a faixa mais interna). Usar a
+ * média das áreas de menor raio levava o marcador para o meio do caminho entre
+ * cidades diferentes atendidas pela mesma loja.
+ */
 function markerCenterOf(
   geometries: AnyGeom[],
   attributes: Array<Record<string, unknown>>,
 ): [number, number] {
-  const centers = geometries.map((geometry, index) => ({
-    center: centroidOf(asMulti(geometry)),
-    radius: numOf(attributes[index] ?? {}, ["Raio", "radius"]),
-  }));
-  const radii = centers
+  const items = geometries.map((geometry, index) => {
+    const coords = asMulti(geometry);
+    return {
+      center: centroidOf(coords),
+      radius: numOf(attributes[index] ?? {}, ["Raio", "radius"]),
+      area: areaKm2Of(coords),
+    };
+  });
+  if (!items.length) return [0, 0];
+  const radii = items
     .map(({ radius }) => radius)
     .filter((radius): radius is number => radius !== null);
   const smallestRadius = radii.length ? Math.min(...radii) : null;
-  const baseCenters =
-    smallestRadius === null
-      ? centers
-      : centers.filter(({ radius }) => radius === smallestRadius);
-  const total = baseCenters.reduce<[number, number]>(
-    ([lng, lat], { center: [centerLng, centerLat] }) => [lng + centerLng, lat + centerLat],
-    [0, 0],
-  );
-  return [total[0] / baseCenters.length, total[1] / baseCenters.length];
+  const pool =
+    smallestRadius === null ? items : items.filter(({ radius }) => radius === smallestRadius);
+  const best = pool.reduce((a, b) => (b.area < a.area ? b : a));
+  return best.center;
 }
 
 /** Área aproximada em km² (equiretangular local) — estimativa para exibição */
@@ -210,7 +217,54 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     }
   };
 
+  /** Retira: a área é do ESTADO, não de uma loja — grava a malha estadual. */
+  const handleSubmitState = async () => {
+    if (!geo.length) {
+      setFeedback({ kind: "err", text: "Selecione um arquivo GeoJSON." });
+      return;
+    }
+    setSending(true);
+    try {
+      const name = UF_NAMES[uf] ?? uf;
+      const coords = geo.flatMap((g) => asMulti(g));
+      await upsertStatePolygon({
+        data: {
+          uf,
+          name,
+          source: parsed?.name ?? "arquivo",
+          geojson: JSON.stringify({ type: "MultiPolygon", coordinates: coords }),
+        },
+      });
+      logAudit({
+        store: `Estado ${uf}`,
+        module: "Criação de Polígonos",
+        field: `Malha estadual (${uf})`,
+        before: "—",
+        after: parsed?.name ?? "arquivo",
+        action: "Adição",
+        description: `Área de Retira do estado de ${name} enviada (${coords.length} partes)`,
+      });
+      setFeedback({ kind: "ok", text: `Área de Retira de ${name} gravada no banco.` });
+      setParsed(null);
+      setGeo([]);
+      setProps([]);
+      if (fileRef.current) fileRef.current.value = "";
+      await refreshLive();
+    } catch (e) {
+      setFeedback({
+        kind: "err",
+        text: e instanceof Error ? e.message : "Falha ao enviar a área de Retira.",
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSubmit = async () => {
+    if (kind === "Retira") {
+      await handleSubmitState();
+      return;
+    }
     const storeName = (newStore.trim() || store).trim();
     if (!storeName) {
       setFeedback({ kind: "err", text: "Selecione ou informe a loja." });
@@ -383,49 +437,53 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     <div className="space-y-4">
       <section className="surface space-y-3 p-4">
         <div>
-          <h2 className="section-title text-lg">Envio de polígonos (loja + tipo)</h2>
+          <h2 className="section-title text-lg">Envio de polígonos</h2>
           <p className="text-xs text-muted-foreground">
-            Envie o GeoJSON com as áreas de uma loja e indique se elas são de{" "}
-            <strong>Entrega</strong> ou de <strong>Retira</strong>. As áreas não dependem de
-            política de envio — o que muda por política é a tabela de frete. Os dados ficam
-            gravados no banco — visíveis para todos.
+            Áreas de <strong>Entrega</strong> pertencem a uma loja; áreas de{" "}
+            <strong>Retira</strong> pertencem a um <strong>estado</strong> (não há loja). As áreas
+            não dependem de política de envio — o que muda por política é a tabela de frete. Os
+            dados ficam gravados no banco — visíveis para todos.
           </p>
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
-          <label className="field-label">
-            Loja existente
-            <select
-              className="input mt-1 w-56"
-              value={store}
-              onChange={(e) => {
-                setStore(e.target.value);
-                setNewStore("");
-                const r = storeRegionOf(live, e.target.value);
-                if (r) setUf(r);
-                setFeedback(null);
-              }}
-            >
-              <option value="">— nova loja —</option>
-              {storeOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field-label">
-            ou nova loja
-            <input
-              className="input mt-1 w-44"
-              value={newStore}
-              onChange={(e) => {
-                setNewStore(e.target.value);
-                setStore("");
-              }}
-              placeholder="Ex.: Campinas"
-            />
-          </label>
+          {kind === "Entrega" ? (
+            <>
+              <label className="field-label">
+                Loja existente
+                <select
+                  className="input mt-1 w-56"
+                  value={store}
+                  onChange={(e) => {
+                    setStore(e.target.value);
+                    setNewStore("");
+                    const r = storeRegionOf(live, e.target.value);
+                    if (r) setUf(r);
+                    setFeedback(null);
+                  }}
+                >
+                  <option value="">— nova loja —</option>
+                  {storeOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                ou nova loja
+                <input
+                  className="input mt-1 w-44"
+                  value={newStore}
+                  onChange={(e) => {
+                    setNewStore(e.target.value);
+                    setStore("");
+                  }}
+                  placeholder="Ex.: Campinas"
+                />
+              </label>
+            </>
+          ) : null}
           <label className="field-label">
             Estado (UF)
             <select
@@ -461,7 +519,9 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               onChange={(e) => void onFile(e.target.files?.[0])}
             />
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <label
+            className={`flex items-center gap-1.5 text-xs text-muted-foreground ${kind === "Retira" ? "hidden" : ""}`}
+          >
             <input
               type="checkbox"
               className="h-3.5 w-3.5 accent-primary"
