@@ -187,6 +187,7 @@ export function upsertPolicyDraft(draft: ShippingPolicyDraft): "created" | "upda
       console.error("Falha ao salvar política no banco", err);
       void refreshLive();
     });
+  syncMatrixStatus(draft);
   return result;
 }
 
