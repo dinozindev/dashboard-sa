@@ -415,6 +415,7 @@ export function PolicyFormPanel({
   /** Modalidade travada durante a replicação: só a política original pode ser mantida. */
   const [replicaModality, setReplicaModality] = useState("");
 
+  const editingLocked = Boolean(initialPolicy) && !replicating;
 
   const effectiveSeller = pickupSeller || store;
 
@@ -501,13 +502,6 @@ export function PolicyFormPanel({
       if (!store) errs.push("Selecione a loja/seller da política.");
       if (!policyType) errs.push("Selecione o tipo da política (Entrega ou Retira).");
       if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
-      if (
-        policyType === "Entrega" &&
-        tariffOptions.length > 0 &&
-        tariffIndex === null &&
-        !existingTariffName
-      )
-        errs.push("Associe uma tabela de frete a esta política de entrega.");
     }
     if (key === "dimensoes" && modality === "Pequenos Volumes") {
       if (sumOfDimensions <= 0 && largestEdge <= 0 && cubic <= 0 && minWeight <= 0) {
@@ -745,6 +739,7 @@ export function PolicyFormPanel({
               <select
                 className="input mt-1 w-full max-w-sm"
                 value={store}
+                disabled={editingLocked}
                 onChange={(e) => setStore(e.target.value)}
               >
                 <option value="">Selecione…</option>
@@ -784,12 +779,14 @@ export function PolicyFormPanel({
                 <button
                   key={value}
                   type="button"
+                  disabled={editingLocked}
                   onClick={() => setPolicyType(value)}
                   className={
                     "rounded-xl border p-3 text-left transition-colors " +
                     (policyType === value
                       ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted/60")
+                      : "border-border hover:bg-muted/60") +
+                    (editingLocked ? " cursor-not-allowed opacity-70" : "")
                   }
                 >
                   <span className="flex items-center justify-between gap-2 text-sm font-semibold">
@@ -826,7 +823,7 @@ export function PolicyFormPanel({
                         type="radio"
                         name="shipping-policy-modality"
                         checked={modality === m}
-                        disabled={lockedOut}
+                        disabled={editingLocked || lockedOut}
                         onChange={() => setModality(m)}
                       />
                       <span>
@@ -843,7 +840,7 @@ export function PolicyFormPanel({
 
           <Section
             title="Tabela de Frete"
-            hint="Associe a tabela de frete que será usada para calcular o preço de entrega desta política."
+            hint="Opcional. Associe uma tabela de frete se ela já estiver disponível para esta política."
           >
             {policyType === "Retira" ? (
               <p className="mb-3 rounded-lg border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
@@ -879,7 +876,7 @@ export function PolicyFormPanel({
                   <option value="">
                     {store
                       ? tariffOptions.length
-                        ? "Selecione uma tabela carregada"
+                        ? "Não associar tabela de frete"
                         : "Nenhuma tabela carregada para esta loja"
                       : "Selecione a loja primeiro"}
                   </option>
@@ -1554,7 +1551,7 @@ export function PolicyFormPanel({
       {saved ? (
         <>
           <div className="rounded-xl border border-success/40 bg-success/10 p-3 text-xs text-success">
-            Política salva em JSON ({saved}). Confira o resumo abaixo.
+            Política salva no banco de dados com sucesso.
           </div>
 
           <Section

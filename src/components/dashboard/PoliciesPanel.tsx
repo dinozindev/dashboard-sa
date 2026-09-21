@@ -24,6 +24,7 @@ import {
   type ShippingPolicyDraft,
 } from "@/lib/freight/policy-registry";
 import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
+import { usePolicyTariffs } from "@/lib/freight/policy-tariff-store";
 import { logAudit } from "@/lib/freight/audit-log";
 import {
   Dialog,
@@ -56,9 +57,7 @@ function PolicyDetails({
           <div>
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Loja</p>
             <p className="font-semibold">{policy.store}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {policy.modalities.join(" · ")}
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{policy.modalities.join(" · ")}</p>
           </div>
           <span className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
@@ -196,37 +195,34 @@ export function PoliciesPanel({
 }) {
   const data = usePolicyMatrix();
   const drafts = usePolicyDrafts();
+  const tariffLinks = usePolicyTariffs();
   const submitted = useSubmittedStores();
   const live = useLive();
   const [region, setRegion] = useState("Todas");
 
   /** Lojas liberadas: só entram na listagem quando têm polígonos cadastrados. */
-  const availableStores = useMemo(
-    () => {
-      const matrixStores = data.stores.filter(
-        (s) =>
-          BASE_STORES.includes(s.nome as never) || submitted.includes(s.nome as never),
-      );
-      const knownStores = new Set(matrixStores.map((s) => s.nome));
-      const extraStores = liveStores(live)
-        .filter((s) => s.polygonCount > 0 && !knownStores.has(s.name))
-        .map((s) => ({
-          centro: null,
-          tipo: "",
-          nome: s.name,
-          uf: s.region,
-          cidade: s.name,
-          cells: Object.fromEntries(
-            data.modalities.map((modality) => [
-              modality,
-              { status: "Não informada" as PolicyStatus, note: "" },
-            ]),
-          ),
-        }));
-      return [...matrixStores, ...extraStores];
-    },
-    [data.modalities, data.stores, live, submitted],
-  );
+  const availableStores = useMemo(() => {
+    const matrixStores = data.stores.filter(
+      (s) => BASE_STORES.includes(s.nome as never) || submitted.includes(s.nome as never),
+    );
+    const knownStores = new Set(matrixStores.map((s) => s.nome));
+    const extraStores = liveStores(live)
+      .filter((s) => s.polygonCount > 0 && !knownStores.has(s.name))
+      .map((s) => ({
+        centro: null,
+        tipo: "",
+        nome: s.name,
+        uf: s.region,
+        cidade: s.name,
+        cells: Object.fromEntries(
+          data.modalities.map((modality) => [
+            modality,
+            { status: "Não informada" as PolicyStatus, note: "" },
+          ]),
+        ),
+      }));
+    return [...matrixStores, ...extraStores];
+  }, [data.modalities, data.stores, live, submitted]);
   const blockedStores = useMemo(
     () => data.stores.filter((s) => !availableStores.includes(s)),
     [data.stores, availableStores],
@@ -241,12 +237,16 @@ export function PoliciesPanel({
   );
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [newModality, setNewModality] = useState("");
   const [selectedModality, setSelectedModality] = useState<string | null>(null);
   const selectedPolicyDrafts = selectedModality
     ? drafts.filter((policy) => policy.modalities.includes(selectedModality))
     : [];
+  const usesScheduledDelivery =
+    selectedModality === "Retira Televendas" || selectedModality === "Entrega Agendada";
 
   const addModality = () => {
     const modality = newModality.trim();
@@ -307,9 +307,8 @@ export function PoliciesPanel({
         <div>
           <h2 className="section-title text-lg">Políticas de envio por loja</h2>
           <p className="text-xs text-muted-foreground">
-            Matriz loja × modalidade. Altere o status de cada modalidade direto na tabela — as
-            mudanças ficam salvas em JSON no navegador. Estados: Ativa 🟢 · Inativa 🔴 · Em
-            construção 🛠 · Não informada ⚪.
+            Matriz loja × modalidade. Altere o status de cada modalidade direto na tabela. Estados:
+            Ativa 🟢 · Inativa 🔴 · Em construção 🛠 · Não informada ⚪.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -528,36 +527,213 @@ export function PoliciesPanel({
                 {selectedModality} · {shownStores.length} loja(s)
               </DialogDescription>
             </DialogHeader>
-            <div className="flex max-w-full gap-4 overflow-x-auto pb-3">
-              {shownStores.map((store) => {
-                const policy = selectedPolicyDrafts.find((item) => item.store === store.nome);
-                return policy ? (
-                  <div key={store.nome} className="min-w-[min(420px,80vw)]">
-                    <PolicyDetails
-                      policy={policy}
-                      canEdit={canEdit}
-                      onEdit={() => {
-                        setSelectedModality(null);
-                        onEditPolicy(policy);
-                      }}
-                      onRemove={() => {
-                        if (!window.confirm(`Remover a política de ${policy.store} para ${policy.modalities.join(" · ")}?`)) return;
-                        removePolicyDraft(policy.id);
-                        updateCell(policy.store, selectedModality, { status: "Não informada" });
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div key={store.nome} className="min-w-[min(420px,80vw)]">
-                    <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
-                      <p className="font-semibold">{store.nome}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Sem política cadastrada · Status: {store.cells[selectedModality]?.status ?? "—"}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+            <div
+              ref={topScrollRef}
+              aria-label="Rolagem horizontal da tabela"
+              className="sticky top-0 z-20 max-w-full overflow-x-auto rounded-t-lg bg-card pb-1"
+              onScroll={(event) => {
+                if (tableScrollRef.current) {
+                  tableScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+                }
+              }}
+            >
+              <div className="h-px min-w-[1700px] w-max" />
+            </div>
+            <div
+              ref={tableScrollRef}
+              className="max-w-full overflow-x-auto rounded-b-lg border border-border"
+              onScroll={(event) => {
+                if (topScrollRef.current) {
+                  topScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+                }
+              }}
+            >
+              <table
+                className={
+                  "w-full text-xs " + (usesScheduledDelivery ? "min-w-[1420px]" : "min-w-[1100px]")
+                }
+              >
+                <thead className="bg-muted/60 text-left uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="sticky left-0 z-10 bg-muted px-3 py-2">Loja</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Tipo</th>
+                    <th className="px-3 py-2">Tabela de frete</th>
+                    {usesScheduledDelivery ? (
+                      <>
+                        <th className="px-3 py-2">Entrega agendada</th>
+                        <th className="px-3 py-2">Prazo máximo</th>
+                        <th className="px-3 py-2">Capacidade</th>
+                        <th className="px-3 py-2">Janelas agendadas</th>
+                      </>
+                    ) : null}
+                    <th className="px-3 py-2">Dimensões</th>
+                    <th className="px-3 py-2">Fim de semana/feriados</th>
+                    <th className="px-3 py-2">Retirada</th>
+                    <th className="px-3 py-2">Horários</th>
+                    {canEdit ? <th className="px-3 py-2">Ações</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownStores.map((store) => {
+                    const policy = selectedPolicyDrafts.find((item) => item.store === store.nome);
+                    const tariffLink = policy ? tariffLinks[policy.id] : null;
+                    return (
+                      <tr key={store.nome} className="border-t border-border align-top">
+                        <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold">
+                          {store.nome}
+                        </td>
+                        {policy ? (
+                          <>
+                            <td className="px-3 py-2">{policy.active ? "Ativa" : "Inativa"}</td>
+                            <td className="px-3 py-2">{policy.policyType}</td>
+                            <td className="px-3 py-2">
+                              {tariffLink ? (
+                                <span className="inline-flex whitespace-nowrap rounded-full bg-success/15 px-2 py-0.5 font-semibold text-success">
+                                  Associada
+                                </span>
+                              ) : (
+                                <span className="inline-flex whitespace-nowrap rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
+                                  Não associada
+                                </span>
+                              )}
+                            </td>
+                            {usesScheduledDelivery ? (
+                              <>
+                                <td className="px-3 py-2">
+                                  <span
+                                    className={
+                                      "inline-flex rounded-full px-2 py-0.5 font-semibold " +
+                                      (policy.scheduledDelivery.enabled
+                                        ? "bg-success/15 text-success"
+                                        : "bg-muted text-muted-foreground")
+                                    }
+                                  >
+                                    {policy.scheduledDelivery.enabled ? "Ativa" : "Desativada"}
+                                  </span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  {policy.scheduledDelivery.enabled
+                                    ? `${policy.scheduledDelivery.maxDays} dia(s)`
+                                    : "—"}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  {policy.scheduledDelivery.enabled &&
+                                  policy.scheduledDelivery.capacityEnabled
+                                    ? policy.scheduledDelivery.unit
+                                    : "—"}
+                                </td>
+                                <td className="min-w-[240px] max-w-[360px] px-3 py-2">
+                                  {policy.scheduledDelivery.enabled &&
+                                  policy.scheduledDelivery.windows.length ? (
+                                    <div className="space-y-1">
+                                      {policy.scheduledDelivery.windows.map((window) => (
+                                        <div
+                                          key={window.id}
+                                          className="rounded border border-border bg-muted/20 px-2 py-1 leading-tight"
+                                        >
+                                          <span className="font-medium">{window.days}</span>
+                                          <span className="block text-muted-foreground">
+                                            {window.start}-{window.end}
+                                            {policy.scheduledDelivery.capacityEnabled
+                                              ? ` · ${window.capacity} ${policy.scheduledDelivery.unit}`
+                                              : ""}
+                                            {window.additional > 0
+                                              ? ` · +R$ ${window.additional.toFixed(2)}`
+                                              : ""}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                              </>
+                            ) : null}
+                            <td className="px-3 py-2">
+                              Soma {policy.dimensions.sumOfDimensions} · Aresta{" "}
+                              {policy.dimensions.largestEdge} · Cúbico{" "}
+                              {policy.dimensions.cubicWeightFactor} · Mínimo{" "}
+                              {policy.dimensions.minimumWeightFactor}
+                            </td>
+                            <td className="px-3 py-2">
+                              Sáb. {policy.weekend.saturday ? "Sim" : "Não"} · Dom.{" "}
+                              {policy.weekend.sunday ? "Sim" : "Não"} · Feriados{" "}
+                              {policy.weekend.holidays ? "Sim" : "Não"}
+                            </td>
+                            <td className="px-3 py-2">
+                              {policy.pickup.enabled
+                                ? policy.pickup.seller || "Associada"
+                                : "Não associada"}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="font-semibold">
+                                {policy.scheduleMode === "janela"
+                                  ? "Janela de envio"
+                                  : "Horário de coleta"}
+                              </span>
+                              <span className="mt-1 block">
+                                {policy.scheduleMode === "janela"
+                                  ? policy.shippingWindows
+                                      .map(
+                                        (window) => `${window.day}: ${window.start}-${window.end}`,
+                                      )
+                                      .join("; ") || "—"
+                                  : policy.pickupTimes
+                                      .map((pickup) => `${pickup.day}: ${pickup.time}`)
+                                      .join("; ") || "—"}
+                              </span>
+                            </td>
+                            {canEdit ? (
+                              <td className="px-3 py-2">
+                                <div className="flex gap-2 whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    className="rounded-md bg-primary px-2 py-1 font-semibold text-primary-foreground hover:opacity-90"
+                                    onClick={() => {
+                                      setSelectedModality(null);
+                                      onEditPolicy(policy);
+                                    }}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-danger/50 px-2 py-1 font-semibold text-danger hover:bg-danger/10"
+                                    onClick={() => {
+                                      if (
+                                        !window.confirm(
+                                          `Remover a política de ${policy.store} para ${policy.modalities.join(" · ")}?`,
+                                        )
+                                      )
+                                        return;
+                                      removePolicyDraft(policy.id);
+                                      updateCell(policy.store, selectedModality, {
+                                        status: "Não informada",
+                                      });
+                                    }}
+                                  >
+                                    Remover
+                                  </button>
+                                </div>
+                              </td>
+                            ) : null}
+                          </>
+                        ) : (
+                          <td
+                            colSpan={usesScheduledDelivery ? (canEdit ? 13 : 12) : canEdit ? 9 : 8}
+                            className="bg-muted/40 px-3 py-2 text-muted-foreground"
+                          >
+                            Sem política cadastrada · Status:{" "}
+                            {store.cells[selectedModality]?.status ?? "—"}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </DialogContent>
         ) : null}
