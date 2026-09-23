@@ -99,6 +99,13 @@
       "when": 1790179539392,
       "tag": "0013_freight_rpcs_state_polygons",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790182322803,
+      "tag": "0014_pickup_points_from_store_registry",
+      "breakpoints": true
     }
   ]
 }

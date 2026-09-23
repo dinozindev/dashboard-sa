@@ -166,6 +166,56 @@ export type Database = {
         }
         Relationships: []
       }
+      pickup_points: {
+        Row: {
+          active: boolean
+          address: string | null
+          created_at: string
+          hours: Json
+          id: string
+          instructions: string
+          kind: string
+          name: string
+          store_id: string
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          created_at?: string
+          hours?: Json
+          id?: string
+          instructions?: string
+          kind: string
+          name: string
+          store_id: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          created_at?: string
+          hours?: Json
+          id?: string
+          instructions?: string
+          kind?: string
+          name?: string
+          store_id?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pickup_points_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       policies: {
         Row: {
           client_id: string
@@ -492,7 +542,7 @@ export type Database = {
           center_lng?: number | null
           client_id?: string | null
           district?: string | null
-          geojson?: Json | null
+          geojson?: never
           id?: string | null
           kind?: string | null
           policy_id?: string | null
@@ -509,7 +559,7 @@ export type Database = {
           center_lng?: number | null
           client_id?: string | null
           district?: string | null
-          geojson?: Json | null
+          geojson?: never
           id?: string | null
           kind?: string | null
           policy_id?: string | null
@@ -547,7 +597,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          geojson?: Json | null
+          geojson?: never
           id?: string | null
           name?: string | null
           polygon_name?: string | null
@@ -556,7 +606,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          geojson?: Json | null
+          geojson?: never
           id?: string | null
           name?: string | null
           polygon_name?: string | null
@@ -827,6 +877,7 @@ export type Database = {
       }
       geomfromewkt: { Args: { "": string }; Returns: unknown }
       get_freight_snapshot: { Args: never; Returns: Json }
+      get_freight_snapshot_core: { Args: never; Returns: Json }
       gettransactionid: { Args: never; Returns: unknown }
       insert_polygons: { Args: { payload: Json }; Returns: number }
       longtransactionsenabled: { Args: never; Returns: boolean }
