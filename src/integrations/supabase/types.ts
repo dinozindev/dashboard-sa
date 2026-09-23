@@ -166,56 +166,6 @@ export type Database = {
         }
         Relationships: []
       }
-      pickup_points: {
-        Row: {
-          active: boolean
-          address: string | null
-          created_at: string
-          hours: Json
-          id: string
-          instructions: string
-          kind: string
-          name: string
-          store_id: string
-          tags: string[]
-          updated_at: string
-        }
-        Insert: {
-          active?: boolean
-          address?: string | null
-          created_at?: string
-          hours?: Json
-          id?: string
-          instructions?: string
-          kind: string
-          name: string
-          store_id: string
-          tags?: string[]
-          updated_at?: string
-        }
-        Update: {
-          active?: boolean
-          address?: string | null
-          created_at?: string
-          hours?: Json
-          id?: string
-          instructions?: string
-          kind?: string
-          name?: string
-          store_id?: string
-          tags?: string[]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pickup_points_store_id_fkey"
-            columns: ["store_id"]
-            isOneToOne: false
-            referencedRelation: "stores"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       policies: {
         Row: {
           client_id: string
@@ -320,6 +270,7 @@ export type Database = {
           client_id: string
           created_at: string
           district: string | null
+          geojson_cache: Json | null
           geom: unknown
           id: string
           kind: string
@@ -338,6 +289,7 @@ export type Database = {
           client_id: string
           created_at?: string
           district?: string | null
+          geojson_cache?: Json | null
           geom: unknown
           id?: string
           kind?: string
@@ -356,6 +308,7 @@ export type Database = {
           client_id?: string
           created_at?: string
           district?: string | null
+          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           kind?: string
@@ -409,6 +362,7 @@ export type Database = {
       }
       state_polygons: {
         Row: {
+          geojson_cache: Json | null
           geom: unknown
           id: string
           name: string
@@ -418,6 +372,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          geojson_cache?: Json | null
           geom: unknown
           id?: string
           name: string
@@ -427,6 +382,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           name?: string
@@ -536,7 +492,7 @@ export type Database = {
           center_lng?: number | null
           client_id?: string | null
           district?: string | null
-          geojson?: never
+          geojson?: Json | null
           id?: string | null
           kind?: string | null
           policy_id?: string | null
@@ -553,7 +509,7 @@ export type Database = {
           center_lng?: number | null
           client_id?: string | null
           district?: string | null
-          geojson?: never
+          geojson?: Json | null
           id?: string | null
           kind?: string | null
           policy_id?: string | null
@@ -591,7 +547,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          geojson?: never
+          geojson?: Json | null
           id?: string | null
           name?: string | null
           polygon_name?: string | null
@@ -600,7 +556,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          geojson?: never
+          geojson?: Json | null
           id?: string | null
           name?: string | null
           polygon_name?: string | null
@@ -871,14 +827,9 @@ export type Database = {
       }
       geomfromewkt: { Args: { "": string }; Returns: unknown }
       get_freight_snapshot: { Args: never; Returns: Json }
-      get_freight_snapshot_core: { Args: never; Returns: Json }
       gettransactionid: { Args: never; Returns: unknown }
       insert_polygons: { Args: { payload: Json }; Returns: number }
       longtransactionsenabled: { Args: never; Returns: boolean }
-      pickup_point_name: {
-        Args: { p_kind: string; p_store: string }
-        Returns: string
-      }
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
         | { Args: { use_typmod?: boolean }; Returns: string }
