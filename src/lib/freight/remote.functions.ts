@@ -82,6 +82,18 @@ export interface FreightSnapshotDto {
     updatedAt: string;
     geojson: { type: string; coordinates: number[][][][] } | null;
   }>;
+  pickupPoints: Array<{
+    id: string;
+    store: string;
+    kind: "facil" | "bordero";
+    name: string;
+    active: boolean;
+    instructions: string;
+    address: string | null;
+    tags: string[];
+    hours: Array<{ day: string; enabled: boolean; start: string; end: string }>;
+    center: [number, number] | null;
+  }>;
   dockLinks: Array<{ store: string; dock: string; policyClientId: string }>;
   policyCells: Array<{ store: string; modality: string; status: string; note: string }>;
   customModalities: string[];
@@ -606,3 +618,37 @@ export const clearAuditEntries = createServerFn({ method: "POST" }).handler(asyn
   fail(error);
   return { ok: true };
 });
+
+// ============================================================================
+// PONTOS DE RETIRADA
+// ============================================================================
+
+export interface PickupPointPayload {
+  id: string;
+  active: boolean;
+  instructions: string;
+  address: string | null;
+  tags: string[];
+  hours: Array<{ day: string; enabled: boolean; start: string; end: string }>;
+}
+
+/** Salva os campos editáveis de um ponto de retirada (nome e ID são fixos). */
+export const savePickupPoint = createServerFn({ method: "POST" })
+  .inputValidator((input: { point: PickupPointPayload }) => input)
+  .handler(async ({ data }) => {
+    const supabase = publicClient();
+    const { point } = data;
+    const { error } = await supabase
+      .from("pickup_points")
+      .update({
+        active: point.active,
+        instructions: point.instructions,
+        address: point.address,
+        tags: point.tags.slice(0, 3),
+        hours: point.hours,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", point.id);
+    fail(error);
+    return { ok: true };
+  });

@@ -42,35 +42,6 @@ function centroidOf(coords: number[][][][]): [number, number] {
   return n ? [sx / n, sy / n] : [0, 0];
 }
 
-/**
- * Posição do marcador da loja.
- *
- * A loja fica no centro da MENOR área enviada (a faixa mais interna). Usar a
- * média das áreas de menor raio levava o marcador para o meio do caminho entre
- * cidades diferentes atendidas pela mesma loja.
- */
-function markerCenterOf(
-  geometries: AnyGeom[],
-  attributes: Array<Record<string, unknown>>,
-): [number, number] {
-  const items = geometries.map((geometry, index) => {
-    const coords = asMulti(geometry);
-    return {
-      center: centroidOf(coords),
-      radius: numOf(attributes[index] ?? {}, ["Raio", "radius"]),
-      area: areaKm2Of(coords),
-    };
-  });
-  if (!items.length) return [0, 0];
-  const radii = items
-    .map(({ radius }) => radius)
-    .filter((radius): radius is number => radius !== null);
-  const smallestRadius = radii.length ? Math.min(...radii) : null;
-  const pool =
-    smallestRadius === null ? items : items.filter(({ radius }) => radius === smallestRadius);
-  const best = pool.reduce((a, b) => (b.area < a.area ? b : a));
-  return best.center;
-}
 
 /** Área aproximada em km² (equiretangular local) — estimativa para exibição */
 function areaKm2Of(coords: number[][][][]): number {
@@ -277,9 +248,9 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     const region = uf;
     setSending(true);
     try {
-      const markerCenter = markerCenterOf(geo, props);
+      // A coordenada da loja vem do cadastro da loja, nunca dos polígonos enviados.
       const { id: storeId } = await ensureStore({
-        data: { name: storeName, region, center: markerCenter },
+        data: { name: storeName, region },
       });
 
       if (replaceExisting) {
@@ -433,8 +404,135 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     await refreshLive();
   };
 
+  // -------------------------------------------------------------------------
+  // CADASTRO MANUAL DE LOJA
+  // -------------------------------------------------------------------------
+  const [newStoreName, setNewStoreName] = useState("");
+  const [newStoreUf, setNewStoreUf] = useState("SP");
+  const [newStoreLat, setNewStoreLat] = useState("");
+  const [newStoreLng, setNewStoreLng] = useState("");
+  const [newStoreSaving, setNewStoreSaving] = useState(false);
+  const [newStoreFeedback, setNewStoreFeedback] = useState<
+    { kind: "ok" | "err"; text: string } | null
+  >(null);
+
+  const createStoreManually = async () => {
+    const name = newStoreName.trim();
+    const lat = Number(newStoreLat);
+    const lng = Number(newStoreLng);
+    if (!name) {
+      setNewStoreFeedback({ kind: "err", text: "Informe o nome da loja." });
+      return;
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setNewStoreFeedback({ kind: "err", text: "Informe latitude e longitude válidas." });
+      return;
+    }
+    setNewStoreSaving(true);
+    setNewStoreFeedback(null);
+    try {
+      await ensureStore({ data: { name, region: newStoreUf, center: [lng, lat] } });
+      logAudit({
+        store: name,
+        module: "Criação de Polígonos",
+        field: "Loja",
+        before: "",
+        after: name,
+        action: "Criação",
+        description: `Loja ${name} cadastrada manualmente (${newStoreUf}).`,
+      });
+      await refreshLive();
+      setNewStoreName("");
+      setNewStoreLat("");
+      setNewStoreLng("");
+      setNewStoreFeedback({
+        kind: "ok",
+        text: `Loja ${name} cadastrada com seus dois pontos de retirada.`,
+      });
+    } catch (err) {
+      setNewStoreFeedback({
+        kind: "err",
+        text: err instanceof Error ? err.message : "Não foi possível cadastrar a loja.",
+      });
+    } finally {
+      setNewStoreSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      <section className="surface space-y-3 p-4">
+        <div>
+          <h2 className="section-title text-lg">Cadastro de loja</h2>
+          <p className="text-xs text-muted-foreground">
+            Cadastre a loja informando as coordenadas. Os pontos de retirada "Retira Fácil" e
+            "Retira Saldo Borderô" são criados automaticamente.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <label className="text-xs text-muted-foreground">
+            Nome da loja
+            <input
+              className="input mt-1 w-full"
+              value={newStoreName}
+              onChange={(e) => setNewStoreName(e.target.value)}
+              placeholder="Ex.: Aricanduva"
+            />
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Estado
+            <select
+              className="input mt-1 w-full"
+              value={newStoreUf}
+              onChange={(e) => setNewStoreUf(e.target.value)}
+            >
+              {UF_LIST.map((sigla) => (
+                <option key={sigla} value={sigla}>
+                  {sigla} — {UF_NAMES[sigla]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Latitude
+            <input
+              className="input mt-1 w-full"
+              value={newStoreLat}
+              onChange={(e) => setNewStoreLat(e.target.value)}
+              placeholder="-23.56425"
+            />
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Longitude
+            <input
+              className="input mt-1 w-full"
+              value={newStoreLng}
+              onChange={(e) => setNewStoreLng(e.target.value)}
+              placeholder="-46.50443"
+            />
+          </label>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={newStoreSaving}
+            onClick={() => void createStoreManually()}
+          >
+            {newStoreSaving ? "Salvando…" : "Cadastrar loja"}
+          </button>
+          {newStoreFeedback ? (
+            <span
+              className={
+                "text-xs " +
+                (newStoreFeedback.kind === "ok" ? "text-muted-foreground" : "text-destructive")
+              }
+            >
+              {newStoreFeedback.text}
+            </span>
+          ) : null}
+        </div>
+      </section>
       <section className="surface space-y-3 p-4">
         <div>
           <h2 className="section-title text-lg">Envio de polígonos</h2>

@@ -60,6 +60,7 @@ import { DocksPanel } from "./DocksPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
 import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
 import { AuditHistoryPanel } from "./AuditHistoryPanel";
+import { PickupPointsPanel } from "./PickupPointsPanel";
 import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 
 // Lazy load do mapa (pesado, carrega sob demanda)
@@ -71,6 +72,7 @@ const TABS = [
   ["politicas", "Políticas de Envio"],
   ["cadastro", "Cadastro de Política de Envio"],
   ["envio", "Envio de Polígonos"],
+  ["retirada", "Pontos de Retirada"],
   ["capacidade", "Capacidade Operacional"],
   ["auditoria", "Histórico de Auditoria"],
 ] as const;
@@ -88,11 +90,11 @@ const PROFILES = {
   },
   editor: {
     label: "Editor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "capacidade"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidade"] as TabKey[],
   },
   auditor: {
     label: "Auditor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "capacidade", "auditoria"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidade", "auditoria"] as TabKey[],
   },
 } as const;
 
@@ -678,6 +680,7 @@ export default function Dashboard() {
         {tab === "envio" ? (
           <PolygonSubmissionPanel onGoToMap={() => setTab("operacao")} />
         ) : null}
+        {tab === "retirada" ? <PickupPointsPanel /> : null}
         {tab === "capacidade" ? (
           <section className="space-y-3">
             <div className="surface flex flex-wrap items-center gap-3 border-dashed p-4">

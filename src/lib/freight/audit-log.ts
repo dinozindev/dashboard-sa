@@ -24,6 +24,7 @@ export type AuditModule =
   | "Cadastro de Política de Envio"
   | "Políticas de Envio"
   | "Docas"
+  | "Pontos de Retirada"
   | "Criação de Polígonos";
 
 export interface AuditEntry {

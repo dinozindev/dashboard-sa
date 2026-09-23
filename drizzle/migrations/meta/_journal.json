@@ -85,6 +85,27 @@
       "when": 1790173449869,
       "tag": "0011_snapshot_json_fast",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790179466830,
+      "tag": "0012_freight_schema_postgis",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790179539392,
+      "tag": "0013_freight_rpcs_state_polygons",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790179572778,
+      "tag": "0014_pickup_points",
+      "breakpoints": true
     }
   ]
 }

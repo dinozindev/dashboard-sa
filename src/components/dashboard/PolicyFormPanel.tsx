@@ -31,7 +31,7 @@ import {
   getPolicyTariff,
   setPolicyTariff,
 } from "@/lib/freight/policy-tariff-store";
-import { getLive, regionForStore } from "@/lib/freight/live";
+import { getLive, regionForStore, useLive } from "@/lib/freight/live";
 import { pushTariffTable } from "@/lib/freight/dataset";
 import { saveFreightTable } from "@/lib/freight/remote.functions";
 import { parseFreightSheet } from "@/lib/freight/xlsx-bands";
@@ -377,6 +377,7 @@ export function PolicyFormPanel({
       ),
     [submitted],
   );
+  const live = useLive();
   const matrix = usePolicyMatrix();
   const drafts = usePolicyDrafts();
 
@@ -445,7 +446,12 @@ export function PolicyFormPanel({
 
   const editingLocked = Boolean(initialPolicy) && !replicating;
 
-  const effectiveSeller = pickupSeller || store;
+  /** Pontos de retirada criados automaticamente para a loja selecionada. */
+  const storePickupPoints = useMemo(
+    () => (live?.snapshot.pickupPoints ?? []).filter((p) => p.store === store),
+    [live, store],
+  );
+  const effectiveSeller = pickupSeller || storePickupPoints[0]?.name || "";
 
   const usesShippingWindow = SHIPPING_WINDOW_MODALITIES.has(modality);
   const hasScheduledDelivery = SCHEDULED_DELIVERY_MODALITIES.has(modality);
@@ -1084,15 +1090,15 @@ export function PolicyFormPanel({
                     onChange={(e) => setPickupSeller(e.target.value)}
                   >
                     <option value="">Selecione…</option>
-                    {stores.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
+                    {storePickupPoints.map((p) => (
+                      <option key={p.id} value={p.name}>
+                        {p.name}
                       </option>
                     ))}
                   </select>
                 </label>
                 <p className="text-[11px] text-muted-foreground">
-                  Sugestão preenchida com a loja selecionada na primeira etapa. Para a política
+                  Pontos de retirada criados automaticamente para a loja selecionada. Para a política
                   funcionar de fato, é necessário existir um ponto de retirada (doca) cadastrado e
                   associado a ela.
                 </p>
