@@ -38,9 +38,6 @@ import { parseFreightSheet } from "@/lib/freight/xlsx-bands";
 import type { WeightBand } from "@/lib/freight/types";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
-import { ShippingWindowNotice, useShippingWindowNotice } from "./SchedulePanel";
-
-
 const DAYS = [
   "Todos os dias",
   "Segunda a sexta-feira",
@@ -75,6 +72,19 @@ const ALL_STEPS: StepDef[] = [
   { key: "agendada", title: "Entrega Agendada", hint: "Dia e horário escolhidos pelo cliente" },
   { key: "revisao", title: "Revisão", hint: "Confira e salve" },
 ];
+
+const SHIPPING_WINDOW_MODALITIES = new Set([
+  "Retira Imediata",
+  "Saldo Borderô",
+  "Retira H+4 Ecommerce",
+]);
+
+const SCHEDULED_DELIVERY_MODALITIES = new Set([
+  "Retira Televendas",
+  "Entrega Agendada",
+  "Entrega Conforto Manhã",
+  "Entrega Conforto Tarde",
+]);
 
 let seq = 0;
 const uid = () => `row-${++seq}`;
@@ -154,6 +164,21 @@ function logPolicyChanges(
       "Fator de peso mínimo",
       String(before.dimensions.minimumWeightFactor),
       String(after.dimensions.minimumWeightFactor),
+    ],
+    [
+      "Mínimo de itens",
+      String(before.packageItems.minimum),
+      String(after.packageItems.minimum),
+    ],
+    [
+      "Valor mínimo dos itens",
+      String(before.packageItems.minimumValue),
+      String(after.packageItems.minimumValue),
+    ],
+    [
+      "Valor máximo dos itens",
+      String(before.packageItems.maximumValue),
+      String(after.packageItems.maximumValue),
     ],
     ["Entrega aos sábados", onOff(before.weekend.saturday), onOff(after.weekend.saturday)],
     ["Entrega aos domingos", onOff(before.weekend.sunday), onOff(after.weekend.sunday)],
@@ -371,6 +396,9 @@ export function PolicyFormPanel({
   const [largestEdge, setEdge] = useState(0);
   const [cubic, setCubic] = useState(0);
   const [minWeight, setMinWeight] = useState(0);
+  const [minimumItems, setMinimumItems] = useState(1);
+  const [minimumItemsValue, setMinimumItemsValue] = useState(0);
+  const [maximumItemsValue, setMaximumItemsValue] = useState(0);
 
   /** Tabela de frete associada a esta política (somente para tipo Entrega) */
   const [tariffIndex, setTariffIndex] = useState<number | null>(null);
@@ -419,16 +447,17 @@ export function PolicyFormPanel({
 
   const effectiveSeller = pickupSeller || store;
 
-  const hasScheduledDelivery = modality === "Retira Televendas" || modality === "Entrega Agendada";
+  const usesShippingWindow = SHIPPING_WINDOW_MODALITIES.has(modality);
+  const hasScheduledDelivery = SCHEDULED_DELIVERY_MODALITIES.has(modality);
   const steps = useMemo(
     () => ALL_STEPS.filter((s) => s.key !== "agendada" || hasScheduledDelivery),
     [hasScheduledDelivery],
   );
   const currentStep = steps[Math.min(step, steps.length - 1)] as StepDef;
 
-  /** Aviso: Saldo Borderô e Retira Imediata costumam usar janela de envio. */
-  const scheduleNotice = useShippingWindowNotice(currentStep.key === "horarios");
-
+  useEffect(() => {
+    setMode(usesShippingWindow ? "janela" : "coleta");
+  }, [usesShippingWindow]);
 
   useEffect(() => {
     setStep((cur) => Math.min(cur, steps.length - 1));
@@ -461,6 +490,9 @@ export function PolicyFormPanel({
     setEdge(initialPolicy.dimensions.largestEdge);
     setCubic(initialPolicy.dimensions.cubicWeightFactor);
     setMinWeight(initialPolicy.dimensions.minimumWeightFactor);
+    setMinimumItems(initialPolicy.packageItems.minimum);
+    setMinimumItemsValue(initialPolicy.packageItems.minimumValue);
+    setMaximumItemsValue(initialPolicy.packageItems.maximumValue);
     setSaturday(initialPolicy.weekend.saturday);
     setSunday(initialPolicy.weekend.sunday);
     setHolidays(initialPolicy.weekend.holidays);
@@ -587,6 +619,11 @@ export function PolicyFormPanel({
         largestEdge,
         cubicWeightFactor: cubic,
         minimumWeightFactor: minWeight,
+      },
+      packageItems: {
+        minimum: minimumItems,
+        minimumValue: minimumItemsValue,
+        maximumValue: maximumItemsValue,
       },
       weekend: { saturday, sunday, holidays },
       pickup: { enabled: pickupEnabled, seller: pickupEnabled ? effectiveSeller : "" },
@@ -991,6 +1028,33 @@ export function PolicyFormPanel({
               </label>
             ))}
           </div>
+          <div className="mt-4 border-t border-border pt-4">
+            <h3 className="text-sm font-semibold">Itens do Pacote</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {(
+                [
+                  ["Mínimo de Itens", minimumItems, setMinimumItems, "1", 1],
+                  ["Valor Mínimo", minimumItemsValue, setMinimumItemsValue, "0", 0],
+                  ["Valor Máximo", maximumItemsValue, setMaximumItemsValue, "0", 0],
+                ] as const
+              ).map(([label, value, setter, ph, min]) => (
+                <label key={label} className="text-xs text-muted-foreground">
+                  {label}
+                  <input
+                    type="number"
+                    min={min}
+                    className="input mt-1 w-full"
+                    placeholder={ph}
+                    value={value}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value);
+                      setter(e.target.value === "" || !Number.isFinite(parsed) ? min : parsed);
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
         </Section>
       ) : null}
 
@@ -1045,11 +1109,6 @@ export function PolicyFormPanel({
 
       {currentStep.key === "horarios" ? (
         <>
-        <ShippingWindowNotice
-          open={scheduleNotice.open}
-          onClose={() => scheduleNotice.setOpen(false)}
-        />
-
         <Section
           title="Horário de funcionamento"
           hint="Defina os horários em que a transportadora faz coletas ou as janelas de tempo em que ela envia os itens para os clientes. Estas configurações influenciam o cálculo do tempo de entrega."
@@ -1068,14 +1127,19 @@ export function PolicyFormPanel({
                   "Horários em que a transportadora coleta os itens para entrega.",
                 ],
               ] as const
-            ).map(([key, title, desc]) => (
+            ).map(([key, title, desc]) => {
+              const enabled = key === "janela" ? usesShippingWindow : !usesShippingWindow;
+              return (
               <button
                 key={key}
                 type="button"
+                disabled={!enabled}
                 onClick={() => setMode(key)}
                 className={
                   "rounded-xl border p-3 text-left transition-colors " +
-                  (mode === key
+                  (!enabled
+                    ? "cursor-not-allowed border-border bg-muted/40 opacity-50"
+                    : mode === key
                     ? "border-primary bg-primary/5"
                     : "border-border hover:bg-muted/60")
                 }
@@ -1086,7 +1150,8 @@ export function PolicyFormPanel({
                 </span>
                 <span className="mt-1 block text-xs text-muted-foreground">{desc}</span>
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {mode === "janela" ? (
@@ -1484,6 +1549,10 @@ export function PolicyFormPanel({
                 [
                   "Dimensões",
                   `soma ${sumOfDimensions} · maior aresta ${largestEdge} · peso cúbico ${cubic} · peso mínimo ${minWeight}`,
+                ],
+                [
+                  "Itens do pacote",
+                  `mínimo ${minimumItems} · valor mínimo ${minimumItemsValue} · valor máximo ${maximumItemsValue}`,
                 ],
                 [
                   "Dias de entrega",

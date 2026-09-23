@@ -90,6 +90,11 @@ export interface ShippingPolicyDraft {
     cubicWeightFactor: number;
     minimumWeightFactor: number;
   };
+  packageItems: {
+    minimum: number;
+    minimumValue: number;
+    maximumValue: number;
+  };
   weekend: {
     saturday: boolean;
     sunday: boolean;

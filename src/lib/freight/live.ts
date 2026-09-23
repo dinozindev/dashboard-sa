@@ -86,6 +86,12 @@ function normalizeDraft(raw: object): ShippingPolicyDraft {
       minimumWeightFactor: 0,
       ...(d.dimensions ?? {}),
     },
+    packageItems: {
+      minimum: 1,
+      minimumValue: 0,
+      maximumValue: 0,
+      ...(d.packageItems ?? {}),
+    },
     weekend: { saturday: true, sunday: false, holidays: false, ...(d.weekend ?? {}) },
     pickup: { enabled: false, seller: "", ...(d.pickup ?? {}) },
     scheduleMode: d.scheduleMode === "coleta" ? "coleta" : "janela",

@@ -50,9 +50,7 @@ import { PriceBreakdownCard } from "./PriceBreakdown";
 import { RuleSimulator } from "./RuleSimulator";
 import {
   ScheduleGrid,
-  ShippingWindowNotice,
   StatusBadge,
-  useShippingWindowNotice,
 } from "./SchedulePanel";
 
 import { CapacityPanel } from "./CapacityPanel";
@@ -116,9 +114,6 @@ export default function Dashboard() {
   
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
   const [tab, setTab] = useState<TabKey>("operacao");
-  /** Aviso sobre janela de envio (Saldo Borderô e Retira Imediata) */
-  const scheduleNotice = useShippingWindowNotice(false);
-
   const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
   /** Sub-aba dentro de "Políticas de Envio": matriz ou docas */
   const [policyTab, setPolicyTab] = useState<"matriz" | "docas">("matriz");
@@ -1164,18 +1159,7 @@ export default function Dashboard() {
           <div className="w-full space-y-3 surface p-4">
             <div className="flex items-start justify-between gap-2">
               <h2 className="section-title text-lg">Horários de atendimento</h2>
-              <button
-                type="button"
-                className="btn-ghost text-xs"
-                onClick={() => scheduleNotice.setOpen(true)}
-              >
-                ⓘ Janela de envio
-              </button>
             </div>
-            <ShippingWindowNotice
-              open={scheduleNotice.open}
-              onClose={() => scheduleNotice.setOpen(false)}
-            />
             {shownStores.map((s) => (
               <ScheduleGrid key={s} store={s} modality={modality} />
             ))}

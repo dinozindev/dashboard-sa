@@ -151,6 +151,24 @@ function PolicyDetails({
       <div>
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {policy.scheduleMode === "janela" ? "Janelas de envio" : "Horários de coleta"}
+
+      <div>
+        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Itens do pacote
+        </h4>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ["Mínimo de itens", policy.packageItems.minimum],
+            ["Valor mínimo", policy.packageItems.minimumValue],
+            ["Valor máximo", policy.packageItems.maximumValue],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-border bg-muted/30 p-2.5">
+              <p className="text-[10px] leading-tight text-muted-foreground">{label}</p>
+              <p className="mt-1 font-semibold">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
         </h4>
         <div className="divide-y divide-border rounded-lg border border-border">
           {scheduleItems.length ? (
