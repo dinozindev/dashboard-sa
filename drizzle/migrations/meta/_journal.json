@@ -103,8 +103,8 @@
     {
       "idx": 14,
       "version": "7",
-      "when": 1790179572778,
-      "tag": "0014_pickup_points",
+      "when": 1790182322803,
+      "tag": "0014_pickup_points_from_store_registry",
       "breakpoints": true
     }
   ]
