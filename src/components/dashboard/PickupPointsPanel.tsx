@@ -307,7 +307,8 @@ function PointEditor({ point, onBack }: { point: PickupPoint; onBack: () => void
 
 export function PickupPointsPanel() {
   const live = useLive();
-  const [storeFilter, setStoreFilter] = useState("");
+  const [storeFilter, setStoreFilter] = useState<string[] | null>(null);
+  const [storesOpen, setStoresOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const points = useMemo<PickupPoint[]>(
@@ -318,7 +319,8 @@ export function PickupPointsPanel() {
     () => Array.from(new Set(points.map((p) => p.store))).sort(),
     [points],
   );
-  const visible = storeFilter ? points.filter((p) => p.store === storeFilter) : points;
+  const visible =
+    storeFilter === null ? points : points.filter((p) => storeFilter.includes(p.store));
   const selected = points.find((p) => p.id === selectedId) ?? null;
 
   if (selected) {
@@ -334,21 +336,72 @@ export function PickupPointsPanel() {
             Cada loja cadastrada tem dois pontos de retirada criados automaticamente.
           </p>
         </div>
-        <label className="ml-auto text-xs text-muted-foreground">
+        <div className="field-label relative ml-auto">
           Loja
-          <select
-            className="input mt-1 w-56"
-            value={storeFilter}
-            onChange={(e) => setStoreFilter(e.target.value)}
+          <button
+            type="button"
+            className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
+            aria-expanded={storesOpen}
+            onClick={() => setStoresOpen((value) => !value)}
           >
-            <option value="">Todas</option>
-            {stores.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+            <span className="truncate text-foreground">
+              {storeFilter === null
+                ? `Todas as lojas (${stores.length})`
+                : storeFilter.length === 0
+                  ? "Nenhuma loja"
+                  : storeFilter.length === 1
+                  ? storeFilter[0]
+                  : `${storeFilter.length} lojas selecionadas`}
+            </span>
+            <span aria-hidden>▾</span>
+          </button>
+          {storesOpen ? (
+            <div className="absolute right-0 top-full z-10 mt-1 w-72 rounded-xl border border-border bg-card p-2 shadow-lg">
+              <div className="mb-1 flex items-center justify-between gap-2 px-1">
+                <span className="text-[11px]">Exibir</span>
+                <span className="flex gap-1">
+                  <button
+                    type="button"
+                    className="btn-ghost text-[11px]"
+                    onClick={() => setStoreFilter(null)}
+                  >
+                    Todas
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost text-[11px]"
+                    onClick={() => setStoreFilter([])}
+                  >
+                    Limpar
+                  </button>
+                </span>
+              </div>
+              <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                {stores.map((store) => (
+                  <label
+                    key={store}
+                    className="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs text-foreground hover:bg-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5 accent-primary"
+                      checked={storeFilter === null || storeFilter.includes(store)}
+                      onChange={() =>
+                        setStoreFilter((current) => {
+                          const selected = current === null ? stores : current;
+                          return selected.includes(store)
+                            ? selected.filter((item) => item !== store)
+                            : [...selected, store];
+                        })
+                      }
+                    />
+                    {store}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="surface overflow-x-auto p-0">
