@@ -652,3 +652,28 @@ export const savePickupPoint = createServerFn({ method: "POST" })
     fail(error);
     return { ok: true };
   });
+
+// ============================================================================
+// REMOÇÃO DE LOJA (em cascata)
+// ============================================================================
+
+/** Remove a loja e tudo que estiver associado a ela. */
+export const deleteStore = createServerFn({ method: "POST" })
+  .inputValidator((input: { name: string }) => input)
+  .handler(async ({ data }) => {
+    const supabase = publicClient();
+    const { data: store } = await supabase.from("stores").select("id").eq("name", data.name).maybeSingle();
+    if (!store?.id) throw new Error("Loja não encontrada.");
+    const storeId = store.id as string;
+    const { data: tables } = await supabase.from("freight_tables").select("id").eq("store_id", storeId);
+    const tableIds = (tables ?? []).map((t) => t.id as string);
+    if (tableIds.length) fail((await supabase.from("freight_bands").delete().in("table_id", tableIds)).error);
+    fail((await supabase.from("freight_tables").delete().eq("store_id", storeId)).error);
+    fail((await supabase.from("policy_docks").delete().eq("store_id", storeId)).error);
+    fail((await supabase.from("polygons").delete().eq("store_id", storeId)).error);
+    fail((await supabase.from("policies").delete().eq("store_id", storeId)).error);
+    fail((await supabase.from("pickup_points").delete().eq("store_id", storeId)).error);
+    fail((await supabase.from("policy_cells").delete().eq("store", data.name)).error);
+    fail((await supabase.from("stores").delete().eq("id", storeId)).error);
+    return { ok: true };
+  });
