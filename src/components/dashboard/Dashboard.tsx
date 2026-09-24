@@ -71,7 +71,7 @@ const TABS = [
   ["operacao", "Área de Atendimento e Frete"],
   ["politicas", "Políticas de Envio"],
   ["cadastro", "Cadastro de Política de Envio"],
-  ["envio", "Envio de Polígonos"],
+  ["envio", "Envio de Lojas e Polígonos"],
   ["retirada", "Pontos de Retirada"],
   ["capacidade", "Capacidade Operacional"],
   ["auditoria", "Histórico de Auditoria"],

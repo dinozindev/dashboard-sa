@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSyncExternalStore } from "react";
 import { getLive, liveStores, refreshLive, subscribeLive } from "@/lib/freight/live";
 import { usePolicyDrafts, type ShippingPolicyDraft } from "@/lib/freight/policy-registry";
+import { type RegionSelection } from "@/lib/freight/types";
 import {
   DOCKS,
   dockKey,
@@ -22,8 +23,6 @@ import {
 const policyLabel = (p: ShippingPolicyDraft) =>
   `${p.modalities.join(" · ") || "Sem modalidade"} (${p.policyType})`;
 
-type RegionFilter = "Todas" | "SP" | "RJ";
-
 export function DocksPanel({ canEdit }: { canEdit: boolean }) {
   useEffect(() => {
     void refreshLive();
@@ -32,7 +31,11 @@ export function DocksPanel({ canEdit }: { canEdit: boolean }) {
   const drafts = usePolicyDrafts();
   const links = useDockLinks();
   const [open, setOpen] = useState<{ store: string; dock: DockName } | null>(null);
-  const [region, setRegion] = useState<RegionFilter>("Todas");
+  const [region, setRegion] = useState<RegionSelection>("Todas");
+  const availableRegions = useMemo(
+    () => Array.from(new Set(liveStores(live).map((store) => store.region))).sort(),
+    [live],
+  );
 
   const stores = useMemo(
     () =>
@@ -113,35 +116,28 @@ export function DocksPanel({ canEdit }: { canEdit: boolean }) {
     <div className="space-y-3 surface p-4">
       <div>
         <h2 className="section-title text-lg">Docas por loja</h2>
-        <p className="text-xs text-muted-foreground">
+        {/* <p className="text-xs text-muted-foreground">
           Cada loja possui três docas. Clique em uma doca para associar as políticas de envio
           cadastradas.
-        </p>
+        </p> */}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">Filtrar lojas:</span>
-        {(
-          [
-            ["Todas", "Todas as lojas"],
-            ["SP", "Somente SP"],
-            ["RJ", "Somente RJ"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setRegion(value)}
-            className={
-              "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
-              (region === value
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border hover:bg-muted/60")
-            }
+        <label className="field-label">
+          Regional
+          <select
+            className="input mt-1 w-32"
+            value={region}
+            onChange={(event) => setRegion(event.target.value as RegionSelection)}
           >
-            {label}
-          </button>
-        ))}
+            <option value="Todas">Todas</option>
+            {availableRegions.map((availableRegion) => (
+              <option key={availableRegion} value={availableRegion}>
+                {availableRegion}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {stores.map((s) => (

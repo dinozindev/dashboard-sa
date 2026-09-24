@@ -490,10 +490,10 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       <section className="surface space-y-3 p-4">
         <div>
           <h2 className="section-title text-lg">Cadastro de loja</h2>
-          <p className="text-xs text-muted-foreground">
+          {/* <p className="text-xs text-muted-foreground">
             Cadastre a loja informando as coordenadas. Os pontos de retirada "Retira Fácil" e
             "Retira Saldo Borderô" são criados automaticamente.
-          </p>
+          </p> */}
         </div>
         <div className="grid gap-3 sm:grid-cols-4">
           <label className="text-xs text-muted-foreground">
@@ -584,19 +584,19 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       <section className="surface space-y-3 p-4">
         <div>
           <h2 className="section-title text-lg">Envio de polígonos</h2>
-          <p className="text-xs text-muted-foreground">
+          {/* <p className="text-xs text-muted-foreground">
             Áreas de <strong>Entrega</strong> pertencem a uma loja; áreas de{" "}
             <strong>Retira</strong> pertencem a um <strong>estado</strong> (não há loja). As áreas
             não dependem de política de envio — o que muda por política é a tabela de frete. Os
             dados ficam gravados no banco — visíveis para todos.
-          </p>
+          </p> */}
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
           {kind === "Entrega" ? (
             <>
               <label className="field-label">
-                Loja existente
+                Loja
                 <select
                   className="input mt-1 w-56"
                   value={store}
@@ -616,7 +616,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                   ))}
                 </select>
               </label>
-              <label className="field-label">
+              {/* <label className="field-label">
                 ou nova loja
                 <input
                   className="input mt-1 w-44"
@@ -627,7 +627,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                   }}
                   placeholder="Ex.: Campinas"
                 />
-              </label>
+              </label> */}
             </>
           ) : null}
           <label className="field-label">
@@ -645,7 +645,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             </select>
           </label>
           <label className="field-label">
-            Tipo da coleção
+            Modalidade
             <select
               className="input mt-1 w-40"
               value={kind}
@@ -716,7 +716,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
 
       <section className="surface space-y-3 p-4">
         <h3 className="section-title text-base">Coleções cadastradas no banco</h3>
-        {submitted.length ? (
+        {/* {submitted.length ? (
           <div className="flex flex-wrap gap-2">
             {submitted.map((s) => (
               <span
@@ -729,7 +729,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">Nenhuma loja com polígonos ainda.</p>
-        )}
+        )} */}
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -781,10 +781,10 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       <section className="surface space-y-3 p-4">
         <div>
           <h3 className="section-title text-base">Malhas estaduais (Retira)</h3>
-          <p className="text-xs text-muted-foreground">
+          {/* <p className="text-xs text-muted-foreground">
             Contornos de São Paulo e Rio de Janeiro usados na modalidade Retira. Ficam gravados no
             banco e podem ser substituídos por um novo arquivo GeoJSON.
-          </p>
+          </p> */}
         </div>
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">
@@ -792,7 +792,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
               <tr>
                 <th className="px-2 py-2 text-left">Estado</th>
                 <th className="px-2 py-2 text-left">Nome do polígono</th>
-                <th className="px-2 py-2 text-right">Partes</th>
+                {/* <th className="px-2 py-2 text-right">Partes</th> */}
                 <th className="px-2 py-2 text-right">Pontos</th>
                 <th className="px-2 py-2 text-left">Substituir</th>
                 <th className="px-2 py-2"></th>
@@ -805,7 +805,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                     {s.name} ({s.uf})
                   </td>
                   <td className="px-2 py-1.5 font-mono text-[11px]">{s.polygonName ?? "—"}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{s.geom.length}</td>
+                  {/* <td className="px-2 py-1.5 text-right tabular-nums">{s.geom.length}</td> */}
                   <td className="px-2 py-1.5 text-right tabular-nums">
                     {s.geom
                       .reduce((t, poly) => t + poly.reduce((r, ring) => r + ring.length, 0), 0)
