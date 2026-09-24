@@ -12,6 +12,7 @@ import { useLive, liveStores, refreshLive, storeRegionOf } from "@/lib/freight/l
 import {
   deletePolygonCollection,
   deleteStatePolygon,
+  deleteStore,
   ensureStore,
   insertPolygonRows,
   upsertStatePolygon,
@@ -459,6 +460,31 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     }
   };
 
+  const [removingStore, setRemovingStore] = useState<string | null>(null);
+  const removeStore = async (name: string) => {
+    if (!window.confirm(`Remover a loja ${name}? Polígonos, políticas, tabelas de frete, docas e pontos de retirada dela também serão removidos. Esta ação não pode ser desfeita.`)) return;
+    setRemovingStore(name);
+    setNewStoreFeedback(null);
+    try {
+      await deleteStore({ data: { name } });
+      logAudit({
+        store: name,
+        module: "Criação de Polígonos",
+        field: "Loja",
+        before: name,
+        after: "—",
+        action: "Remoção",
+        description: `Loja ${name} removida com todos os dados associados.`,
+      });
+      await refreshLive();
+      setNewStoreFeedback({ kind: "ok", text: `Loja ${name} removida.` });
+    } catch (err) {
+      setNewStoreFeedback({ kind: "err", text: err instanceof Error ? err.message : "Não foi possível remover a loja." });
+    } finally {
+      setRemovingStore(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <section className="surface space-y-3 p-4">
@@ -532,6 +558,28 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
             </span>
           ) : null}
         </div>
+        {dbStores.length ? (
+          <div className="space-y-2 border-t border-border pt-3">
+            <h3 className="section-title text-base">Lojas cadastradas ({dbStores.length})</h3>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {[...dbStores].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                <li key={s.name} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                  <span>
+                    {s.name} <span className="text-xs text-muted-foreground">({s.region})</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="text-xs text-destructive hover:underline disabled:opacity-50"
+                    disabled={removingStore !== null}
+                    onClick={() => void removeStore(s.name)}
+                  >
+                    {removingStore === s.name ? "Removendo…" : "Remover"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
       <section className="surface space-y-3 p-4">
         <div>
