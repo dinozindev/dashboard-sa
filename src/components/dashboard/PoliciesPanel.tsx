@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import { liveStores, useLive } from "@/lib/freight/live";
 import {
@@ -23,6 +23,7 @@ import {
   usePolicyDrafts,
   type ShippingPolicyDraft,
 } from "@/lib/freight/policy-registry";
+import { findDivergences } from "@/lib/freight/policy-standards";
 import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
 import { usePolicyTariffs } from "@/lib/freight/policy-tariff-store";
 import { logAudit } from "@/lib/freight/audit-log";
@@ -33,6 +34,48 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+/** Agrupa cada campo padrão na coluna correspondente da tabela de visualização. */
+const FIELD_GROUP: Record<string, string> = {
+  "Maior aresta": "dimensions",
+  "Soma das dimensões": "dimensions",
+  "Fator peso cúbico": "dimensions",
+  "Fator peso mínimo": "dimensions",
+  "Horário de coleta": "schedule",
+  "Janela de envio": "schedule",
+  "Entrega agendada": "scheduled",
+  "Tempo máximo de entrega": "scheduledDays",
+  "Janela da entrega agendada": "scheduledWindows",
+  "Entrega aos sábados": "weekend",
+  "Entrega aos domingos": "weekend",
+  "Entrega em feriados": "weekend",
+  "Mínimo de itens": "items",
+};
+
+/** Destaca em amarelo com ⚠ o campo da política que está fora do padrão da modalidade. */
+function WarnCell({
+  divergences,
+  group,
+  children,
+}: {
+  divergences: Array<{ label: string; expected: string; actual: string }>;
+  group: string;
+  children: ReactNode;
+}) {
+  const list = divergences.filter((d) => FIELD_GROUP[d.label] === group);
+  if (!list.length) return <>{children}</>;
+  return (
+    <span
+      title={list.map((d) => `${d.label}: esperado ${d.expected}, atual ${d.actual}`).join("\n")}
+      className="inline-block rounded-md border border-warning bg-warning/20 px-2 py-1 text-warning-foreground"
+    >
+      <span aria-hidden className="mr-1 font-semibold">
+        ⚠️
+      </span>
+      {children}
+    </span>
+  );
+}
 
 function PolicyDetails({
   policy,
@@ -482,6 +525,8 @@ export function PoliciesPanel({
                   const policy = drafts.find(
                     (draft) => draft.store === s.nome && draft.modalities.includes(m),
                   );
+                  const divergences = policy ? findDivergences(policy, m) : [];
+                  const divergent = divergences.length > 0;
                   return (
                     <td key={s.nome} className="px-3 py-1.5 text-center">
                       {canEdit ? (
@@ -492,10 +537,16 @@ export function PoliciesPanel({
                             updateCell(s.nome, m, { status: e.target.value as PolicyStatus })
                           }
                           className={
-                            "w-full min-w-[140px] rounded-md border border-transparent px-2 py-1 text-xs font-medium focus:border-primary focus:outline-none " +
+                            "w-full min-w-[140px] rounded-md border px-2 py-1 text-xs font-medium focus:border-primary focus:outline-none " +
+                            (divergent ? "border-warning " : "border-transparent ") +
                             STATUS_CLASS[cell.status]
                           }
                         >
+                          {divergent ? (
+                            <option disabled value="__fora_do_padrao">
+                              ⚠ Fora do padrão: {divergences.map((d) => d.label).join(", ")}
+                            </option>
+                          ) : null}
                           {STATUS_OPTIONS.map((opt) => (
                             <option key={opt} value={opt}>
                               {STATUS_ICON[opt]} {opt}
@@ -513,6 +564,16 @@ export function PoliciesPanel({
                           {STATUS_ICON[cell.status]} {cell.status}
                         </span>
                       )}
+                      {divergent ? (
+                        <p
+                          className="mt-1 rounded-md bg-warning/20 px-2 py-1 text-left text-[11px] font-medium text-warning-foreground"
+                          title={divergences
+                            .map((d) => `${d.label}: esperado ${d.expected}, atual ${d.actual}`)
+                            .join("\n")}
+                        >
+                          ⚠ Fora do padrão: {divergences.map((d) => d.label).join(", ")}
+                        </p>
+                      ) : null}
                       {m === "Pequenos Volumes" ? (
                         <input
                           aria-label={`Preço base de ${m} em ${s.nome}`}
@@ -596,10 +657,25 @@ export function PoliciesPanel({
                   {shownStores.map((store) => {
                     const policy = selectedPolicyDrafts.find((item) => item.store === store.nome);
                     const tariffLink = policy ? tariffLinks[policy.id] : null;
+                    const divergences =
+                      policy && selectedModality ? findDivergences(policy, selectedModality) : [];
                     return (
                       <tr key={store.nome} className="border-t border-border align-top">
                         <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold">
                           {store.nome}
+                          {divergences.length ? (
+                            <div className="mt-1 space-y-1">
+                              {divergences.map((d) => (
+                                <p
+                                  key={d.label}
+                                  className="rounded-md bg-warning/20 px-2 py-1 text-[11px] font-medium text-warning-foreground"
+                                >
+                                  ⚠ {d.label}: esperado <strong>{d.expected}</strong>, atual{" "}
+                                  <strong>{d.actual}</strong>
+                                </p>
+                              ))}
+                            </div>
+                          ) : null}
                         </td>
                         {policy ? (
                           <>
@@ -618,22 +694,26 @@ export function PoliciesPanel({
                             </td>
                             {usesScheduledDelivery ? (
                               <>
-                                <td className="px-3 py-2">
-                                  <span
-                                    className={
-                                      "inline-flex rounded-full px-2 py-0.5 font-semibold " +
-                                      (policy.scheduledDelivery.enabled
-                                        ? "bg-success/15 text-success"
-                                        : "bg-muted text-muted-foreground")
-                                    }
-                                  >
-                                    {policy.scheduledDelivery.enabled ? "Ativa" : "Desativada"}
-                                  </span>
+                                <td className="whitespace-nowrap px-3 py-2">
+                                  <WarnCell divergences={divergences} group="scheduled">
+                                    <span
+                                      className={
+                                        "inline-flex rounded-full px-2 py-0.5 font-semibold " +
+                                        (policy.scheduledDelivery.enabled
+                                          ? "bg-success/15 text-success"
+                                          : "bg-muted text-muted-foreground")
+                                      }
+                                    >
+                                      {policy.scheduledDelivery.enabled ? "Ativa" : "Desativada"}
+                                    </span>
+                                  </WarnCell>
                                 </td>
                                 <td className="whitespace-nowrap px-3 py-2">
-                                  {policy.scheduledDelivery.enabled
-                                    ? `${policy.scheduledDelivery.maxDays} dia(s)`
-                                    : "—"}
+                                  <WarnCell divergences={divergences} group="scheduledDays">
+                                    {policy.scheduledDelivery.enabled
+                                      ? `${policy.scheduledDelivery.maxDays} dia(s)`
+                                      : "—"}
+                                  </WarnCell>
                                 </td>
                                 <td className="whitespace-nowrap px-3 py-2">
                                   {policy.scheduledDelivery.enabled &&
@@ -642,43 +722,49 @@ export function PoliciesPanel({
                                     : "—"}
                                 </td>
                                 <td className="min-w-[240px] max-w-[360px] px-3 py-2">
-                                  {policy.scheduledDelivery.enabled &&
-                                  policy.scheduledDelivery.windows.length ? (
-                                    <div className="space-y-1">
-                                      {policy.scheduledDelivery.windows.map((window) => (
-                                        <div
-                                          key={window.id}
-                                          className="rounded border border-border bg-muted/20 px-2 py-1 leading-tight"
-                                        >
-                                          <span className="font-medium">{window.days}</span>
-                                          <span className="block text-muted-foreground">
-                                            {window.start}-{window.end}
-                                            {policy.scheduledDelivery.capacityEnabled
-                                              ? ` · ${window.capacity} ${policy.scheduledDelivery.unit}`
-                                              : ""}
-                                            {window.additional > 0
-                                              ? ` · +R$ ${window.additional.toFixed(2)}`
-                                              : ""}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    "—"
-                                  )}
+                                  <WarnCell divergences={divergences} group="scheduledWindows">
+                                    {policy.scheduledDelivery.enabled &&
+                                    policy.scheduledDelivery.windows.length ? (
+                                      <div className="space-y-1">
+                                        {policy.scheduledDelivery.windows.map((window) => (
+                                          <div
+                                            key={window.id}
+                                            className="rounded border border-border bg-muted/20 px-2 py-1 leading-tight"
+                                          >
+                                            <span className="font-medium">{window.days}</span>
+                                            <span className="block text-muted-foreground">
+                                              {window.start}-{window.end}
+                                              {policy.scheduledDelivery.capacityEnabled
+                                                ? ` · ${window.capacity} ${policy.scheduledDelivery.unit}`
+                                                : ""}
+                                              {window.additional > 0
+                                                ? ` · +R$ ${window.additional.toFixed(2)}`
+                                                : ""}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      "—"
+                                    )}
+                                  </WarnCell>
                                 </td>
                               </>
                             ) : null}
                             <td className="px-3 py-2">
-                              Soma {policy.dimensions.sumOfDimensions} · Aresta{" "}
-                              {policy.dimensions.largestEdge} · Cúbico{" "}
-                              {policy.dimensions.cubicWeightFactor} · Mínimo{" "}
-                              {policy.dimensions.minimumWeightFactor}
+                              <WarnCell divergences={divergences} group="dimensions">
+                                Soma {policy.dimensions.sumOfDimensions} · Aresta{" "}
+                                {policy.dimensions.largestEdge} · Cúbico{" "}
+                                {policy.dimensions.cubicWeightFactor} · Mínimo{" "}
+                                {policy.dimensions.minimumWeightFactor}
+                              </WarnCell>
                             </td>
                             <td className="px-3 py-2">
-                              Sáb. {policy.weekend.saturday ? "Sim" : "Não"} · Dom.{" "}
-                              {policy.weekend.sunday ? "Sim" : "Não"} · Feriados{" "}
-                              {policy.weekend.holidays ? "Sim" : "Não"}
+                              <WarnCell divergences={divergences} group="weekend">
+                                Sáb. {policy.weekend.saturday ? "Sim" : "Não"} · Dom.{" "}
+                                {policy.weekend.sunday ? "Sim" : "Não"} · Feriados{" "}
+                                {policy.weekend.holidays ? "Sim" : "Não"}
+                              </WarnCell>
                             </td>
                             <td className="px-3 py-2">
                               {policy.pickup.enabled
@@ -686,22 +772,24 @@ export function PoliciesPanel({
                                 : "Não associada"}
                             </td>
                             <td className="px-3 py-2">
-                              <span className="font-semibold">
-                                {policy.scheduleMode === "janela"
-                                  ? "Janela de envio"
-                                  : "Horário de coleta"}
-                              </span>
-                              <span className="mt-1 block">
-                                {policy.scheduleMode === "janela"
-                                  ? policy.shippingWindows
-                                      .map(
-                                        (window) => `${window.day}: ${window.start}-${window.end}`,
-                                      )
-                                      .join("; ") || "—"
-                                  : policy.pickupTimes
-                                      .map((pickup) => `${pickup.day}: ${pickup.time}`)
-                                      .join("; ") || "—"}
-                              </span>
+                              <WarnCell divergences={divergences} group="schedule">
+                                <span className="font-semibold">
+                                  {policy.scheduleMode === "janela"
+                                    ? "Janela de envio"
+                                    : "Horário de coleta"}
+                                </span>
+                                <span className="mt-1 block">
+                                  {policy.scheduleMode === "janela"
+                                    ? policy.shippingWindows
+                                        .map(
+                                          (window) => `${window.day}: ${window.start}-${window.end}`,
+                                        )
+                                        .join("; ") || "—"
+                                    : policy.pickupTimes
+                                        .map((pickup) => `${pickup.day}: ${pickup.time}`)
+                                        .join("; ") || "—"}
+                                </span>
+                              </WarnCell>
                             </td>
                             {canEdit ? (
                               <td className="px-3 py-2">
