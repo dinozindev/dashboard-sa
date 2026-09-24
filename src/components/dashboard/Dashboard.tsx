@@ -29,7 +29,7 @@ import {
 import { availableStoreNames, liveStores, storeRegionOf, useLive } from "@/lib/freight/live";
 import { BAND_ORDER } from "@/lib/freight/palette";
 import { brl, calcPrice, kg } from "@/lib/freight/pricing";
-import { distanceKm, polygonsAtPoint } from "@/lib/freight/geo";
+import { distanceKm, pointInPolygon, polygonsAtPoint } from "@/lib/freight/geo";
 import { HOLIDAYS } from "@/lib/freight/schedule";
 import { statePolygonsFor } from "@/lib/freight/state-polygons";
 import { SHIPPING_POLICY_DEFINITIONS } from "@/lib/freight/policies";
@@ -358,6 +358,17 @@ export default function Dashboard() {
     return [...names, ...extra];
   }, [live]);
 
+  /** Modalidades de retira: as 5 padrão + personalizadas usadas em políticas de Retira */
+  const pickupModalityOptions = useMemo(() => {
+    const names = SHIPPING_POLICY_DEFINITIONS.filter((d) => d.name.startsWith("Retira") || d.name === "Saldo Borderô").map((d) => d.name);
+    const extra = new Set<string>();
+    for (const draft of live?.drafts ?? []) {
+      if (draft.policyType !== "Retira") continue;
+      for (const m of draft.modalities) if (!names.includes(m)) extra.add(m);
+    }
+    return [...names, ...extra];
+  }, [live]);
+
   /** Faixas de peso aplicáveis a um polígono, considerando a modalidade escolhida */
   const bandsOf = (rec: PolygonRecord | undefined | null) => {
     if (!rec) return undefined;
@@ -508,6 +519,40 @@ export default function Dashboard() {
     return map;
   }, [live, modalityFilter]);
 
+  /** Todas as tabelas de retira enviadas (uma linha por loja × modalidade). */
+  const pickupTablesList = useMemo(() => {
+    if (!live) return [];
+    const rows: Array<{
+      id: string;
+      store: string;
+      modality: string;
+      polygon: string | null;
+      table: string;
+      price: number | null;
+      time: string | null;
+    }> = [];
+    for (const table of live.snapshot.freightTables) {
+      if (!table.policyClientId) continue;
+      const draft = live.drafts.find((d) => d.id === table.policyClientId);
+      if (!draft) continue;
+      if (draft.policyType !== "Retira" && !table.polygonName) continue;
+      for (const m of draft.modalities.length ? draft.modalities : ["—"]) {
+        if (modalityFilter !== "todas" && m !== modalityFilter) continue;
+        const first = table.bands?.[0];
+        rows.push({
+          id: `${table.id}-${m}`,
+          store: table.store,
+          modality: m,
+          polygon: table.polygonName ?? null,
+          table: table.name,
+          price: first?.amc ?? null,
+          time: (first?.time as string | null | undefined) ?? null,
+        });
+      }
+    }
+    return rows.sort((a, b) => a.store.localeCompare(b.store) || a.modality.localeCompare(b.modality));
+  }, [live, modalityFilter]);
+
   /**
    * Ranking de distância entre o ponto clicado e TODAS as lojas exibidas
    * (haversine, em linha reta). A primeira da lista é a mais próxima.
@@ -534,8 +579,20 @@ export default function Dashboard() {
   }, [isPickup, point, pickupStores, live]);
 
   const nearestPickupStore = pickupRanking[0] ?? null;
-
-
+  const pickupStateForPoint = useMemo(() => {
+    if (!isPickup || !point) return null;
+    const match = activeStatePolygons.find((polygon) =>
+      pointInPolygon(point.lng, point.lat, { geom: polygon.geom } as PolygonRecord),
+    );
+    return match?.uf ?? null;
+  }, [activeStatePolygons, isPickup, point]);
+  const sameStatePickupStores = useMemo(() => {
+    if (!nearestPickupStore || !pickupStateForPoint) return [];
+    return pickupRanking.filter(
+      (store) =>
+        store.region === pickupStateForPoint && store.name !== nearestPickupStore.name,
+    );
+  }, [nearestPickupStore, pickupRanking, pickupStateForPoint]);
 
   // ============================================================================
   // EVENT HANDLERS
@@ -869,7 +926,23 @@ export default function Dashboard() {
                 ))}
               </select>
             </label>
-          ) : null}
+          ) : (
+            <label className="field-label">
+              Modalidade de retira
+              <select
+                className="input mt-1 w-56"
+                value={modalityFilter}
+                onChange={(e) => setModalityFilter(e.target.value)}
+              >
+                <option value="todas">Todas as modalidades de retira</option>
+                {pickupModalityOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="field-label">
             Peso simulado (kg)
@@ -939,22 +1012,24 @@ export default function Dashboard() {
 
           <div className="space-y-4">
             <Legend stores={shownStores} />
-            <div className="surface p-3">
-              <p className="eyebrow mb-2">
-                Status de atendimento
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {(mounted ? shownStores : []).map((s) => (
-                  <StatusBadge
-                    key={s}
-                    store={s}
-                    modality={modality}
-                    now={now}
-                    holidays={HOLIDAYS}
-                  />
-                ))}
+            {!isPickup ? (
+              <div className="surface p-3">
+                <p className="eyebrow mb-2">
+                  Status de atendimento
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(mounted ? shownStores : []).map((s) => (
+                    <StatusBadge
+                      key={s}
+                      store={s}
+                      modality={modality}
+                      now={now}
+                      holidays={HOLIDAYS}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
             {isPickup ? (
               <>
                 {activeStatePolygons.length === 0 ? (
@@ -964,7 +1039,7 @@ export default function Dashboard() {
                     para exibir a área de retira — nenhum contorno é desenhado por aproximação.
                   </p>
                 ) : null}
-                {activeStatePolygons.length ? (
+                {false && activeStatePolygons.length ? (
                   <div className="surface p-3">
                     <p className="eyebrow mb-2">
                       Frete da retira
@@ -1012,14 +1087,14 @@ export default function Dashboard() {
                         km
                       </strong>
                     </p>
-                    <div className="mt-3">
+                    {/* <div className="mt-3">
                       <ScheduleGrid store={nearestPickupStore.name} modality="Retira" />
-                    </div>
-                    {pickupRanking.length > 1 ? (
+                    </div> */}
+                    {sameStatePickupStores.length ? (
                       <div className="mt-3 border-t border-border pt-3">
-                        <p className="eyebrow mb-2">Distância até as demais lojas</p>
+                        <p className="eyebrow mb-2">Distância até as lojas deste estado</p>
                         <ul className="space-y-1">
-                          {pickupRanking.slice(1).map((s) => (
+                          {sameStatePickupStores.map((s) => (
                             <li
                               key={s.name}
                               className="flex items-center justify-between gap-2 text-xs"
@@ -1042,6 +1117,40 @@ export default function Dashboard() {
                     a loja de retirada mais próxima e seus horários.
                   </p>
                 )}
+                <div className="surface p-3">
+                  <p className="eyebrow mb-2">
+                    {modalityFilter === "todas"
+                      ? "Tabelas de retira enviadas"
+                      : `Valor de ${modalityFilter} por loja`}
+                  </p>
+                  {pickupTablesList.length ? (
+                    <ul className="space-y-2">
+                      {pickupTablesList.map((r) => (
+                        <li key={r.id} className="rounded-lg border border-border p-2 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold">{r.store}</span>
+                            <span className="tabular-nums font-medium">
+                              {r.price != null ? brl(r.price) : "—"}
+                            </span>
+                          </div>
+                          <div className="text-muted-foreground">
+                            {r.modality}
+                            {r.polygon ? ` · ${r.polygon}` : ""}
+                            {r.time ? ` · prazo ${r.time}` : ""}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground opacity-70">
+                            Tabela: {r.table}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhuma tabela de retira enviada
+                      {modalityFilter === "todas" ? "" : " para esta modalidade"}.
+                    </p>
+                  )}
+                </div>
               </>
             ) : point ? (
               <div className="surface p-3">

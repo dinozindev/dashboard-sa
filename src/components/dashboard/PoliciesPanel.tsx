@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /** Agrupa cada campo padrão na coluna correspondente da tabela de visualização. */
 const FIELD_GROUP: Record<string, string> = {
@@ -543,8 +544,8 @@ export function PoliciesPanel({
                           }
                         >
                           {divergent ? (
-                            <option disabled value="__fora_do_padrao">
-                              ⚠ Fora do padrão: {divergences.map((d) => d.label).join(", ")}
+                            <option disabled value="__fora_do_padrao" className="text-warning-foreground">
+                              ⚠ Fora do padrão
                             </option>
                           ) : null}
                           {STATUS_OPTIONS.map((opt) => (
@@ -566,12 +567,12 @@ export function PoliciesPanel({
                       )}
                       {divergent ? (
                         <p
-                          className="mt-1 rounded-md bg-warning/20 px-2 py-1 text-left text-[11px] font-medium text-warning-foreground"
+                          className="mt-1 w-full rounded-md bg-warning/20 px-2 py-1 text-center text-[11px] font-medium text-warning-foreground"
                           title={divergences
                             .map((d) => `${d.label}: esperado ${d.expected}, atual ${d.actual}`)
                             .join("\n")}
                         >
-                          ⚠ Fora do padrão: {divergences.map((d) => d.label).join(", ")}
+                          ⚠ Fora do padrão
                         </p>
                       ) : null}
                       {m === "Pequenos Volumes" ? (
@@ -646,9 +647,19 @@ export function PoliciesPanel({
                         <th className="px-3 py-2">Janelas agendadas</th>
                       </>
                     ) : null}
-                    <th className="px-3 py-2">Dimensões</th>
+                    {selectedModality === "Pequenos Volumes" ? (
+                      <th className="px-3 py-2">Dimensões</th>
+                    ) : null}
                     <th className="px-3 py-2">Fim de semana/feriados</th>
-                    <th className="px-3 py-2">Retirada</th>
+                    {[
+                      "Retira Fácil",
+                      "Clique & Retira",
+                      "Retira Televendas",
+                      "Retira Imediata",
+                      "Saldo Borderô",
+                    ].includes(selectedModality ?? "") ? (
+                      <th className="px-3 py-2">Retirada</th>
+                    ) : null}
                     <th className="px-3 py-2">Horários</th>
                     {canEdit ? <th className="px-3 py-2">Ações</th> : null}
                   </tr>
@@ -662,20 +673,51 @@ export function PoliciesPanel({
                     return (
                       <tr key={store.nome} className="border-t border-border align-top">
                         <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold">
-                          {store.nome}
-                          {divergences.length ? (
-                            <div className="mt-1 space-y-1">
-                              {divergences.map((d) => (
-                                <p
-                                  key={d.label}
-                                  className="rounded-md bg-warning/20 px-2 py-1 text-[11px] font-medium text-warning-foreground"
+                          <div className="flex items-center gap-2">
+                            <span>{store.nome}</span>
+                            {divergences.length ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    aria-label="Problemas encontrados"
+                                    className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-warning/20 text-[12px] font-bold text-warning-foreground transition hover:bg-warning/30"
+                                  >
+                                    <span aria-hidden>⚠</span>
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  side="right"
+                                  align="start"
+                                  className="w-80 p-3"
                                 >
-                                  ⚠ {d.label}: esperado <strong>{d.expected}</strong>, atual{" "}
-                                  <strong>{d.actual}</strong>
-                                </p>
-                              ))}
-                            </div>
-                          ) : null}
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-semibold text-warning-foreground">
+                                      Problemas encontrados
+                                    </p>
+                                    <ul className="space-y-2 text-xs">
+                                      {divergences.map((d) => (
+                                        <li
+                                          key={d.label}
+                                          className="rounded-md border border-warning/40 bg-warning/10 p-2"
+                                        >
+                                          <div className="font-medium text-warning-foreground">
+                                            {d.label}
+                                          </div>
+                                          <div className="mt-1 text-muted-foreground">
+                                            Esperado: {d.expected}
+                                          </div>
+                                          <div className="text-muted-foreground">
+                                            Atual: {d.actual}
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            ) : null}
+                          </div>
                         </td>
                         {policy ? (
                           <>
@@ -751,14 +793,16 @@ export function PoliciesPanel({
                                 </td>
                               </>
                             ) : null}
-                            <td className="px-3 py-2">
-                              <WarnCell divergences={divergences} group="dimensions">
-                                Soma {policy.dimensions.sumOfDimensions} · Aresta{" "}
-                                {policy.dimensions.largestEdge} · Cúbico{" "}
-                                {policy.dimensions.cubicWeightFactor} · Mínimo{" "}
-                                {policy.dimensions.minimumWeightFactor}
-                              </WarnCell>
-                            </td>
+                            {selectedModality === "Pequenos Volumes" ? (
+                              <td className="px-3 py-2">
+                                <WarnCell divergences={divergences} group="dimensions">
+                                  Soma {policy.dimensions.sumOfDimensions} · Aresta{" "}
+                                  {policy.dimensions.largestEdge} · Cúbico{" "}
+                                  {policy.dimensions.cubicWeightFactor} · Mínimo{" "}
+                                  {policy.dimensions.minimumWeightFactor}
+                                </WarnCell>
+                              </td>
+                            ) : null}
                             <td className="px-3 py-2">
                               <WarnCell divergences={divergences} group="weekend">
                                 Sáb. {policy.weekend.saturday ? "Sim" : "Não"} · Dom.{" "}
@@ -766,11 +810,19 @@ export function PoliciesPanel({
                                 {policy.weekend.holidays ? "Sim" : "Não"}
                               </WarnCell>
                             </td>
-                            <td className="px-3 py-2">
-                              {policy.pickup.enabled
-                                ? policy.pickup.seller || "Associada"
-                                : "Não associada"}
-                            </td>
+                            {[
+                              "Retira Fácil",
+                              "Clique & Retira",
+                              "Retira Televendas",
+                              "Retira Imediata",
+                              "Saldo Borderô",
+                            ].includes(selectedModality ?? "") ? (
+                              <td className="px-3 py-2">
+                                {policy.pickup.enabled
+                                  ? policy.pickup.seller || "Associada"
+                                  : "Não associada"}
+                              </td>
+                            ) : null}
                             <td className="px-3 py-2">
                               <WarnCell divergences={divergences} group="schedule">
                                 <span className="font-semibold">

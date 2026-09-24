@@ -86,6 +86,15 @@ const SCHEDULED_DELIVERY_MODALITIES = new Set([
   "Entrega Conforto Tarde",
 ]);
 
+const DELIVERY_MODALITIES = new Set([
+  "Pequenos Volumes",
+  "Entrega Normal",
+  "Entrega Conforto Tarde",
+  "Entrega Agendada",
+  "Entrega Conforto Manhã",
+  "ENTREGA TLV_VA_FRETE GRATIS",
+]);
+
 let seq = 0;
 const uid = () => `row-${++seq}`;
 
@@ -393,6 +402,11 @@ export function PolicyFormPanel({
   const [policyType, setPolicyType] = useState<PolicyType>("Entrega");
   const [sched, setSched] = useState<ScheduledDelivery>(() => emptyScheduledDelivery());
   const [modality, setModality] = useState("");
+
+  const isModalityAllowed = (value: string) => {
+    if (policyType === "Entrega") return DELIVERY_MODALITIES.has(value);
+    return !DELIVERY_MODALITIES.has(value);
+  };
   const [sumOfDimensions, setSum] = useState(0);
   const [largestEdge, setEdge] = useState(0);
   const [cubic, setCubic] = useState(0);
@@ -464,6 +478,12 @@ export function PolicyFormPanel({
   useEffect(() => {
     setMode(usesShippingWindow ? "janela" : "coleta");
   }, [usesShippingWindow]);
+
+  useEffect(() => {
+    if (modality && !isModalityAllowed(modality)) {
+      setModality("");
+    }
+  }, [modality, policyType]);
 
   useEffect(() => {
     setStep((cur) => Math.min(cur, steps.length - 1));
@@ -540,6 +560,13 @@ export function PolicyFormPanel({
       if (!store) errs.push("Selecione a loja/seller da política.");
       if (!policyType) errs.push("Selecione o tipo da política (Entrega ou Retira).");
       if (!modality) errs.push("Selecione uma modalidade para associar a esta política.");
+      if (modality && !isModalityAllowed(modality)) {
+        errs.push(
+          policyType === "Entrega"
+            ? "Para Entrega, selecione uma das modalidades permitidas para entrega."
+            : "Para Retira, selecione uma das modalidades permitidas para retirada.",
+        );
+      }
     }
     if (key === "dimensoes" && modality === "Pequenos Volumes") {
       if (sumOfDimensions <= 0 && largestEdge <= 0 && cubic <= 0 && minWeight <= 0) {
@@ -853,12 +880,13 @@ export function PolicyFormPanel({
             <div className="grid gap-2 sm:grid-cols-2">
               {modalityList.map((m) => {
                 const lockedOut = replicating && m !== replicaModality;
+                const disabledByType = !isModalityAllowed(m);
                 return (
                   <div
                     key={m}
                     className={
                       "flex items-center gap-2 text-xs" +
-                      (lockedOut ? " opacity-50" : "")
+                      (lockedOut || disabledByType ? " opacity-50" : "")
                     }
                   >
                     <label className="flex items-center gap-2">
@@ -866,13 +894,14 @@ export function PolicyFormPanel({
                         type="radio"
                         name="shipping-policy-modality"
                         checked={modality === m}
-                        disabled={editingLocked || lockedOut}
+                        disabled={editingLocked || lockedOut || disabledByType}
                         onChange={() => setModality(m)}
                       />
                       <span>
                         {m}
                         {shippingPolicyDefinition(m)?.id ? ` · ID ${shippingPolicyDefinition(m)?.id}` : null}
                         {lockedOut ? " · fixa na replicação" : null}
+                        {disabledByType ? ` · ${policyType === "Entrega" ? "somente Retira" : "somente Entrega"}` : null}
                       </span>
                     </label>
                   </div>
@@ -966,7 +995,7 @@ export function PolicyFormPanel({
                 <button
                   type="button"
                   className="btn-ghost text-xs"
-                  disabled={policyType === "Retira" || uploading}
+                  disabled={uploading}
                   onClick={() => tariffFileRef.current?.click()}
                 >
                   {uploading ? "Lendo planilha…" : "Fazer upload de nova tabela (.xlsx/.xls)"}

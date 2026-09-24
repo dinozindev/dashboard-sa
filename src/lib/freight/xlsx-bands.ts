@@ -17,11 +17,45 @@ const norm = (s: string) =>
     .replace(/[^a-z0-9]/g, "");
 
 const HEADER_ALIASES: Record<string, string[]> = {
-  ws: ["weightstart", "pesoinicial", "pesoinicio", "inicio", "pesode", "iniciodofaixa", "iniciofaixa"],
-  we: ["weightend", "pesofinal", "fim", "pesoate", "fimdaFaixa".toLowerCase(), "fimfaixa"],
-  amc: ["absolutemoneycost", "valorfixo", "preco", "preobase", "precobase", "precopadrao"],
+  ws: [
+    "weightstart",
+    "weight_start",
+    "pesoinicial",
+    "pesoinicio",
+    "inicio",
+    "pesode",
+    "iniciodofaixa",
+    "iniciofaixa",
+    "tablestart",
+    "starttable",
+    "weightstartkg",
+  ],
+  we: [
+    "weightend",
+    "weight_end",
+    "pesofinal",
+    "fim",
+    "pesoate",
+    "fimdaFaixa".toLowerCase(),
+    "fimfaixa",
+    "tableend",
+    "endtable",
+    "weightendkg",
+  ],
+  amc: [
+    "absolutemoneycost",
+    "absolute_money_cost",
+    "valorfixo",
+    "preco",
+    "preobase",
+    "precobase",
+    "precopadrao",
+    "custoabsoluto",
+    "custofixo",
+  ],
   pew: [
     "pricebyextraweight",
+    "price_by_extra_weight",
     "adicionalporkg",
     "adicionalkg",
     "valoradicional",
@@ -29,14 +63,28 @@ const HEADER_ALIASES: Record<string, string[]> = {
     "precoextra",
     "adicionalexcedente",
     "precoportkgadicional",
+    "precoadicional",
+    "precoextraweight",
   ],
   pct: ["pricepercent", "percentual", "percentualpreco"],
   maxVol: ["maxvolume", "volumemaximo", "maxvol"],
-  time: ["timecost", "prazo"],
+  time: ["timecost", "prazo", "prazoentrega", "tempo"],
   country: ["country", "pais"],
   minIns: ["minimumvalueinsurance", "valorminimoseguro", "seguro"],
-  polygonName: ["polygonname", "nomepoligono", "nomedopoligono", "poligono"],
+  polygonName: [
+    "polygonname",
+    "nomepoligono",
+    "nomedopoligono",
+    "poligono",
+    "nomepoligonoestado",
+    "poligonoestado",
+  ],
 };
+
+function matchesAlias(value: string, aliases: string[]) {
+  const normalized = norm(value);
+  return aliases.some((alias) => normalized === alias || normalized.includes(alias));
+}
 
 function toNumber(v: unknown): number | null {
   if (v == null || v === "") return null;
@@ -70,14 +118,16 @@ export async function parseFreightSheet(data: ArrayBuffer): Promise<FreightSheet
 
   let headerIdx = -1;
   let colMap: Record<string, number> | null = null;
-  const limit = Math.min(rows.length, 25);
+  const limit = Math.min(rows.length, 200);
   for (let i = 0; i < limit; i++) {
-    const cells = (rows[i] ?? []).map((c) => (c == null ? "" : norm(String(c))));
+    const cells = rows[i] ?? [];
     const map: Record<string, number> = {};
-    cells.forEach((c, ci) => {
+    cells.forEach((cellValue, ci) => {
+      if (cellValue == null || cellValue === "") return;
+      const text = String(cellValue);
       for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
-        if (map[field] != null) return;
-        if (aliases.includes(c)) map[field] = ci;
+        if (map[field] != null) continue;
+        if (matchesAlias(text, aliases)) map[field] = ci;
       }
     });
     if (map["ws"] != null && map["we"] != null && (map["amc"] != null || map["pew"] != null)) {
