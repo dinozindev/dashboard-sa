@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Load freight dashboard data through paginated, smaller Data API queries instead of one database JSON aggregation, because thousands of geometries can exceed query time limits.
