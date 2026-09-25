@@ -368,10 +368,10 @@ export function PoliciesPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="section-title text-lg">Políticas de envio por loja</h2>
-          <p className="text-xs text-muted-foreground">
+          {/* <p className="text-xs text-muted-foreground">
             Matriz loja × modalidade. Altere o status de cada modalidade direto na tabela. Estados:
             Ativa 🟢 · Inativa 🔴 · Em construção 🛠 · Não informada ⚪.
-          </p>
+          </p> */}
         </div>
         <div className="flex flex-wrap gap-2">
           {/* <button

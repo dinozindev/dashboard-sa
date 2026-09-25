@@ -569,7 +569,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                   </span>
                   <button
                     type="button"
-                    className="text-xs text-destructive hover:underline disabled:opacity-50"
+                    className="text-xs text-destructive hover:underline disabled:opacity-50 cursor-pointer"
                     disabled={removingStore !== null}
                     onClick={() => void removeStore(s.name)}
                   >
@@ -758,10 +758,10 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     <button
-                      className="text-[11px] text-danger underline hover:bg-danger/10"
+                      className="text-[11px] text-danger hover:underline cursor-pointer"
                       onClick={() => void handleRemoveCollection(c.store, c.kind)}
                     >
-                      remover
+                      Remover
                     </button>
                   </td>
                 </tr>
@@ -825,10 +825,10 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                   </td> */}
                   <td className="px-2 py-1.5 text-right">
                     <button
-                      className="text-[11px] text-danger underline hover:bg-danger/10"
+                      className="text-[11px] text-danger hover:underline cursor-pointer"
                       onClick={() => void handleRemoveState(s.uf, s.name)}
                     >
-                      remover
+                      Remover
                     </button>
                   </td>
                 </tr>

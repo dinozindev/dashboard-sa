@@ -471,7 +471,7 @@ export function PickupPointsPanel() {
                           </div>
                           <button
                             type="button"
-                            className="text-xs font-semibold text-primary"
+                            className="text-xs font-semibold text-primary hover:underline cursor-pointer"
                             onClick={() => setSelectedId(p.id)}
                           >
                             Editar
