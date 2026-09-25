@@ -8,10 +8,11 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { refreshLive, useLive } from "@/lib/freight/live";
+import { refreshLive, storeRegionOf, useLive } from "@/lib/freight/live";
 import { savePickupPoint } from "@/lib/freight/remote.functions";
 import { logAudit } from "@/lib/freight/audit-log";
 import type { FreightSnapshotDto } from "@/lib/freight/remote.functions";
+import { UF_NAMES } from "@/lib/freight/types";
 
 type PickupPoint = FreightSnapshotDto["pickupPoints"][number];
 type Hours = PickupPoint["hours"];
@@ -321,6 +322,17 @@ export function PickupPointsPanel() {
   );
   const visible =
     storeFilter === null ? points : points.filter((p) => storeFilter.includes(p.store));
+  const stateGroups = useMemo(() => {
+    const groups = new Map<string, Map<string, PickupPoint[]>>();
+    for (const point of visible) {
+      const state = storeRegionOf(live, point.store) ?? "Sem estado";
+      const storesInState = groups.get(state) ?? new Map<string, PickupPoint[]>();
+      const storePoints = storesInState.get(point.store) ?? [];
+      storesInState.set(point.store, [...storePoints, point]);
+      groups.set(state, storesInState);
+    }
+    return Array.from(groups.entries()).sort(([left], [right]) => left.localeCompare(right));
+  }, [live, visible]);
   const selected = points.find((p) => p.id === selectedId) ?? null;
 
   if (selected) {
@@ -336,7 +348,7 @@ export function PickupPointsPanel() {
             Cada loja cadastrada tem dois pontos de retirada criados automaticamente.
           </p>
         </div>
-        <div className="field-label relative ml-auto">
+        {/* <div className="field-label relative ml-auto">
           Loja
           <button
             type="button"
@@ -401,64 +413,82 @@ export function PickupPointsPanel() {
               </div>
             </div>
           ) : null}
-        </div>
+        </div> */}
       </div>
 
-      <div className="surface overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2">ID</th>
-              <th className="px-4 py-2">Nome</th>
-              <th className="px-4 py-2">Loja</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Tags</th>
-              <th className="px-4 py-2">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((p) => (
-              <tr key={p.id} className="border-t border-border">
-                <td className="px-4 py-2 font-mono text-[11px] text-muted-foreground">
-                  {p.id.slice(0, 8)}
-                </td>
-                <td className="px-4 py-2">{p.name}</td>
-                <td className="px-4 py-2">{p.store}</td>
-                <td className="px-4 py-2">
-                  <span
-                    className={
-                      "rounded-full px-2 py-0.5 text-[11px] font-semibold " +
-                      (p.active
-                        ? "bg-success/15 text-success-foreground"
-                        : "bg-muted text-muted-foreground")
-                    }
-                  >
-                    {p.active ? "Ativo" : "Inativo"}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-xs text-muted-foreground">
-                  {p.tags?.length ? p.tags.join(", ") : "—"}
-                </td>
-                <td className="px-4 py-2">
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-primary"
-                    onClick={() => setSelectedId(p.id)}
-                  >
-                    Editar
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {!visible.length ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-xs text-muted-foreground">
-                  Nenhum ponto de retirada. Cadastre uma loja na aba "Envio de Polígonos".
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+      <div className="surface divide-y divide-border p-0">
+        {stateGroups.map(([state, storesInState]) => (
+          <details key={state} className="group">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2">
+                <span className="text-muted-foreground transition-transform group-open:rotate-90" aria-hidden>
+                  ▸
+                </span>
+                {state === "Sem estado" ? state : `${state} - ${UF_NAMES[state] ?? state}`}
+              </span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {storesInState.size} {storesInState.size === 1 ? "loja" : "lojas"}
+              </span>
+            </summary>
+            <div className="space-y-2 bg-muted/20 px-3 pb-3 pt-1">
+              {Array.from(storesInState.entries())
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([store, storePoints]) => (
+                  <details key={store} className="rounded-md border border-border bg-card">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                      <span className="flex items-center gap-2">
+                        <span className="text-muted-foreground" aria-hidden>
+                          ▸
+                        </span>
+                        {store}
+                      </span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {storePoints.length} {storePoints.length === 1 ? "ponto" : "pontos"}
+                      </span>
+                    </summary>
+                    <div className="divide-y divide-border border-t border-border">
+                      {storePoints.map((p) => (
+                        <div
+                          key={p.id}
+                          className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-medium">{p.name}</div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <span className="font-mono">{p.id.slice(0, 8)}</span>
+                              <span
+                                className={
+                                  "rounded-full px-2 py-0.5 font-semibold " +
+                                  (p.active
+                                    ? "bg-success/15 text-success-foreground"
+                                    : "bg-muted text-muted-foreground")
+                                }
+                              >
+                                {p.active ? "Ativo" : "Inativo"}
+                              </span>
+                              <span>{p.tags?.length ? p.tags.join(", ") : "Sem tags"}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-primary"
+                            onClick={() => setSelectedId(p.id)}
+                          >
+                            Editar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+            </div>
+          </details>
+        ))}
+        {!visible.length ? (
+          <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+            Nenhum ponto de retirada. Cadastre uma loja na aba "Envio de Polígonos".
+          </div>
+        ) : null}
       </div>
     </section>
   );
