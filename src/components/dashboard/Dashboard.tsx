@@ -351,10 +351,16 @@ export default function Dashboard() {
     return map;
   }, [live, modalityFilter]);
 
+  /** Modalidades de Entrega no filtro da tabela de frete: Pequenos Volumes + as que têm "Entrega" no nome. */
+  const isFreightTableModality = (name: string) =>
+    name === "Pequenos Volumes" || /entrega/i.test(name);
+
   /** Modalidades disponíveis para o filtro (padrão + personalizadas do banco) */
   const modalityOptions = useMemo(() => {
-    const names = SHIPPING_POLICY_DEFINITIONS.map((d) => d.name);
-    const extra = (live?.snapshot.customModalities ?? []).filter((m) => !names.includes(m));
+    const names = SHIPPING_POLICY_DEFINITIONS.map((d) => d.name).filter(isFreightTableModality);
+    const extra = (live?.snapshot.customModalities ?? []).filter(
+      (m) => !names.includes(m) && isFreightTableModality(m),
+    );
     return [...names, ...extra];
   }, [live]);
 
