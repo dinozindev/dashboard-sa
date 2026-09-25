@@ -14,7 +14,7 @@
  *   [State] → [useMemo derivations] → [Componentes] → [Events] → [setState]
  */
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import {
   dataset,
@@ -109,11 +109,100 @@ function polygonLabel(rec: { id: string }): string {
   return parts[parts.length - 1] || rec.id;
 }
 
+type OpenFilter = "region" | "stores" | "bands" | "modality" | "modalityFilter" | null;
+
+// Hook para detectar cliques fora de um elemento
+function useOnClickOutside<T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
+  handler: (event: MouseEvent) => void
+) {
+  useEffect(() => {
+    const listener = (event: MouseEvent) => {
+      if (!ref.current || ref.current.contains(event.target as Node)) {
+        return;
+      }
+      handler(event);
+    };
+    document.addEventListener("mousedown", listener);
+    return () => document.removeEventListener("mousedown", listener);
+  }, [ref, handler]);
+}
+
+function FilterMenu({
+  label,
+  display,
+  open,
+  onToggle,
+  onClose,
+  triggerClass = "w-56",
+  menuClass = "w-72",
+  children,
+}: {
+  label: string;
+  display: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  triggerClass?: string;
+  menuClass?: string;
+  children: ReactNode;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useOnClickOutside(menuRef, () => {
+    if (open) onClose();
+  });
+
+  return (
+    <div className="field-label relative" ref={menuRef}>
+      {label}
+      <button
+        type="button"
+        className={`input mt-1 flex items-center justify-between gap-2 text-left ${triggerClass}`}
+        onClick={onToggle}
+      >
+        <span className="truncate text-foreground">{display}</span>
+        <span aria-hidden>▾</span>
+      </button>
+      {open ? (
+        <div
+          className={`absolute left-0 top-full z-[1200] mt-1 rounded-xl border border-border bg-card p-2 shadow-lg ${menuClass}`}
+        >
+          <div className="max-h-64 space-y-0.5 overflow-y-auto">{children}</div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FilterOption({
+  active,
+  onSelect,
+  children,
+}: {
+  active?: boolean;
+  onSelect: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={
+        "flex w-full items-center rounded-md px-1.5 py-1 text-left text-xs hover:bg-muted " +
+        (active ? "bg-muted font-semibold text-foreground" : "text-foreground")
+      }
+      onClick={onSelect}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function Dashboard() {
   // ============================================================================
   // ESTADO: Abas principais
   // ============================================================================
-  
+
   /** Aba ativa: "operacao" (mapa, tarifas) ou "politicas" (regras) */
   const [tab, setTab] = useState<TabKey>("operacao");
   const [editingPolicy, setEditingPolicy] = useState<ShippingPolicyDraft | null>(null);
@@ -134,21 +223,32 @@ export default function Dashboard() {
   // ============================================================================
   // ESTADO: Filtros geográficos
   // ============================================================================
-  
+
   /** Região selecionada: "SP", "RJ", ou "Todas" */
   const [region, setRegion] = useState<RegionSelection>("Todas");
-  
+
   /** Lojas visíveis no mapa (subset dos nomes disponíveis) */
   const [visibleStores, setVisibleStores] = useState<string[]>([...STORE_NAMES]);
 
   /** Lojas para comparação (modo comparativo) */
   const [compareStores, setCompareStores] = useState<string[]>([]);
 
-  /** Dropdown de lojas está aberto? */
-  const [storesOpen, setStoresOpen] = useState(false);
+  /** Qual dropdown de filtro está aberto */
+  /** Qual dropdown de filtro está aberto */
+  const [openFilter, setOpenFilter] = useState<OpenFilter>(null);
+  const toggleFilter = (key: Exclude<OpenFilter, null>) =>
+    setOpenFilter((cur) => (cur === key ? null : key));
 
-  /** Dropdown de faixas de raio está aberto? */
-  const [bandsOpen, setBandsOpen] = useState(false);
+  // Refs para fechar os filtros manuais (Lojas e Faixas de raio) ao clicar fora
+  const storesFilterRef = useRef<HTMLDivElement>(null);
+  useOnClickOutside(storesFilterRef, () => {
+    if (openFilter === "stores") setOpenFilter(null);
+  });
+
+  const bandsFilterRef = useRef<HTMLDivElement>(null);
+  useOnClickOutside(bandsFilterRef, () => {
+    if (openFilter === "bands") setOpenFilter(null);
+  });
 
   /**
    * Estado compartilhado do banco: lojas, políticas, polígonos, tabelas.
@@ -240,11 +340,11 @@ export default function Dashboard() {
             : storePolygons.filter((polygon) => polygon.radius === smallestRadius);
         const center = basePolygons.length
           ? [
-              basePolygons.reduce((total, polygon) => total + polygon.center[0], 0) /
-                basePolygons.length,
-              basePolygons.reduce((total, polygon) => total + polygon.center[1], 0) /
-                basePolygons.length,
-            ] as [number, number]
+            basePolygons.reduce((total, polygon) => total + polygon.center[0], 0) /
+            basePolygons.length,
+            basePolygons.reduce((total, polygon) => total + polygon.center[1], 0) /
+            basePolygons.length,
+          ] as [number, number]
           : ((store.center ?? [0, 0]) as [number, number]);
         return { name: store.name, note: store.note ?? "", center };
       }),
@@ -254,42 +354,42 @@ export default function Dashboard() {
   // ============================================================================
   // ESTADO: Filtros de conteúdo
   // ============================================================================
-  
+
   /** Bandas de peso visíveis no mapa (filtro de visualização) */
   const [bands, setBands] = useState<string[]>([...BAND_ORDER]);
-  
+
   /** Texto de busca por ID ou município */
   const [search, setSearch] = useState("");
 
   // ============================================================================
   // ESTADO: Simulação de preço
   // ============================================================================
-  
+
   /** Peso para cálculo de preço (kg, padrão: 10) */
   const [weight, setWeight] = useState(10);
-  
+
   /** Modalidade: "Entrega" (despache) ou "Retira" (retirada) */
   const [modality, setModality] = useState<Modality>("Entrega");
-  
+
   /** ID do polígono selecionado (null = nenhum selecionado) */
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  
+
   /** Index da banda selecionada no simulador (null = nenhuma) */
   const [bandIndex, setBandIndex] = useState<number | null>(null);
-  
+
   /** Overrides de preço (simulação): { "id#bandIndex": WeightBand } */
   const [overrides, setOverrides] = useState<Overrides>({});
 
   // ============================================================================
   // ESTADO: Interação com mapa
   // ============================================================================
-  
+
   /** Ponto clicado no mapa [lng, lat] (null = nenhum) */
   const [point, setPoint] = useState<{ lng: number; lat: number } | null>(null);
-  
+
   /** Data/hora atual para cálculos (simulação de tempo) */
   const [now, setNow] = useState<Date>(() => new Date("2026-01-01T00:00:00Z"));
-  
+
   /** Só renderiza status dependentes de horário após montar (evita mismatch SSR) */
   const [mounted, setMounted] = useState(false);
 
@@ -298,14 +398,14 @@ export default function Dashboard() {
     setNow(new Date());
     setMounted(true);
   }, []);
-  
+
   // Flag: modalidade é retira (útil para filtros condicionais)
   const isPickup = modality === "Retira";
 
   // ============================================================================
   // ESTADO DERIVADO: Filtragem de polígonos
   // ============================================================================
-  
+
   /**
    * Polígonos visíveis após aplicar todos os filtros:
    * - Loja está em shownStores
@@ -395,10 +495,10 @@ export default function Dashboard() {
     () => visible.find((p) => p.id === selectedId) ?? null,
     [visible, selectedId],
   );
-  
+
   /** Tabela de tarifas do polígono selecionado (com overrides) */
   const selectedBands = bandsOf(selected);
-  
+
   /** Resultado do cálculo de preço para o polígono selecionado + peso atual */
   const selectedPrice = calcPrice(selectedBands, weight);
 
@@ -437,18 +537,18 @@ export default function Dashboard() {
       ...(isPickup
         ? []
         : [
-            {
-              label: "Menor frete",
-              value: prices.length ? brl(Math.min(...prices)) : "—",
-              tone: "low" as const,
-            },
-            {
-              label: "Maior frete",
-              value: prices.length ? brl(Math.max(...prices)) : "—",
-              tone: "high" as const,
-            },
-            { label: "Frete médio", value: prices.length ? brl(avg) : "—" },
-          ]),
+          {
+            label: "Menor frete",
+            value: prices.length ? brl(Math.min(...prices)) : "—",
+            tone: "low" as const,
+          },
+          {
+            label: "Maior frete",
+            value: prices.length ? brl(Math.max(...prices)) : "—",
+            tone: "high" as const,
+          },
+          { label: "Frete médio", value: prices.length ? brl(avg) : "—" },
+        ]),
     ];
   }, [visible, weight, overrides, shownStores, isPickup, tariffIdxByStore]);
 
@@ -458,13 +558,11 @@ export default function Dashboard() {
    */
   const tooltipFor = (rec: PolygonRecord) => {
     const r = calcPrice(bandsOf(rec), weight);
-    return `<strong>${polygonLabel(rec)}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${
-      rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
-    }${
-      isPickup
+    return `<strong>${polygonLabel(rec)}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
+      }${isPickup
         ? "Modalidade Retira — sem custo de frete"
         : `Peso ${kg(weight)}: <strong>${r.ok ? brl(r.total) : "Regra não encontrada"}</strong>`
-    }`;
+      }`;
   };
 
   /**
@@ -472,7 +570,7 @@ export default function Dashboard() {
    * Pode ter mais de um se se sobrepõem.
    */
   const allMatches = point ? polygonsAtPoint(point.lng, point.lat, visible) : [];
-  
+
   /** Se compareStores definidos, filtra matches a apenas aquelas lojas. */
   const matches =
     compareStores.length > 0
@@ -567,17 +665,17 @@ export default function Dashboard() {
     if (!isPickup || !point) return [];
     const refs = live
       ? liveStores(live).map((s) => ({
-          name: s.name,
-          note: s.note ?? "",
-          region: s.region,
-          center: (s.center ?? [0, 0]) as [number, number],
-        }))
+        name: s.name,
+        note: s.note ?? "",
+        region: s.region,
+        center: (s.center ?? [0, 0]) as [number, number],
+      }))
       : staticStoreRefs.map((s) => ({
-          name: s.name,
-          note: s.note,
-          region: STORE_REGION[s.name],
-          center: s.center,
-        }));
+        name: s.name,
+        note: s.note,
+        region: STORE_REGION[s.name],
+        center: s.center,
+      }));
     return refs
       .filter((s) => pickupStores.includes(s.name))
       .map((s) => ({ ...s, km: distanceKm([point.lng, point.lat], s.center) }))
@@ -610,7 +708,7 @@ export default function Dashboard() {
    */
   const toggleStore = (s: StoreName) =>
     setVisibleStores((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
-  
+
   /**
    * Toggle loja para modo de comparação.
    * Se compara com ponto clicado.
@@ -662,7 +760,7 @@ export default function Dashboard() {
                 Painel OMS
               </h1>
               <p className="mt-0.5 text-sm text-white/75">
-                Áreas de entrega, tarifas por faixa de peso e capacidade operacional 
+                Áreas de entrega, tarifas por faixa de peso e capacidade operacional
               </p>
             </div>
           </div>
@@ -764,83 +862,91 @@ export default function Dashboard() {
         {tab === "auditoria" ? <AuditHistoryPanel /> : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
-        {/* Filtros */}
-        <section className="surface flex flex-wrap items-end gap-3 p-3.5">
-          <label className="field-label">
-            Regional
-            <select
-              className="input mt-1 w-32"
-              value={region}
-              onChange={(e) => {
-                const r = e.target.value as RegionSelection;
-                setRegion(r);
-                setVisibleStores(
-                  r === "Todas"
-                    ? activeStores
-                    : activeStores.filter((st) => (storeRegionOf(live, st) ?? STORE_REGION[st as StoreName]) === r),
-                );
-                setCompareStores([]);
-                setSelectedId(null);
-              }}
+          {/* Filtros */}
+          <section className="surface flex flex-wrap items-end gap-3 p-3.5">
+            <FilterMenu
+              label="Regional"
+              display={region}
+              open={openFilter === "region"}
+              onToggle={() => toggleFilter("region")}
+              onClose={() => setOpenFilter(null)} // <-- Adicionado
+              triggerClass="w-32"
+              menuClass="w-40"
             >
-              <option value="Todas">Todas</option>
-              {availableRegions.map((r) => (
-                <option key={r} value={r}>
+              {(["Todas", ...availableRegions] as const).map((r) => (
+                <FilterOption
+                  key={r}
+                  active={region === r}
+                  onSelect={() => {
+                    const next = r as RegionSelection;
+                    setRegion(next);
+                    setVisibleStores(
+                      next === "Todas"
+                        ? activeStores
+                        : activeStores.filter(
+                          (st) =>
+                            (storeRegionOf(live, st) ?? STORE_REGION[st as StoreName]) === next,
+                        ),
+                    );
+                    setCompareStores([]);
+                    setSelectedId(null);
+                    setOpenFilter(null);
+                  }}
+                >
                   {r}
-                </option>
+                </FilterOption>
               ))}
-            </select>
-          </label>
+            </FilterMenu>
 
-          <div className="field-label relative">
-            Lojas
-            <button
-              className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
-              onClick={() => setStoresOpen((v) => !v)}
-            >
-              <span className="truncate text-foreground">
-                {shownStores.length === 0
-                  ? "Nenhuma loja"
-                  : shownStores.length === regionStores.length
-                    ? `Todas as lojas (${regionStores.length})`
-                    : shownStores.length === 1
-                      ? shownStores[0]
-                      : `${shownStores.length} lojas selecionadas`}
-              </span>
-              <span aria-hidden>▾</span>
-            </button>
-            {storesOpen ? (
-              <div className="absolute left-0 top-full z-[1200] mt-1 w-72 rounded-xl border border-border bg-card p-2 shadow-lg">
-                <div className="mb-1 flex items-center justify-between gap-2 px-1">
-                  <span className="text-[11px]">Exibir</span>
-                  <span className="flex gap-1">
-                    <button
-                      className="btn-ghost text-[11px]"
-                      onClick={() => setVisibleStores(regionStores)}
-                    >
-                      Todas
-                    </button>
-                    <button className="btn-ghost text-[11px]" onClick={() => setVisibleStores([])}>
-                      Nenhuma
-                    </button>
-                  </span>
-                </div>
-                <div className="max-h-64 space-y-0.5 overflow-y-auto">
-                  {regionStores.map((s) => (
-                    <div
-                      key={s}
-                      className="flex items-center justify-between gap-2 rounded-md px-1.5 py-1 hover:bg-muted"
-                    >
-                      <label className="flex flex-1 items-center gap-2 text-xs text-foreground">
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 accent-primary"
-                          checked={visibleStores.includes(s)}
-                          onChange={() => toggleStore(s as StoreName)}
-                        />
-                        {s}
-                      </label>
-                      {/* <label className="flex items-center gap-1 text-[10px]">
+            <div className="field-label relative" ref={storesFilterRef}> {/* <-- Adicionado */}
+              Lojas
+              <button
+                className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
+                onClick={() => toggleFilter("stores")}
+              >
+                <span className="truncate text-foreground">
+                  {shownStores.length === 0
+                    ? "Nenhuma loja"
+                    : shownStores.length === regionStores.length
+                      ? `Todas as lojas (${regionStores.length})`
+                      : shownStores.length === 1
+                        ? shownStores[0]
+                        : `${shownStores.length} lojas selecionadas`}
+                </span>
+                <span aria-hidden>▾</span>
+              </button>
+              {openFilter === "stores" ? (
+                <div className="absolute left-0 top-full z-[1200] mt-1 w-72 rounded-xl border border-border bg-card p-2 shadow-lg">
+                  <div className="mb-1 flex items-center justify-between gap-2 px-1">
+                    <span className="text-[11px]">Exibir</span>
+                    <span className="flex gap-1">
+                      <button
+                        className="btn-ghost text-[11px]"
+                        onClick={() => setVisibleStores(regionStores)}
+                      >
+                        Todas
+                      </button>
+                      <button className="btn-ghost text-[11px]" onClick={() => setVisibleStores([])}>
+                        Nenhuma
+                      </button>
+                    </span>
+                  </div>
+                  <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                    {regionStores.map((s) => (
+                      <div
+                        key={s}
+                        className="flex items-center justify-between gap-2 rounded-md px-1.5 py-1 hover:bg-muted"
+                      >
+                        <label className="flex flex-1 items-center gap-2 text-xs text-foreground">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 accent-primary"
+                            checked={visibleStores.includes(s)}
+                            onChange={() => toggleStore(s as StoreName)}
+                          />
+                          {s}
+                        </label>
+                        {/* <label className="flex items-center gap-1 text-[10px]">
                         <input
                           type="checkbox"
                           className="h-3 w-3 accent-primary"
@@ -849,441 +955,484 @@ export default function Dashboard() {
                         />
                         comparar
                       </label> */}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="field-label relative">
-            Faixas de raio
-            <button
-              className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
-              onClick={() => setBandsOpen((v) => !v)}
-            >
-              <span className="truncate text-foreground">
-                {bands.length === 0
-                  ? "Nenhuma faixa"
-                  : bands.length === BAND_ORDER.length
-                    ? `Todas as faixas (${BAND_ORDER.length})`
-                    : `${bands.length} faixas selecionadas`}
-              </span>
-              <span aria-hidden>▾</span>
-            </button>
-            {bandsOpen ? (
-              <div className="absolute left-0 top-full z-[1200] mt-1 w-72 rounded-xl border border-border bg-card p-2 shadow-lg">
-                <div className="mb-1 flex items-center justify-between gap-2 px-1">
-                  <span className="text-[11px]">Exibir faixas</span>
-                  <span className="flex gap-1">
-                    <button className="btn-ghost text-[11px]" onClick={() => setBands([...BAND_ORDER])}>
-                      Todas
-                    </button>
-                    <button className="btn-ghost text-[11px]" onClick={() => setBands([])}>
-                      Nenhuma
-                    </button>
-                  </span>
-                </div>
-                <div className="max-h-64 space-y-0.5 overflow-y-auto">
-                  {BAND_ORDER.map((b) => (
-                    <label
-                      key={b}
-                      className="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs text-foreground hover:bg-muted"
-                    >
-                      <input
-                        type="checkbox"
-                        className="h-3.5 w-3.5 accent-primary"
-                        checked={bands.includes(b)}
-                        onChange={() => toggleBand(b)}
-                      />
-                      {b}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <label className="field-label">
-            Modalidade
-            <select
-              className="input mt-1 w-36"
-              value={modality}
-              onChange={(e) => setModality(e.target.value as Modality)}
-            >
-              <option value="Entrega">Entrega</option>
-              <option value="Retira">Retira</option>
-            </select>
-          </label>
-
-          {!isPickup ? (
-            <label className="field-label">
-              Modalidade (tabela de frete)
-              <select
-                className="input mt-1 w-56"
-                value={modalityFilter}
-                onChange={(e) => setModalityFilter(e.target.value)}
-              >
-                <option value="todas">Tabela padrão da loja</option>
-                {modalityOptions.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <label className="field-label">
-              Modalidade de retira
-              <select
-                className="input mt-1 w-56"
-                value={modalityFilter}
-                onChange={(e) => setModalityFilter(e.target.value)}
-              >
-                <option value="todas">Todas as modalidades de retira</option>
-                {pickupModalityOptions.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          <label className="field-label">
-            Peso simulado (kg)
-            <input
-              type="number"
-              min={0}
-              step={0.5}
-              className="input mt-1 w-28"
-              value={weight}
-              onChange={(e) => setWeight(Math.max(0, Number(e.target.value)))}
-            />
-          </label>
-
-          <label className="field-label min-w-52 flex-1">
-            Buscar polígono / município
-            <input
-              className="input mt-1 w-full"
-              placeholder="Ex.: 5KM, Suzano, Vila..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
-
-          <button
-            className="btn-ghost text-xs"
-            onClick={() => {
-              setRegion("Todas");
-              setVisibleStores([...STORE_NAMES]);
-              setCompareStores([]);
-              setBands([...BAND_ORDER]);
-              setSearch("");
-              setWeight(10);
-              setSelectedId(null);
-              setPoint(null);
-            }}
-          >
-            Limpar filtros
-          </button>
-        </section>
-
-        <Kpis items={kpis} />
-
-        <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
-          <div className="overflow-hidden surface">
-            <ClientOnly
-              fallback={<div className="h-[620px] w-full animate-pulse bg-muted" />}
-            >
-              <Suspense fallback={<div className="h-[620px] w-full animate-pulse bg-muted" />}>
-                <FreightMap
-                  visible={isPickup ? [] : visible}
-                  selectedId={selectedId}
-                  tooltipFor={tooltipFor}
-                  onSelect={(rec) => {
-                    setSelectedId(rec.id);
-                    setBandIndex(null);
-                  }}
-                  onMapClick={(lng, lat) => setPoint({ lng, lat })}
-                  fitKey={`${region}|${(isPickup ? pickupStores : shownStores).join(",")}|${search}|${modality}`}
-                  pickupMode={isPickup}
-                  statePolygons={activeStatePolygons}
-                  markerStores={isPickup ? pickupStores : shownStores}
-                  markers={mapMarkers}
-                />
-              </Suspense>
-            </ClientOnly>
-          </div>
-
-          <div className="space-y-4">
-            <Legend stores={shownStores} />
-            {!isPickup ? (
-              <div className="surface p-3">
-                <p className="eyebrow mb-2">
-                  Status de atendimento
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {(mounted ? shownStores : []).map((s) => (
-                    <StatusBadge
-                      key={s}
-                      store={s}
-                      modality={modality}
-                      now={now}
-                      holidays={HOLIDAYS}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {isPickup ? (
-              <>
-                {activeStatePolygons.length === 0 ? (
-                  <p className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs font-medium text-danger">
-                    Polígono estadual não carregado. Adicione o contorno oficial de SP/RJ em
-                    <code className="mx-1">src/data/state-polygons.json</code>
-                    para exibir a área de retira — nenhum contorno é desenhado por aproximação.
-                  </p>
-                ) : null}
-                {false && activeStatePolygons.length ? (
-                  <div className="surface p-3">
-                    <p className="eyebrow mb-2">
-                      Frete da retira
-                      {modalityFilter === "todas" ? "" : ` · ${modalityFilter}`}
-                    </p>
-                    <ul className="space-y-1">
-                      {activeStatePolygons.map((s) => {
-                        const link = s.polygonName
-                          ? pickupTariffByPolygon.get(s.polygonName)
-                          : undefined;
-                        return (
-                          <li
-                            key={s.uf}
-                            className="flex items-center justify-between gap-2 text-xs"
-                          >
-                            <span className="text-muted-foreground">
-                              {s.polygonName ?? s.name}
-                            </span>
-                            <span className="tabular-nums font-medium">
-                              {link ? (link.price != null ? brl(link.price) : "—") : "Sem tabela"}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      Valor único por estado, sem adicional por peso excedente. A tabela é enviada no
-                      cadastro da política de Retira.
-                    </p>
+                      </div>
+                    ))}
                   </div>
-                ) : null}
-                {nearestPickupStore ? (
-                  <div className="surface p-3">
-                    <p className="eyebrow mb-2">Loja de retira mais próxima</p>
-                    <p className="font-display text-base font-bold text-primary">
-                      {nearestPickupStore.name}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="field-label relative" ref={bandsFilterRef}> {/* <-- Adicionado */}
+              Faixas de raio
+              <button
+                className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
+                onClick={() => toggleFilter("bands")}
+              >
+                <span className="truncate text-foreground">
+                  {bands.length === 0
+                    ? "Nenhuma faixa"
+                    : bands.length === BAND_ORDER.length
+                      ? `Todas as faixas (${BAND_ORDER.length})`
+                      : `${bands.length} faixas selecionadas`}
+                </span>
+                <span aria-hidden>▾</span>
+              </button>
+              {openFilter === "bands" ? (
+                <div className="absolute left-0 top-full z-[1200] mt-1 w-72 rounded-xl border border-border bg-card p-2 shadow-lg">
+                  <div className="mb-1 flex items-center justify-between gap-2 px-1">
+                    <span className="text-[11px]">Exibir faixas</span>
+                    <span className="flex gap-1">
+                      <button className="btn-ghost text-[11px]" onClick={() => setBands([...BAND_ORDER])}>
+                        Todas
+                      </button>
+                      <button className="btn-ghost text-[11px]" onClick={() => setBands([])}>
+                        Nenhuma
+                      </button>
+                    </span>
+                  </div>
+                  <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                    {BAND_ORDER.map((b) => (
+                      <label
+                        key={b}
+                        className="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs text-foreground hover:bg-muted"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 accent-primary"
+                          checked={bands.includes(b)}
+                          onChange={() => toggleBand(b)}
+                        />
+                        {b}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <FilterMenu
+              label="Modalidade"
+              display={modality}
+              open={openFilter === "modality"}
+              onToggle={() => toggleFilter("modality")}
+              onClose={() => setOpenFilter(null)} // <-- Adicionar esta linha
+              triggerClass="w-36"
+              menuClass="w-44"
+            >
+              {(["Entrega", "Retira"] as const).map((m) => (
+                <FilterOption
+                  key={m}
+                  active={modality === m}
+                  onSelect={() => {
+                    setModality(m);
+                    setOpenFilter(null);
+                  }}
+                >
+                  {m}
+                </FilterOption>
+              ))}
+            </FilterMenu>
+
+            {!isPickup ? (
+              <FilterMenu
+                label="Modalidade de Entrega"
+                display={modalityFilter === "todas" ? "Tabela padrão da loja" : modalityFilter}
+                open={openFilter === "modalityFilter"}
+                onToggle={() => toggleFilter("modalityFilter")}
+                onClose={() => setOpenFilter(null)} // <-- Adicionar esta linha
+                triggerClass="w-56"
+                menuClass="w-72"
+              >
+                <FilterOption
+                  active={modalityFilter === "todas"}
+                  onSelect={() => {
+                    setModalityFilter("todas");
+                    setOpenFilter(null);
+                  }}
+                >
+                  Tabela padrão da loja
+                </FilterOption>
+                {modalityOptions.map((m) => (
+                  <FilterOption
+                    key={m}
+                    active={modalityFilter === m}
+                    onSelect={() => {
+                      setModalityFilter(m);
+                      setOpenFilter(null);
+                    }}
+                  >
+                    {m}
+                  </FilterOption>
+                ))}
+              </FilterMenu>
+            ) : (
+              <FilterMenu
+                label="Modalidade de Retira"
+                display={modalityFilter === "todas" ? "Todas as modalidades de retira" : modalityFilter}
+                open={openFilter === "modalityFilter"}
+                onToggle={() => toggleFilter("modalityFilter")}
+                onClose={() => setOpenFilter(null)} // <-- Adicionar esta linha
+                triggerClass="w-56"
+                menuClass="w-72"
+              >
+                <FilterOption
+                  active={modalityFilter === "todas"}
+                  onSelect={() => {
+                    setModalityFilter("todas");
+                    setOpenFilter(null);
+                  }}
+                >
+                  Todas as modalidades de retira
+                </FilterOption>
+                {pickupModalityOptions.map((m) => (
+                  <FilterOption
+                    key={m}
+                    active={modalityFilter === m}
+                    onSelect={() => {
+                      setModalityFilter(m);
+                      setOpenFilter(null);
+                    }}
+                  >
+                    {m}
+                  </FilterOption>
+                ))}
+              </FilterMenu>
+            )}
+
+            <label className="field-label">
+              Peso simulado (kg)
+              <input
+                type="number"
+                min={0}
+                step={0.5}
+                className="input mt-1 w-28"
+                value={weight}
+                onChange={(e) => setWeight(Math.max(0, Number(e.target.value)))}
+              />
+            </label>
+
+            <label className="field-label min-w-52 flex-1">
+              Buscar polígono / município
+              <input
+                className="input mt-1 w-full"
+                placeholder="Ex.: 5KM, Suzano, Vila..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
+
+            <button
+              className="btn-ghost text-xs"
+              onClick={() => {
+                setRegion("Todas");
+                setVisibleStores([...STORE_NAMES]);
+                setCompareStores([]);
+                setBands([...BAND_ORDER]);
+                setSearch("");
+                setWeight(10);
+                setSelectedId(null);
+                setPoint(null);
+              }}
+            >
+              Limpar filtros
+            </button>
+          </section>
+
+          <Kpis items={kpis} />
+
+          <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
+            <div className="overflow-hidden surface">
+              <ClientOnly
+                fallback={<div className="h-[620px] w-full animate-pulse bg-muted" />}
+              >
+                <Suspense fallback={<div className="h-[620px] w-full animate-pulse bg-muted" />}>
+                  <FreightMap
+                    visible={isPickup ? [] : visible}
+                    selectedId={selectedId}
+                    tooltipFor={tooltipFor}
+                    onSelect={(rec) => {
+                      setSelectedId(rec.id);
+                      setBandIndex(null);
+                    }}
+                    onMapClick={(lng, lat) => setPoint({ lng, lat })}
+                    fitKey={`${region}|${(isPickup ? pickupStores : shownStores).join(",")}|${search}|${modality}`}
+                    pickupMode={isPickup}
+                    statePolygons={activeStatePolygons}
+                    markerStores={isPickup ? pickupStores : shownStores}
+                    markers={mapMarkers}
+                  />
+                </Suspense>
+              </ClientOnly>
+            </div>
+
+            <div className="space-y-4">
+              <Legend stores={shownStores} />
+              {!isPickup ? (
+                <div className="surface p-3">
+                  <p className="eyebrow mb-2">
+                    Status de atendimento
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(mounted ? shownStores : []).map((s) => (
+                      <StatusBadge
+                        key={s}
+                        store={s}
+                        modality={modality}
+                        now={now}
+                        holidays={HOLIDAYS}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {isPickup ? (
+                <>
+                  {activeStatePolygons.length === 0 ? (
+                    <p className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs font-medium text-danger">
+                      Polígono estadual não carregado. Adicione o contorno oficial de SP/RJ em
+                      <code className="mx-1">src/data/state-polygons.json</code>
+                      para exibir a área de retira — nenhum contorno é desenhado por aproximação.
                     </p>
-                    <p className="text-xs text-muted-foreground">{nearestPickupStore.note}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Distância em linha reta do ponto clicado:{" "}
-                      <strong className="tabular-nums">
-                        {nearestPickupStore.km.toLocaleString("pt-BR", {
-                          maximumFractionDigits: 1,
-                        })}{" "}
-                        km
-                      </strong>
-                    </p>
-                    {/* <div className="mt-3">
-                      <ScheduleGrid store={nearestPickupStore.name} modality="Retira" />
-                    </div> */}
-                    {sameStatePickupStores.length ? (
-                      <div className="mt-3 border-t border-border pt-3">
-                        <p className="eyebrow mb-2">Distância até as lojas deste estado</p>
-                        <ul className="space-y-1">
-                          {sameStatePickupStores.map((s) => (
+                  ) : null}
+                  {false && activeStatePolygons.length ? (
+                    <div className="surface p-3">
+                      <p className="eyebrow mb-2">
+                        Frete da retira
+                        {modalityFilter === "todas" ? "" : ` · ${modalityFilter}`}
+                      </p>
+                      <ul className="space-y-1">
+                        {activeStatePolygons.map((s) => {
+                          const link = s.polygonName
+                            ? pickupTariffByPolygon.get(s.polygonName)
+                            : undefined;
+                          return (
                             <li
-                              key={s.name}
+                              key={s.uf}
                               className="flex items-center justify-between gap-2 text-xs"
                             >
                               <span className="text-muted-foreground">
-                                {s.name} <span className="opacity-60">({s.region})</span>
+                                {s.polygonName ?? s.name}
                               </span>
                               <span className="tabular-nums font-medium">
-                                {s.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km
+                                {link ? (link.price != null ? brl(link.price) : "—") : "Sem tabela"}
                               </span>
                             </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
-                    Modalidade <strong>Retira</strong>: clique em qualquer ponto do estado para ver
-                    a loja de retirada mais próxima e seus horários.
-                  </p>
-                )}
-                <div className="surface p-3">
-                  <p className="eyebrow mb-2">
-                    {modalityFilter === "todas"
-                      ? "Tabelas de retira enviadas"
-                      : `Valor de ${modalityFilter} por loja`}
-                  </p>
-                  {pickupTablesList.length ? (
-                    <ul className="space-y-2">
-                      {pickupTablesList.map((r) => (
-                        <li key={r.id} className="rounded-lg border border-border p-2 text-xs">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold">{r.store}</span>
-                            <span className="tabular-nums font-medium">
-                              {r.price != null ? brl(r.price) : "—"}
-                            </span>
-                          </div>
-                          <div className="text-muted-foreground">
-                            {r.modality}
-                            {r.polygon ? ` · ${r.polygon}` : ""}
-                            {r.time ? ` · prazo ${r.time}` : ""}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground opacity-70">
-                            Tabela: {r.table}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                          );
+                        })}
+                      </ul>
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Valor único por estado, sem adicional por peso excedente. A tabela é enviada no
+                        cadastro da política de Retira.
+                      </p>
+                    </div>
+                  ) : null}
+                  {nearestPickupStore ? (
+                    <div className="surface p-3">
+                      <p className="eyebrow mb-2">Loja de retira mais próxima</p>
+                      <p className="font-display text-base font-bold text-primary">
+                        {nearestPickupStore.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{nearestPickupStore.note}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Distância em linha reta do ponto clicado:{" "}
+                        <strong className="tabular-nums">
+                          {nearestPickupStore.km.toLocaleString("pt-BR", {
+                            maximumFractionDigits: 1,
+                          })}{" "}
+                          km
+                        </strong>
+                      </p>
+                      {/* <div className="mt-3">
+                      <ScheduleGrid store={nearestPickupStore.name} modality="Retira" />
+                    </div> */}
+                      {sameStatePickupStores.length ? (
+                        <div className="mt-3 border-t border-border pt-3">
+                          <p className="eyebrow mb-2">Distância até as lojas deste estado</p>
+                          <ul className="space-y-1">
+                            {sameStatePickupStores.map((s) => (
+                              <li
+                                key={s.name}
+                                className="flex items-center justify-between gap-2 text-xs"
+                              >
+                                <span className="text-muted-foreground">
+                                  {s.name} <span className="opacity-60">({s.region})</span>
+                                </span>
+                                <span className="tabular-nums font-medium">
+                                  {s.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Nenhuma tabela de retira enviada
-                      {modalityFilter === "todas" ? "" : " para esta modalidade"}.
+                    <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
+                      Modalidade <strong>Retira</strong>: clique em qualquer ponto do estado para ver
+                      a loja de retirada mais próxima e seus horários.
                     </p>
                   )}
-                </div>
-              </>
-            ) : point ? (
-              <div className="surface p-3">
-                <p className="eyebrow mb-2">
-                  Comparação no ponto clicado
-                </p>
-                <ComparePanel
-                  point={point}
-                  matches={matches}
-                  weight={weight}
-                  overrides={overrides}
-                  modality={modality}
-                  now={now}
-                  holidays={HOLIDAYS}
-                  bandsFor={(rec) => bandsOf(rec)}
-                />
-              </div>
-            ) : (
-              <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
-                Clique em qualquer ponto do mapa para comparar o preço entre as lojas em áreas de
-                sobreposição.
-              </p>
-            )}
-          </div>
-        </section>
-
-        {/* Detalhe do polígono selecionado */}
-        <section className="surface p-4">
-          {selected ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="section-title text-lg">{polygonLabel(selected)}</h2>
-                  <p className="text-xs text-muted-foreground">
-                    {selected.store} · faixa {selected.band} ({selected.rMin}–{selected.rMax} km) ·
-                    {" "}
-                    {selected.areaKm2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km²
-                    {selected.district ? ` · ${selected.district}` : ""}
-                    {selected.uf ? `/${selected.uf}` : ""}
-                  </p>
-                </div>
-                {hasSimulation(selected, overrides) ? (
-                  <button
-                    className="btn-ghost text-xs"
-                    onClick={() =>
-                      setOverrides(
-                        Object.fromEntries(
-                          Object.entries(overrides).filter(
-                            ([k]) => !k.startsWith(`${selected.id}#`),
-                          ),
-                        ),
-                      )
-                    }
-                  >
-                    Restaurar faixas originais
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-                <TariffTable
-                  bands={selectedBands}
-                  activeIndex={bandIndex}
-                  onPickBand={setBandIndex}
-                />
-                {isPickup ? (
-                  <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-                    Modalidade <strong>Retira</strong>: sem custo de frete para o cliente — valores
-                    de frete não são exibidos.
+                  <div className="surface p-3">
+                    <p className="eyebrow mb-2">
+                      {modalityFilter === "todas"
+                        ? "Tabelas de retira enviadas"
+                        : `Valor de ${modalityFilter} por loja`}
+                    </p>
+                    {pickupTablesList.length ? (
+                      <ul className="space-y-2">
+                        {pickupTablesList.map((r) => (
+                          <li key={r.id} className="rounded-lg border border-border p-2 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold">{r.store}</span>
+                              <span className="tabular-nums font-medium">
+                                {r.price != null ? brl(r.price) : "—"}
+                              </span>
+                            </div>
+                            <div className="text-muted-foreground">
+                              {r.modality}
+                              {r.polygon ? ` · ${r.polygon}` : ""}
+                              {r.time ? ` · prazo ${r.time}` : ""}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground opacity-70">
+                              Tabela: {r.table}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Nenhuma tabela de retira enviada
+                        {modalityFilter === "todas" ? "" : " para esta modalidade"}.
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <PriceBreakdownCard
-                    bands={selectedBands}
+                </>
+              ) : point ? (
+                <div className="surface p-3">
+                  <p className="eyebrow mb-2">
+                    Comparação no ponto clicado
+                  </p>
+                  <ComparePanel
+                    point={point}
+                    matches={matches}
                     weight={weight}
-                    simulated={hasSimulation(selected, overrides)}
+                    overrides={overrides}
+                    modality={modality}
+                    now={now}
+                    holidays={HOLIDAYS}
+                    bandsFor={(rec) => bandsOf(rec)}
                   />
-                )}
-              </div>
-
-              {selectedBands ? (
-                <RuleSimulator
-                  rec={selected}
-                  bands={selectedBands}
-                  index={bandIndex}
-                  onIndex={setBandIndex}
-                  overrides={overrides}
-                  setOverrides={setOverrides}
-                />
-              ) : null}
-
-              {isPickup ? null : (
-                <p className="text-xs text-muted-foreground">
-                  Preço para {kg(weight)}:{" "}
-                  <strong>
-                    {selectedPrice.ok ? brl(selectedPrice.total) : selectedPrice.message}
-                  </strong>
+                </div>
+              ) : (
+                <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
+                  Clique em qualquer ponto do mapa para comparar o preço entre as lojas em áreas de
+                  sobreposição.
                 </p>
               )}
             </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <span className="bg-accent-gradient flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold text-white shadow-brand">
-                ↖
-              </span>
-              <p className="font-display text-sm font-bold text-primary">
-                Nenhum polígono selecionado
-              </p>
-              <p className="max-w-md text-xs text-muted-foreground">
-                Selecione um polígono no mapa para ver a tabela de faixas de peso, a composição do
-                preço e o simulador de regras.
-              </p>
-            </div>
-          )}
-        </section>
+          </section>
 
-        {/* Horários e capacidade */}
-        <section className="w-full">
-          <div className="w-full space-y-3 surface p-4">
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="section-title text-lg">Horários de atendimento</h2>
-            </div>
-            {shownStores.map((s) => (
-              <ScheduleGrid key={s} store={s} modality={modality} />
-            ))}
-          </div>
+          {/* Detalhe do polígono selecionado */}
+          <section className="surface p-4">
+            {selected ? (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="section-title text-lg">{polygonLabel(selected)}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {selected.store} · faixa {selected.band} ({selected.rMin}–{selected.rMax} km) ·
+                      {" "}
+                      {selected.areaKm2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km²
+                      {selected.district ? ` · ${selected.district}` : ""}
+                      {selected.uf ? `/${selected.uf}` : ""}
+                    </p>
+                  </div>
+                  {hasSimulation(selected, overrides) ? (
+                    <button
+                      className="btn-ghost text-xs"
+                      onClick={() =>
+                        setOverrides(
+                          Object.fromEntries(
+                            Object.entries(overrides).filter(
+                              ([k]) => !k.startsWith(`${selected.id}#`),
+                            ),
+                          ),
+                        )
+                      }
+                    >
+                      Restaurar faixas originais
+                    </button>
+                  ) : null}
+                </div>
 
-        </section>
+                <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+                  <TariffTable
+                    bands={selectedBands}
+                    activeIndex={bandIndex}
+                    onPickBand={setBandIndex}
+                  />
+                  {isPickup ? (
+                    <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+                      Modalidade <strong>Retira</strong>: sem custo de frete para o cliente — valores
+                      de frete não são exibidos.
+                    </div>
+                  ) : (
+                    <PriceBreakdownCard
+                      bands={selectedBands}
+                      weight={weight}
+                      simulated={hasSimulation(selected, overrides)}
+                    />
+                  )}
+                </div>
+
+                {selectedBands ? (
+                  <RuleSimulator
+                    rec={selected}
+                    bands={selectedBands}
+                    index={bandIndex}
+                    onIndex={setBandIndex}
+                    overrides={overrides}
+                    setOverrides={setOverrides}
+                  />
+                ) : null}
+
+                {isPickup ? null : (
+                  <p className="text-xs text-muted-foreground">
+                    Preço para {kg(weight)}:{" "}
+                    <strong>
+                      {selectedPrice.ok ? brl(selectedPrice.total) : selectedPrice.message}
+                    </strong>
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <span className="bg-accent-gradient flex h-10 w-10 items-center justify-center rounded-full text-lg font-bold text-white shadow-brand">
+                  ↖
+                </span>
+                <p className="font-display text-sm font-bold text-primary">
+                  Nenhum polígono selecionado
+                </p>
+                <p className="max-w-md text-xs text-muted-foreground">
+                  Selecione um polígono no mapa para ver a tabela de faixas de peso, a composição do
+                  preço e o simulador de regras.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* Horários e capacidade */}
+          <section className="w-full">
+            <div className="w-full space-y-3 surface p-4">
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="section-title text-lg">Horários de atendimento</h2>
+              </div>
+              {shownStores.map((s) => (
+                <ScheduleGrid key={s} store={s} modality={modality} />
+              ))}
+            </div>
+
+          </section>
         </div>
 
 

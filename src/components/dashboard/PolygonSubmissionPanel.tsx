@@ -794,7 +794,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                 <th className="px-2 py-2 text-left">Nome do polígono</th>
                 {/* <th className="px-2 py-2 text-right">Partes</th> */}
                 <th className="px-2 py-2 text-right">Pontos</th>
-                <th className="px-2 py-2 text-left">Substituir</th>
+                {/* <th className="px-2 py-2 text-left">Substituir</th> */}
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
@@ -811,7 +811,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                       .reduce((t, poly) => t + poly.reduce((r, ring) => r + ring.length, 0), 0)
                       .toLocaleString("pt-BR")}
                   </td>
-                  <td className="px-2 py-1.5">
+                  {/* <td className="px-2 py-1.5">
                     <input
                       type="file"
                       accept=".geojson,.json,application/geo+json,application/json"
@@ -822,7 +822,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
                         void handleStateFile(s.uf, s.name, f);
                       }}
                     />
-                  </td>
+                  </td> */}
                   <td className="px-2 py-1.5 text-right">
                     <button
                       className="text-[11px] text-danger underline hover:bg-danger/10"
