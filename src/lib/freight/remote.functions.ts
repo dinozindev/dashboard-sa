@@ -34,6 +34,20 @@ function fail(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
 
+type QueryResult<T> = { data: T | null; error: { message: string } | null };
+
+function isTemporaryDatabaseError(error: { message: string } | null): boolean {
+  if (!error) return false;
+  return /\b(520|521|522|523|524)\b|connection timed out|web server is down|statement timeout/i.test(error.message);
+}
+
+async function runRead<T>(query: () => PromiseLike<QueryResult<T>>): Promise<QueryResult<T>> {
+  const first = await query();
+  if (!isTemporaryDatabaseError(first.error)) return first;
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  return query();
+}
+
 // ============================================================================
 // SNAPSHOT (consultas menores para evitar timeout ao montar um JSON geográfico gigante no banco)
 // ============================================================================
@@ -114,29 +128,38 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
   async (): Promise<FreightSnapshotDto> => {
     const supabase = publicClient();
 
-    const [
-      storesResult,
-      policiesResult,
-      tablesResult,
-      bandsResult,
-      statePolygonsResult,
-      pickupPointsResult,
-      dockLinksResult,
-      policyCellsResult,
-      modalitiesResult,
-      auditResult,
-    ] = await Promise.all([
+    // Consultas deliberadamente sequenciais: abrir muitas conexões simultâneas
+    // derrubava o pooler durante a retomada do banco (erros 520/522).
+    const storesResult = await runRead(() =>
       supabase.from("stores").select("id,name,region,note,center_lng,center_lat").order("name"),
+    );
+    const policiesResult = await runRead(() =>
       supabase.from("policies").select("id,client_id,store_id,data,created_at,updated_at").order("created_at"),
+    );
+    const tablesResult = await runRead(() =>
       supabase.from("freight_tables").select("id,store_id,policy_id,name,source,file_name,polygon_name"),
+    );
+    const bandsResult = await runRead(() =>
       supabase.from("freight_bands").select("table_id,band_index,ws,we,amc,pew,pct,max_vol,time,country,min_ins").order("band_index"),
+    );
+    const statePolygonsResult = await runRead(() =>
       supabase.from("state_polygons_geo").select("uf,name,polygon_name,source,updated_at,geojson").order("uf"),
+    );
+    const pickupPointsResult = await runRead(() =>
       supabase.from("pickup_points").select("id,store_id,kind,name,active,instructions,address,tags,hours"),
+    );
+    const dockLinksResult = await runRead(() =>
       supabase.from("policy_docks").select("store_id,dock,policy_id"),
+    );
+    const policyCellsResult = await runRead(() =>
       supabase.from("policy_cells").select("store,modality,status,note"),
+    );
+    const modalitiesResult = await runRead(() =>
       supabase.from("modalities").select("name,position").order("position").order("name"),
+    );
+    const auditResult = await runRead(() =>
       supabase.from("audit_log").select("id,at,store,module,field,before,after,action,description").order("at", { ascending: false }).limit(2000),
-    ]);
+    );
 
     for (const result of [
       storesResult,
@@ -171,11 +194,13 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
     }> = [];
     const pageSize = 750;
     for (let from = 0; ; from += pageSize) {
-      const { data, error } = await supabase
-        .from("polygons_geo")
-        .select("client_id,store_id,policy_id,district,uf,band,radius,r_min,r_max,area_km2,center_lng,center_lat,kind,geojson")
-        .order("id")
-        .range(from, from + pageSize - 1);
+      const { data, error } = await runRead(() =>
+        supabase
+          .from("polygons_geo")
+          .select("client_id,store_id,policy_id,district,uf,band,radius,r_min,r_max,area_km2,center_lng,center_lat,kind,geojson")
+          .order("id")
+          .range(from, from + pageSize - 1),
+      );
       fail(error);
       const page = data ?? [];
       polygonRows.push(...page);
