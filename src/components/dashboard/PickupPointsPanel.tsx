@@ -460,7 +460,7 @@ export function PickupPointsPanel() {
                                 className={
                                   "rounded-full px-2 py-0.5 font-semibold " +
                                   (p.active
-                                    ? "bg-success/15 text-success-foreground"
+                                    ? "bg-success/15 text-success"
                                     : "bg-muted text-muted-foreground")
                                 }
                               >
