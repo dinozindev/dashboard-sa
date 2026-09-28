@@ -20,7 +20,15 @@ export type StoreName =
   | "Guadalupe"
   | "Jacarepagua"
   | "Mesquita"
-  | "Niteroi";
+  | "Niteroi"
+  | "Uberlandia"
+  | "Contagem"
+  | "Cariacica"
+  | "Londrina"
+  | "Aparecida de Goiania"
+  | "Brasilia Sul"
+  | "Taguatinga"
+  | "Varzea Grande";
 
 /** Seleção de loja: nome específico ou "Ambas" (quando aplicável) */
 export type StoreSelection = StoreName | "Ambas";

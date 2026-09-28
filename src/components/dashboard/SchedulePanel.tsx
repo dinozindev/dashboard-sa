@@ -68,7 +68,7 @@ export function PolicySchedulePanel({
                 : draft.pickupTimes.map((p) => ({
                     id: p.id,
                     day: p.day,
-                    value: `às ${p.time}`,
+                    value: `até às ${p.time}`,
                   }));
               const summary = entries.length
                 ? entries.map((e) => `${e.day} ${e.value}`).join(" · ")
@@ -77,9 +77,9 @@ export function PolicySchedulePanel({
                 <span
                   key={draft.id}
                   className={draft.active ? "badge-open" : "badge-closed"}
-                  title={`${label}: ${summary}`}
+                  title={`${summary}`}
                 >
-                  <strong>{store}</strong> · {label} · {summary}
+                  <strong>{store}</strong> ·  {summary}
                   {modalityFilter === "todas" && draft.modalities.length
                     ? ` (${draft.modalities.join(", ")})`
                     : ""}
