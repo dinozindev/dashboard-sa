@@ -34,8 +34,22 @@ function fail(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
 
+type QueryResult<T> = { data: T | null; error: { message: string } | null };
+
+function isTemporaryDatabaseError(error: { message: string } | null): boolean {
+  if (!error) return false;
+  return /\b(520|521|522|523|524)\b|connection timed out|web server is down|statement timeout/i.test(error.message);
+}
+
+async function runRead<T>(query: () => PromiseLike<QueryResult<T>>): Promise<QueryResult<T>> {
+  const first = await query();
+  if (!isTemporaryDatabaseError(first.error)) return first;
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+  return query();
+}
+
 // ============================================================================
-// SNAPSHOT (leitura única de tudo que o painel precisa)
+// SNAPSHOT (consultas menores para evitar timeout ao montar um JSON geográfico gigante no banco)
 // ============================================================================
 
 export interface FreightSnapshotDto {
@@ -113,9 +127,195 @@ export interface FreightSnapshotDto {
 export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
   async (): Promise<FreightSnapshotDto> => {
     const supabase = publicClient();
-    const { data, error } = await supabase.rpc("get_freight_snapshot");
-    fail(error);
-    return data as FreightSnapshotDto;
+
+    // Consultas deliberadamente sequenciais: abrir muitas conexões simultâneas
+    // derrubava o pooler durante a retomada do banco (erros 520/522).
+    const storesResult = await runRead(() =>
+      supabase.from("stores").select("id,name,region,note,center_lng,center_lat").order("name"),
+    );
+    const policiesResult = await runRead(() =>
+      supabase.from("policies").select("id,client_id,store_id,data,created_at,updated_at").order("created_at"),
+    );
+    const tablesResult = await runRead(() =>
+      supabase.from("freight_tables").select("id,store_id,policy_id,name,source,file_name,polygon_name"),
+    );
+    const bandsResult = await runRead(() =>
+      supabase.from("freight_bands").select("table_id,band_index,ws,we,amc,pew,pct,max_vol,time,country,min_ins").order("band_index"),
+    );
+    const statePolygonsResult = await runRead(() =>
+      supabase.from("state_polygons_geo").select("uf,name,polygon_name,source,updated_at,geojson").order("uf"),
+    );
+    const pickupPointsResult = await runRead(() =>
+      supabase.from("pickup_points").select("id,store_id,kind,name,active,instructions,address,tags,hours"),
+    );
+    const dockLinksResult = await runRead(() =>
+      supabase.from("policy_docks").select("store_id,dock,policy_id"),
+    );
+    const policyCellsResult = await runRead(() =>
+      supabase.from("policy_cells").select("store,modality,status,note"),
+    );
+    const modalitiesResult = await runRead(() =>
+      supabase.from("modalities").select("name,position").order("position").order("name"),
+    );
+    const auditResult = await runRead(() =>
+      supabase.from("audit_log").select("id,at,store,module,field,before,after,action,description").order("at", { ascending: false }).limit(2000),
+    );
+
+    for (const result of [
+      storesResult,
+      policiesResult,
+      tablesResult,
+      bandsResult,
+      statePolygonsResult,
+      pickupPointsResult,
+      dockLinksResult,
+      policyCellsResult,
+      modalitiesResult,
+      auditResult,
+    ]) fail(result.error);
+
+    // O Data API limita respostas a 1.000 linhas. Paginar também reduz o pico de
+    // memória e evita que milhares de geometrias sejam agregadas numa única SQL.
+    const polygonRows: Array<{
+      client_id: string | null;
+      store_id: string | null;
+      policy_id: string | null;
+      district: string | null;
+      uf: string | null;
+      band: string | null;
+      radius: number | null;
+      r_min: number | null;
+      r_max: number | null;
+      area_km2: number | null;
+      center_lng: number | null;
+      center_lat: number | null;
+      kind: string | null;
+      geojson: unknown;
+    }> = [];
+    const pageSize = 750;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await runRead(() =>
+        supabase
+          .from("polygons_geo")
+          .select("client_id,store_id,policy_id,district,uf,band,radius,r_min,r_max,area_km2,center_lng,center_lat,kind,geojson")
+          .order("id")
+          .range(from, from + pageSize - 1),
+      );
+      fail(error);
+      const page = data ?? [];
+      polygonRows.push(...page);
+      if (page.length < pageSize) break;
+    }
+
+    const storeRows = storesResult.data ?? [];
+    const policyRows = policiesResult.data ?? [];
+    const storeById = new Map(storeRows.map((store) => [store.id, store]));
+    const policyById = new Map(policyRows.map((policy) => [policy.id, policy]));
+    const polygonCountByStore = new Map<string, number>();
+    for (const polygon of polygonRows) {
+      if (polygon.store_id) {
+        polygonCountByStore.set(polygon.store_id, (polygonCountByStore.get(polygon.store_id) ?? 0) + 1);
+      }
+    }
+
+    const bandsByTable = new Map<string, WeightBand[]>();
+    for (const band of bandsResult.data ?? []) {
+      const bands = bandsByTable.get(band.table_id) ?? [];
+      bands.push({
+        ws: band.ws ?? 0,
+        we: band.we ?? 0,
+        amc: band.amc ?? 0,
+        pew: band.pew ?? 0,
+        pct: band.pct ?? undefined,
+        maxVol: band.max_vol ?? undefined,
+        time: band.time ?? undefined,
+        country: band.country ?? undefined,
+        minIns: band.min_ins ?? undefined,
+      });
+      bandsByTable.set(band.table_id, bands);
+    }
+
+    const stores: FreightSnapshotDto["stores"] = storeRows.map((store) => ({
+      name: store.name,
+      region: store.region,
+      note: store.note,
+      center: store.center_lng == null || store.center_lat == null ? null : [store.center_lng, store.center_lat],
+      polygonCount: polygonCountByStore.get(store.id) ?? 0,
+    }));
+
+    return {
+      stores,
+      policies: policyRows.flatMap((policy) => {
+        const store = storeById.get(policy.store_id);
+        return store ? [{ clientId: policy.client_id, store: store.name, data: policy.data as object, updatedAt: policy.updated_at }] : [];
+      }),
+      freightTables: (tablesResult.data ?? []).flatMap((table) => {
+        const store = storeById.get(table.store_id);
+        if (!store) return [];
+        return [{
+          id: table.id,
+          store: store.name,
+          policyClientId: table.policy_id ? (policyById.get(table.policy_id)?.client_id ?? null) : null,
+          name: table.name,
+          source: table.source,
+          fileName: table.file_name,
+          polygonName: table.polygon_name,
+          bands: bandsByTable.get(table.id) ?? [],
+        }];
+      }),
+      polygons: polygonRows.flatMap((polygon) => {
+        if (!polygon.client_id || !polygon.store_id) return [];
+        const store = storeById.get(polygon.store_id);
+        if (!store) return [];
+        return [{
+          id: polygon.client_id,
+          store: store.name,
+          district: polygon.district,
+          uf: polygon.uf,
+          band: polygon.band,
+          radius: polygon.radius,
+          rMin: polygon.r_min,
+          rMax: polygon.r_max,
+          areaKm2: polygon.area_km2,
+          center: polygon.center_lng == null || polygon.center_lat == null ? null : [polygon.center_lng, polygon.center_lat] as [number, number],
+          policyClientId: polygon.policy_id ? (policyById.get(polygon.policy_id)?.client_id ?? "") : "",
+          kind: polygon.kind === "Retira" ? "Retira" as const : polygon.kind === "Entrega" ? "Entrega" as const : null,
+          geojson: polygon.geojson as FreightSnapshotDto["polygons"][number]["geojson"],
+        }];
+      }),
+      statePolygons: (statePolygonsResult.data ?? []).flatMap((polygon) => polygon.uf && polygon.name && polygon.updated_at ? [{
+        uf: polygon.uf,
+        name: polygon.name,
+        polygonName: polygon.polygon_name,
+        source: polygon.source,
+        updatedAt: polygon.updated_at,
+        geojson: polygon.geojson as FreightSnapshotDto["statePolygons"][number]["geojson"],
+      }] : []),
+      pickupPoints: (pickupPointsResult.data ?? []).flatMap((point) => {
+        const store = storeById.get(point.store_id);
+        if (!store || (point.kind !== "facil" && point.kind !== "bordero")) return [];
+        return [{
+          id: point.id,
+          store: store.name,
+          kind: point.kind,
+          name: point.name,
+          active: point.active,
+          instructions: point.instructions,
+          address: point.address,
+          tags: point.tags,
+          hours: point.hours as FreightSnapshotDto["pickupPoints"][number]["hours"],
+          center: store.center_lng == null || store.center_lat == null ? null : [store.center_lng, store.center_lat] as [number, number],
+        }];
+      }),
+      dockLinks: (dockLinksResult.data ?? []).flatMap((link) => {
+        const store = storeById.get(link.store_id);
+        const policy = policyById.get(link.policy_id);
+        return store && policy ? [{ store: store.name, dock: link.dock, policyClientId: policy.client_id }] : [];
+      }),
+      policyCells: policyCellsResult.data ?? [],
+      customModalities: (modalitiesResult.data ?? []).map((modality) => modality.name),
+      audit: auditResult.data ?? [],
+    };
   },
 );
 

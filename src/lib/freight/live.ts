@@ -216,7 +216,9 @@ export function refreshLive(): Promise<void> {
     inflight = getFreightSnapshot()
       .then((raw) => applySnapshot(raw))
       .catch((err) => {
-        console.error("Falha ao carregar dados do banco", err);
+        // Mantém o último snapshot durante indisponibilidades transitórias; o
+        // próximo ciclo tenta novamente sem acionar a tela de erro da prévia.
+        console.warn("Dados temporariamente indisponíveis; nova tentativa será feita.", err);
       })
       .finally(() => {
         inflight = null;
