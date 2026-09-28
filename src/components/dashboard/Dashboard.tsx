@@ -51,7 +51,9 @@ import { RuleSimulator } from "./RuleSimulator";
 import {
   ScheduleGrid,
   StatusBadge,
+  PolicySchedulePanel,
 } from "./SchedulePanel";
+
 
 import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
@@ -1200,24 +1202,15 @@ export default function Dashboard() {
 
             <div className="space-y-4">
               <Legend stores={shownStores} />
-              {!isPickup ? (
-                <div className="surface p-3">
-                  <p className="eyebrow mb-2">
-                    Status de atendimento
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {(mounted ? shownStores : []).map((s) => (
-                      <StatusBadge
-                        key={s}
-                        store={s}
-                        modality={modality}
-                        now={now}
-                        holidays={HOLIDAYS}
-                      />
-                    ))}
-                  </div>
-                </div>
+              {mounted ? (
+                <PolicySchedulePanel
+                  drafts={live?.drafts ?? []}
+                  stores={isPickup ? pickupStores : shownStores}
+                  policyType={modality}
+                  modalityFilter={modalityFilter}
+                />
               ) : null}
+
               {isPickup ? (
                 <>
                   {activeStatePolygons.length === 0 ? (

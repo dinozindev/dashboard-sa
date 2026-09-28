@@ -320,7 +320,6 @@ export type Database = {
           client_id: string
           created_at: string
           district: string | null
-          geojson_cache: Json | null
           geom: unknown
           id: string
           kind: string
@@ -339,7 +338,6 @@ export type Database = {
           client_id: string
           created_at?: string
           district?: string | null
-          geojson_cache?: Json | null
           geom: unknown
           id?: string
           kind?: string
@@ -358,7 +356,6 @@ export type Database = {
           client_id?: string
           created_at?: string
           district?: string | null
-          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           kind?: string
@@ -412,7 +409,6 @@ export type Database = {
       }
       state_polygons: {
         Row: {
-          geojson_cache: Json | null
           geom: unknown
           id: string
           name: string
@@ -422,7 +418,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          geojson_cache?: Json | null
           geom: unknown
           id?: string
           name: string
@@ -432,7 +427,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           name?: string
@@ -881,6 +875,10 @@ export type Database = {
       gettransactionid: { Args: never; Returns: unknown }
       insert_polygons: { Args: { payload: Json }; Returns: number }
       longtransactionsenabled: { Args: never; Returns: boolean }
+      pickup_point_name: {
+        Args: { p_kind: string; p_store: string }
+        Returns: string
+      }
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
         | { Args: { use_typmod?: boolean }; Returns: string }

@@ -9,6 +9,90 @@
 import { useEffect, useState } from "react";
 import { DAY_LABEL, DAY_ORDER, getStatus, SCHEDULES } from "@/lib/freight/schedule";
 import type { Modality, StoreName } from "@/lib/freight/types";
+import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
+
+/**
+ * HORÁRIOS CADASTRADOS NAS POLÍTICAS DE ENVIO
+ * ===========================================
+ *
+ * Mostra, por loja, o horário realmente cadastrado na política:
+ * - scheduleMode "janela" → "Janela de Envio" (dia + intervalo)
+ * - scheduleMode "coleta" → "Horário de Coleta" (dia + horário)
+ */
+export function PolicySchedulePanel({
+  drafts,
+  stores,
+  policyType,
+  modalityFilter,
+}: {
+  drafts: ShippingPolicyDraft[];
+  stores: string[];
+  policyType: Modality;
+  modalityFilter: string;
+}) {
+  const rows = stores.map((store) => {
+    const matches = drafts.filter(
+      (d) =>
+        d.store === store &&
+        d.policyType === policyType &&
+        (modalityFilter === "todas" || d.modalities.includes(modalityFilter)),
+    );
+    return { store, matches };
+  });
+
+  const withPolicy = rows.filter((r) => r.matches.length);
+
+  return (
+    <div className="surface p-3">
+      <p className="eyebrow mb-2">
+        Horários cadastrados
+        {modalityFilter === "todas" ? "" : ` · ${modalityFilter}`}
+      </p>
+      {withPolicy.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Nenhuma política de {policyType.toLowerCase()} cadastrada
+          {modalityFilter === "todas" ? "" : " para esta modalidade"} nas lojas selecionadas.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {withPolicy.map(({ store, matches }) =>
+            matches.map((draft) => {
+              const isWindow = draft.scheduleMode === "janela";
+              const label = isWindow ? "Janela de Envio" : "Horário de Coleta";
+              const entries = isWindow
+                ? draft.shippingWindows.map((w) => ({
+                    id: w.id,
+                    day: w.day,
+                    value: `${w.start}–${w.end}`,
+                  }))
+                : draft.pickupTimes.map((p) => ({
+                    id: p.id,
+                    day: p.day,
+                    value: `às ${p.time}`,
+                  }));
+              const summary = entries.length
+                ? entries.map((e) => `${e.day} ${e.value}`).join(" · ")
+                : "Horário não informado";
+              return (
+                <span
+                  key={draft.id}
+                  className={draft.active ? "badge-open" : "badge-closed"}
+                  title={`${label}: ${summary}`}
+                >
+                  <strong>{store}</strong> · {label} · {summary}
+                  {modalityFilter === "todas" && draft.modalities.length
+                    ? ` (${draft.modalities.join(", ")})`
+                    : ""}
+                </span>
+              );
+            }),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 /**
  * STATUS BADGE: Status de abertura/fechamento.
