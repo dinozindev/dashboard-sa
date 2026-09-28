@@ -179,3 +179,47 @@ export function distanceKm(a: [number, number], b: [number, number]) {
     Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
+
+// ============================================================================
+// 5. CÁLCULO DE ÁREA
+// ============================================================================
+
+/**
+ * Calcula a área aproximada em km² de um MultiPolygon GeoJSON.
+ * Segue a projeção equiretangular local calibrada pelo elipsoide WGS84,
+ * consistente com o pipeline de geração de polígonos do projeto.
+ *
+ * @param geom - Array de anéis MultiPolygon [polígono][anel][ponto][lng, lat]
+ * @returns Área total em km²
+ */
+export function areaKm2OfMultiPolygon(geom: number[][][][]): number {
+  const R = 6378137.0;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  let totalM2 = 0;
+
+  for (const poly of geom) {
+    for (let r = 0; r < poly.length; r++) {
+      const ring = poly[r];
+      if (!ring || ring.length < 3) continue;
+      const lat0 = ring.reduce((sum, p) => sum + (p[1] ?? 0), 0) / ring.length;
+      const k = Math.cos(toRad(lat0));
+      let s = 0;
+      for (let i = 0; i < ring.length - 1; i++) {
+        const p1 = ring[i];
+        const p2 = ring[i + 1];
+        if (!p1 || !p2) continue;
+        const x1 = toRad(p1[0] ?? 0) * k * R;
+        const y1 = toRad(p1[1] ?? 0) * R;
+        const x2 = toRad(p2[0] ?? 0) * k * R;
+        const y2 = toRad(p2[1] ?? 0) * R;
+        s += x1 * y2 - x2 * y1;
+      }
+      const ringM2 = Math.abs(s) / 2;
+      // anel 0 é o contorno externo, anéis 1+ são furos/buracos
+      totalM2 += r === 0 ? ringM2 : -ringM2;
+    }
+  }
+
+  return Math.max(0, totalM2 / 1e6);
+}
+

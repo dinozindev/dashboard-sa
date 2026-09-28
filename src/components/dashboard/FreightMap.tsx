@@ -20,7 +20,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { PolygonRecord } from "@/lib/freight/types";
 import { bandColor, STORE_DASH } from "@/lib/freight/palette";
-import { boundsOf } from "@/lib/freight/geo";
+import { boundsOf, areaKm2OfMultiPolygon } from "@/lib/freight/geo";
 import { stores } from "@/lib/freight/dataset";
 import type { StatePolygon } from "@/lib/freight/state-polygons";
 
@@ -205,8 +205,9 @@ export default function FreightMap({
           fillColor: "#0f766e",
           fillOpacity: 0.15,
         });
+        const areaStr = Math.round(areaKm2OfMultiPolygon(sp.geom)).toLocaleString("pt-BR");
         layer.bindTooltip(
-          `<strong>${sp.name} (${sp.uf})</strong><br/>Área de retira — clique para ver a loja mais próxima`,
+          `<strong>${sp.name} (${sp.uf})</strong><br/>Área coberta: ${areaStr} km²<br/>Área de retira — clique para ver a loja mais próxima`,
           { sticky: true, className: "freight-tooltip" },
         );
         layer.on("click", (e: L.LeafletMouseEvent) => {

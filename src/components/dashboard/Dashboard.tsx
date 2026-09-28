@@ -29,7 +29,7 @@ import {
 import { availableStoreNames, liveStores, storeRegionOf, useLive } from "@/lib/freight/live";
 import { BAND_ORDER } from "@/lib/freight/palette";
 import { brl, calcPrice, kg } from "@/lib/freight/pricing";
-import { distanceKm, pointInPolygon, polygonsAtPoint } from "@/lib/freight/geo";
+import { areaKm2OfMultiPolygon, distanceKm, pointInPolygon, polygonsAtPoint } from "@/lib/freight/geo";
 import { HOLIDAYS } from "@/lib/freight/schedule";
 import { statePolygonsFor } from "@/lib/freight/state-polygons";
 import { SHIPPING_POLICY_DEFINITIONS } from "@/lib/freight/policies";
@@ -44,7 +44,7 @@ import type {
   StoreName,
 } from "@/lib/freight/types";
 import { Legend } from "./Legend";
-import { Kpis } from "./Kpis";
+import { Kpis, type Kpi } from "./Kpis";
 import { TariffTable } from "./TariffTable";
 import { PriceBreakdownCard } from "./PriceBreakdown";
 import { RuleSimulator } from "./RuleSimulator";
@@ -502,81 +502,6 @@ export default function Dashboard() {
   /** Resultado do cálculo de preço para o polígono selecionado + peso atual */
   const selectedPrice = calcPrice(selectedBands, weight);
 
-  /**
-   * KPIs exibidos no dashboard (estatísticas dos polígonos visíveis).
-   * 
-   * Inclui:
-   * - Contagem de polígonos
-   * - Área total coberta
-   * - Número de lojas exibidas
-   * - Peso simulado
-   * - Polígonos sem tabela de frete
-   * - (Se Entrega) Preço mínimo, máximo, médio
-   */
-  const kpis = useMemo(() => {
-    const prices: number[] = [];
-    for (const p of visible) {
-      const r = calcPrice(bandsOf(p), weight);
-      if (r.ok) prices.push(r.total);
-    }
-    const area = visible.reduce((s, p) => s + p.areaKm2, 0);
-    const avg = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
-    const num = (v: number, d = 0) =>
-      v.toLocaleString("pt-BR", { maximumFractionDigits: d });
-    return [
-      { label: "Polígonos visíveis", value: num(visible.length) },
-      { label: "Área coberta", value: `${num(area, 1)} km²` },
-      // {
-      //   label: "Lojas exibidas",
-      //   value:
-      //     shownStores.length === 1
-      //       ? (shownStores[0] as string)
-      //       : `${shownStores.length} lojas`,
-      // },
-      { label: "Peso simulado", value: kg(weight) },
-      ...(isPickup
-        ? []
-        : [
-          {
-            label: "Menor frete",
-            value: prices.length ? brl(Math.min(...prices)) : "—",
-            tone: "low" as const,
-          },
-          {
-            label: "Maior frete",
-            value: prices.length ? brl(Math.max(...prices)) : "—",
-            tone: "high" as const,
-          },
-          { label: "Frete médio", value: prices.length ? brl(avg) : "—" },
-        ]),
-    ];
-  }, [visible, weight, overrides, shownStores, isPickup, tariffIdxByStore]);
-
-  /**
-   * Gera tooltip HTML para exibir sobre polígono no mapa.
-   * Mostra: ID, loja, faixa, município, preço (se Entrega).
-   */
-  const tooltipFor = (rec: PolygonRecord) => {
-    const r = calcPrice(bandsOf(rec), weight);
-    return `<strong>${polygonLabel(rec)}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
-      }${isPickup
-        ? "Modalidade Retira — sem custo de frete"
-        : `Peso ${kg(weight)}: <strong>${r.ok ? brl(r.total) : "Regra não encontrada"}</strong>`
-      }`;
-  };
-
-  /**
-   * Polígonos contendo o ponto clicado no mapa.
-   * Pode ter mais de um se se sobrepõem.
-   */
-  const allMatches = point ? polygonsAtPoint(point.lng, point.lat, visible) : [];
-
-  /** Se compareStores definidos, filtra matches a apenas aquelas lojas. */
-  const matches =
-    compareStores.length > 0
-      ? allMatches.filter((m) => compareStores.includes(m.store))
-      : allMatches;
-
   // ============================================================================
   // MODALIDADE RETIRA: polígono único por estado + loja mais próxima
   // ============================================================================
@@ -656,6 +581,114 @@ export default function Dashboard() {
     }
     return rows.sort((a, b) => a.store.localeCompare(b.store) || a.modality.localeCompare(b.modality));
   }, [live, modalityFilter]);
+
+  /**
+   * KPIs exibidos no dashboard (estatísticas dos polígonos visíveis).
+   * 
+   * Inclui:
+   * - Contagem de polígonos (ou malhas estaduais na modalidade Retira)
+   * - Área total coberta (soma dos polígonos de entrega ou da malha estadual na Retira)
+   * - Lojas de retira (se Retira)
+   * - Peso simulado
+   * - (Se Entrega) Preço mínimo, máximo, médio
+   */
+  const kpis: Kpi[] = useMemo(() => {
+    const prices: number[] = [];
+    for (const p of visible) {
+      const r = calcPrice(bandsOf(p), weight);
+      if (r.ok) prices.push(r.total);
+    }
+    const area = isPickup
+      ? activeStatePolygons.reduce((s, sp) => s + areaKm2OfMultiPolygon(sp.geom), 0)
+      : visible.reduce((s, p) => s + p.areaKm2, 0);
+    const avg = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+    const num = (v: number, d = 0) =>
+      v.toLocaleString("pt-BR", { maximumFractionDigits: d });
+    const pickupHint = isPickup
+      ? `${activeStatePolygons.length} malha${activeStatePolygons.length === 1 ? "" : "s"} estadua${activeStatePolygons.length === 1 ? "l" : "is"}`
+      : undefined;
+    const areaHint = isPickup
+      ? region === "Todas"
+        ? "Malhas estaduais ativas"
+        : `Estado de ${region}`
+      : undefined;
+
+    return [
+      {
+        label: "Polígonos visíveis",
+        value: num(isPickup ? activeStatePolygons.length : visible.length),
+        ...(pickupHint ? { hint: pickupHint } : {}),
+      },
+      {
+        label: "Área coberta",
+        value: `${num(area, 1)} km²`,
+        ...(areaHint ? { hint: areaHint } : {}),
+      },
+      ...(isPickup
+        ? [
+            {
+              label: "Lojas de retira",
+              value: `${pickupStores.length} ${pickupStores.length === 1 ? "loja" : "lojas"}`,
+              hint: "Pontos de coleta na região",
+            },
+            {
+              label: "Tabelas cadastradas",
+              value: num(pickupTablesList.length),
+              hint: "Regras de retira enviadas",
+            },
+          ]
+        : [
+            { label: "Peso simulado", value: kg(weight) },
+            {
+              label: "Menor frete",
+              value: prices.length ? brl(Math.min(...prices)) : "—",
+              tone: "low" as const,
+            },
+            {
+              label: "Maior frete",
+              value: prices.length ? brl(Math.max(...prices)) : "—",
+              tone: "high" as const,
+            },
+            { label: "Frete médio", value: prices.length ? brl(avg) : "—" },
+          ]),
+    ];
+  }, [
+    visible,
+    weight,
+    overrides,
+    shownStores,
+    isPickup,
+    tariffIdxByStore,
+    activeStatePolygons,
+    pickupStores,
+    pickupTablesList,
+    region,
+  ]);
+
+  /**
+   * Gera tooltip HTML para exibir sobre polígono no mapa.
+   * Mostra: ID, loja, faixa, município, preço (se Entrega).
+   */
+  const tooltipFor = (rec: PolygonRecord) => {
+    const r = calcPrice(bandsOf(rec), weight);
+    return `<strong>${polygonLabel(rec)}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
+      }${isPickup
+        ? "Modalidade Retira — sem custo de frete"
+        : `Peso ${kg(weight)}: <strong>${r.ok ? brl(r.total) : "Regra não encontrada"}</strong>`
+      }`;
+  };
+
+  /**
+   * Polígonos contendo o ponto clicado no mapa.
+   * Pode ter mais de um se se sobrepõem.
+   */
+  const allMatches = point ? polygonsAtPoint(point.lng, point.lat, visible) : [];
+
+  /** Se compareStores definidos, filtra matches a apenas aquelas lojas. */
+  const matches =
+    compareStores.length > 0
+      ? allMatches.filter((m) => compareStores.includes(m.store))
+      : allMatches;
 
   /**
    * Ranking de distância entre o ponto clicado e TODAS as lojas exibidas

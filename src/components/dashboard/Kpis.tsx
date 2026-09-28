@@ -16,11 +16,11 @@ import { brl } from "@/lib/freight/pricing";
  * @param hint - Dica/observação adicional (opcional)
  * @param tone - Codificação visual: "default" (cinza), "low" (verde), "high" (vermelho)
  */
-interface Kpi {
+export interface Kpi {
   label: string;
   value: string;
-  hint?: string;
-  tone?: "default" | "low" | "high";
+  hint?: string | undefined;
+  tone?: "default" | "low" | "high" | undefined;
 }
 
 /**
