@@ -120,6 +120,20 @@
       "when": 1790267762865,
       "tag": "0016_raise_api_statement_timeout",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790776766771,
+      "tag": "0017_operational_capacity",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790779610220,
+      "tag": "0018_capacity_default_limits_10",
+      "breakpoints": true
     }
   ]
 }

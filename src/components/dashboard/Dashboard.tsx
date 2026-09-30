@@ -80,7 +80,7 @@ const TABS = [
 ] as const;
 
 /** Aba ainda não finalizada, exibida com selo "Em Construção" */
-const UNDER_CONSTRUCTION_TABS: readonly string[] = ["capacidade"];
+const UNDER_CONSTRUCTION_TABS: readonly string[] = [];
 
 type TabKey = (typeof TABS)[number][0];
 
@@ -879,17 +879,12 @@ export default function Dashboard() {
         {tab === "retirada" ? <PickupPointsPanel /> : null}
         {tab === "capacidade" ? (
           <section className="space-y-3">
-            <div className="surface flex flex-wrap items-center gap-3 border-dashed p-4">
-              <span className="rounded-full bg-warning/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-warning-foreground">
-                Em Construção
-              </span>
-              <p className="text-sm text-muted-foreground">
-                Módulo de capacidade operacional em desenvolvimento — os valores abaixo servem
-                apenas como referência.
-              </p>
-            </div>
             <div className="surface p-4">
               <h2 className="section-title text-lg">Capacidade operacional</h2>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Capacidade das lojas para receber e preparar pedidos. A unidade é sempre
+                quantidade de pedidos e o acompanhamento vai até D+3.
+              </p>
               <CapacityPanel />
             </div>
           </section>

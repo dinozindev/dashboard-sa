@@ -63,6 +63,14 @@ export const STORE_REGION: Record<StoreName, Region> = {
   Jacarepagua: "RJ",
   Mesquita: "RJ",
   Niteroi: "RJ",
+  Uberlandia: "MG",
+  Contagem: "MG",
+  Cariacica: "ES",
+  Londrina: "PR",
+  "Aparecida de Goiania": "GO",
+  "Brasilia Sul": "DF",
+  Taguatinga: "DF",
+  "Varzea Grande": "MT",
 };
 
 /**

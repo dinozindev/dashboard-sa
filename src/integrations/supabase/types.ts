@@ -50,6 +50,132 @@ export type Database = {
         }
         Relationships: []
       }
+      capacity_consumption: {
+        Row: {
+          carried_over: number
+          created_at: string
+          day: string
+          id: string
+          orders: number
+          policy: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          carried_over?: number
+          created_at?: string
+          day: string
+          id?: string
+          orders?: number
+          policy: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          carried_over?: number
+          created_at?: string
+          day?: string
+          id?: string
+          orders?: number
+          policy?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capacity_consumption_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capacity_policies: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          is_primary: boolean
+          limits: Json
+          policy: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          is_primary?: boolean
+          limits?: Json
+          policy: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          is_primary?: boolean
+          limits?: Json
+          policy?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capacity_policies_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capacity_settings: {
+        Row: {
+          created_at: string
+          id: string
+          overflow_days: number
+          overflow_rule: string
+          status: string
+          store_id: string
+          unit: string
+          unlimited: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          overflow_days?: number
+          overflow_rule?: string
+          status?: string
+          store_id: string
+          unit?: string
+          unlimited?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          overflow_days?: number
+          overflow_rule?: string
+          status?: string
+          store_id?: string
+          unit?: string
+          unlimited?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capacity_settings_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: true
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       freight_bands: {
         Row: {
           amc: number | null
@@ -320,7 +446,6 @@ export type Database = {
           client_id: string
           created_at: string
           district: string | null
-          geojson_cache: Json | null
           geom: unknown
           id: string
           kind: string
@@ -339,7 +464,6 @@ export type Database = {
           client_id: string
           created_at?: string
           district?: string | null
-          geojson_cache?: Json | null
           geom: unknown
           id?: string
           kind?: string
@@ -358,7 +482,6 @@ export type Database = {
           client_id?: string
           created_at?: string
           district?: string | null
-          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           kind?: string
@@ -412,7 +535,6 @@ export type Database = {
       }
       state_polygons: {
         Row: {
-          geojson_cache: Json | null
           geom: unknown
           id: string
           name: string
@@ -422,7 +544,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          geojson_cache?: Json | null
           geom: unknown
           id?: string
           name: string
@@ -432,7 +553,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           name?: string
@@ -881,6 +1001,10 @@ export type Database = {
       gettransactionid: { Args: never; Returns: unknown }
       insert_polygons: { Args: { payload: Json }; Returns: number }
       longtransactionsenabled: { Args: never; Returns: boolean }
+      pickup_point_name: {
+        Args: { p_kind: string; p_store: string }
+        Returns: string
+      }
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
         | { Args: { use_typmod?: boolean }; Returns: string }
