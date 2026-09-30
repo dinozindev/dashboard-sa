@@ -447,6 +447,73 @@ export function CapacityPanel() {
 /* Detalhe da loja — acompanhamento até D+3                            */
 /* ------------------------------------------------------------------ */
 
+function CapacityStatusChart({ projection }: { projection: StoreProjection }) {
+  const days = projection.totals;
+  const hasLimit = !projection.unlimited;
+  const peak = Math.max(100, ...days.map((day) => day.utilization));
+  const scale = Math.max(120, Math.ceil(peak / 20) * 20);
+  const limitPosition = `${(100 / scale) * 100}%`;
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h4 className="text-sm font-bold">Status da capacidade operacional</h4>
+        <span className="text-xs text-muted-foreground">Hoje até D+3</span>
+      </div>
+      <div className="overflow-x-auto rounded-md border border-border">
+        <div className="relative min-w-[560px] bg-secondary/40">
+          <div className="grid grid-cols-4 border-b border-border/60">
+            {days.map((day, i) => (
+              <div
+                key={day.day}
+                className="border-r border-border/60 px-2 py-3 text-center last:border-r-0"
+              >
+                <span className="block text-xs font-semibold tabular-nums">{formatDay(day.date)}</span>
+                <span className="block text-[11px] text-muted-foreground">{DAY_LABELS[i]}</span>
+              </div>
+            ))}
+          </div>
+          <div className="relative grid h-64 grid-cols-4">
+            {hasLimit ? (
+              <div
+                className="pointer-events-none absolute inset-x-0 z-20 border-t border-dashed border-muted-foreground/80"
+                style={{ bottom: limitPosition }}
+              >
+                <span className="absolute -top-3 left-2 bg-muted px-2 py-1 text-[11px] leading-none text-foreground">
+                  Limite de 100%
+                </span>
+              </div>
+            ) : null}
+            {days.map((day) => {
+              const finiteCapacity = Number.isFinite(day.capacity);
+              const percentage = finiteCapacity && day.capacity > 0 ? day.utilization : 0;
+              const fillHeight = Math.min(100, (percentage / scale) * 100);
+              return (
+                <div key={day.day} className="relative min-w-0 border-r border-border/60 last:border-r-0">
+                  {fillHeight > 0 ? (
+                    <div
+                      className={`absolute inset-x-0 bottom-0 ${percentage >= 100 ? "bg-warning/30" : "bg-chart-1/15"}`}
+                      style={{ height: `${fillHeight}%` }}
+                    />
+                  ) : null}
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-0.5 px-1 text-center">
+                    <span className={`text-xl font-semibold tabular-nums ${percentage >= 100 ? "text-warning-foreground" : "text-foreground"}`}>
+                      {finiteCapacity ? pct(day.utilization) : "∞"}
+                    </span>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {day.used}/{finiteCapacity ? day.capacity : "∞"} pedidos
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StoreDetail({
   projection,
   dto,
@@ -502,9 +569,11 @@ function StoreDetail({
           </div>
         ) : null}
 
-        {/* Status da capacidade operacional */}
+        <CapacityStatusChart projection={projection} />
+
+        {/* Detalhamento dos pedidos por dia */}
         <div>
-          <h4 className="mb-2 text-sm font-bold">Status da capacidade operacional</h4>
+          <h4 className="mb-2 text-sm font-bold">Detalhamento por dia</h4>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {projection.totals.map((d, i) => (
               <div key={d.day} className="rounded-xl border border-border p-3">
