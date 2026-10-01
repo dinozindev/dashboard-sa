@@ -59,9 +59,15 @@ function UsageBar({ value }: { value: number }) {
 function ExceededChart({
   series,
 }: {
-  series: Array<{ day: string; date: Date; count: number }>;
+  series: Array<{
+    day: string;
+    date: Date;
+    stores: Array<{ storeId: string; store: string; region: string; used: number; capacity: number }>;
+  }>;
 }) {
-  const max = Math.max(1, ...series.map((s) => s.count));
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const max = Math.max(1, ...series.map((s) => s.stores.length));
+  const selected = series.find((s) => s.day === selectedDay) ?? null;
   const showLabel = (i: number) =>
     series.length <= 7 || (series.length <= 14 && i % 2 === 0) || i % 5 === 0;
 
@@ -83,20 +89,26 @@ function ExceededChart({
           </div>
           <div className="relative flex h-full items-end gap-1.5">
             {series.map((s) => {
-              const h = Math.max((s.count / max) * 100, 7);
+              const count = s.stores.length;
+              const h = Math.max((count / max) * 100, 7);
+              const isSelected = selectedDay === s.day;
               return (
-                <div
+                <button
                   key={s.day}
-                  className="group relative flex h-full min-w-0 flex-1 cursor-default items-end"
-                  title={`${formatDay(s.date)} · ${s.count} loja(s) excederam a capacidade`}
+                  type="button"
+                  className="group relative flex h-full min-w-0 flex-1 cursor-pointer items-end border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  aria-label={`${formatDay(s.date)}: ${count} loja(s) excederam a capacidade`}
+                  aria-pressed={isSelected}
+                  title={`${formatDay(s.date)} · ${count} loja(s) excederam a capacidade`}
+                  onClick={() => setSelectedDay(isSelected ? null : s.day)}
                 >
                   <div
-                    className="flex w-full items-center justify-center rounded-t-md bg-chart-2/25 text-xs font-bold text-chart-2 transition-colors group-hover:bg-chart-2/40"
+                    className={`flex w-full items-center justify-center rounded-t-md text-xs font-bold text-chart-2 transition-colors group-hover:bg-chart-2/40 ${isSelected ? "bg-chart-2/50" : "bg-chart-2/25"}`}
                     style={{ height: `${h}%`, minHeight: "1.375rem" }}
                   >
-                    <span className="tabular-nums">{s.count}</span>
+                    <span className="tabular-nums">{count}</span>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -116,6 +128,32 @@ function ExceededChart({
           ))}
         </div>
       </div>
+      {selected ? (
+        <div className="mt-4 border-t border-border pt-3">
+          <h4 className="text-sm font-bold">
+            Lojas que excederam em {formatDay(selected.date)} ({selected.stores.length})
+          </h4>
+          {selected.stores.length ? (
+            <ul className="mt-2 divide-y divide-border text-sm">
+              {selected.stores.map((store) => (
+                <li key={store.storeId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span>
+                    <span className="font-medium">{store.store}</span>
+                    {store.region ? (
+                      <span className="ml-2 text-xs text-muted-foreground">{store.region}</span>
+                    ) : null}
+                  </span>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {store.used} / {store.capacity} pedidos
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">Nenhuma loja excedeu a capacidade neste dia.</p>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -131,6 +169,7 @@ export function CapacityPanel() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"todas" | "active" | "paused">("todas");
+  const [regionFilter, setRegionFilter] = useState("todas");
   const [selected, setSelected] = useState<string[]>([]);
   const [openStore, setOpenStore] = useState<string | null>(null);
   const [configStore, setConfigStore] = useState<string | null>(null);
@@ -154,15 +193,23 @@ export function CapacityPanel() {
   }, [refresh]);
 
   const projections = useMemo(() => rows.map((r) => projectStore(r)), [rows]);
+  const regions = useMemo(
+    () =>
+      [...new Set(projections.map((p) => p.region).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      ),
+    [projections],
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return projections.filter((p) => {
       if (statusFilter !== "todas" && p.status !== statusFilter) return false;
+      if (regionFilter !== "todas" && p.region !== regionFilter) return false;
       if (!q) return true;
       return p.store.toLowerCase().includes(q) || p.region.toLowerCase().includes(q);
     });
-  }, [projections, search, statusFilter]);
+  }, [projections, search, statusFilter, regionFilter]);
 
   const totals = useMemo(
     () => ({
@@ -178,17 +225,29 @@ export function CapacityPanel() {
   const exceededSeries = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const out: Array<{ day: string; date: Date; count: number }> = [];
+    const out: Array<{
+      day: string;
+      date: Date;
+      stores: Array<{ storeId: string; store: string; region: string; used: number; capacity: number }>;
+    }> = [];
     for (let i = CAPACITY_HISTORY_DAYS - 1; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      let count = 0;
+      const stores = [];
       for (const r of rows) {
         // Conta apenas o próprio dia (D+0), não o horizonte D+3 inteiro.
         const day0 = projectStore(r, d).totals[0];
-        if (day0 && day0.capacity > 0 && day0.used >= day0.capacity) count++;
+        if (day0 && day0.capacity > 0 && day0.used >= day0.capacity) {
+          stores.push({
+            storeId: r.storeId,
+            store: r.store,
+            region: r.region,
+            used: day0.used,
+            capacity: day0.capacity,
+          });
+        }
       }
-      out.push({ day: isoDay(d), date: d, count });
+      out.push({ day: isoDay(d), date: d, stores });
     }
     return out;
   }, [rows]);
@@ -278,6 +337,21 @@ export function CapacityPanel() {
             <option value="todas">Todas</option>
             <option value="active">Ativas</option>
             <option value="paused">Pausadas</option>
+          </select>
+        </label>
+        <label className="field-label">
+          Estado
+          <select
+            className="input mt-1"
+            value={regionFilter}
+            onChange={(e) => setRegionFilter(e.target.value)}
+          >
+            <option value="todas">Todos</option>
+            {regions.map((region) => (
+              <option key={region} value={region}>
+                {region}
+              </option>
+            ))}
           </select>
         </label>
         <div className="flex items-center gap-2">
