@@ -29,12 +29,16 @@ import { logAudit } from "@/lib/freight/audit-log";
 import { tariffTablesForStore } from "@/lib/freight/tariff-tables";
 import {
   getPolicyTariff,
+  removePolicyTariff,
   setPolicyTariff,
 } from "@/lib/freight/policy-tariff-store";
 import { getLive, regionForStore, useLive } from "@/lib/freight/live";
 import { pushTariffTable } from "@/lib/freight/dataset";
-import { saveFreightTable } from "@/lib/freight/remote.functions";
-import { parseFreightSheet } from "@/lib/freight/xlsx-bands";
+import {
+  deletePolicyFreightTables,
+  saveFreightTable,
+} from "@/lib/freight/remote.functions";
+import { parseFreightSheet, type FreightSheetGroup } from "@/lib/freight/xlsx-bands";
 import type { WeightBand } from "@/lib/freight/types";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
@@ -420,10 +424,15 @@ export function PolicyFormPanel({
   const [tariffSource, setTariffSource] = useState<"existente" | "upload">("existente");
   const [tariffFileName, setTariffFileName] = useState("");
   const [existingTariffName, setExistingTariffName] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState<string | null>(null);
+  const [removingTariff, setRemovingTariff] = useState(false);
   const tariffFileRef = useRef<HTMLInputElement>(null);
   const [uploadedBands, setUploadedBands] = useState<WeightBand[] | null>(null);
   /** Nome do polígono lido da planilha (Retira: ex. SAO_PAULO_RETIRA) */
   const [uploadedPolygonName, setUploadedPolygonName] = useState<string | null>(null);
+  /** Faixas separadas por polígono, quando a planilha traz vários PolygonName */
+  const [uploadedGroups, setUploadedGroups] = useState<FreightSheetGroup[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -630,6 +639,9 @@ export function PolicyFormPanel({
       setSaved(null);
       return;
     }
+    setSaving(true);
+    setSaveProgress("Salvando política de envio…");
+    try {
     const source = replicating ? null : initialPolicy;
     const existing = source
       ? getPolicyDrafts().find((draft) => draft.id === source.id)
@@ -672,20 +684,35 @@ export function PolicyFormPanel({
     if (tariffSource === "upload" && uploadedBands?.length) {
       const tableName = tariffFileName.replace(/\.(xlsx|xls)$/i, "");
       try {
-        const { id: tableId } = await saveFreightTable({
-          data: {
-            table: {
-              store,
-              region: regionForStore(store) ?? "SP",
-              name: tableName,
-              source: "upload",
-              fileName: tariffFileName,
-              polygonName: uploadedPolygonName,
-              bands: uploadedBands,
-              policyClientId: id,
+        // Uma tabela por polígono: cada PolygonName da planilha tem suas próprias faixas.
+        const groups: FreightSheetGroup[] = uploadedGroups.length
+          ? uploadedGroups
+          : [{ polygonName: uploadedPolygonName, bands: uploadedBands }];
+        const multi = groups.length > 1;
+        setSaveProgress(
+          multi
+            ? `Gravando tabela de frete 1 de ${groups.length}…`
+            : "Gravando tabela de frete no banco…",
+        );
+        let tableId = "";
+        for (const [gi, g] of groups.entries()) {
+          if (gi > 0) setSaveProgress(`Gravando tabela de frete ${gi + 1} de ${groups.length}…`);
+          const res = await saveFreightTable({
+            data: {
+              table: {
+                store,
+                region: regionForStore(store) ?? "SP",
+                name: multi && g.polygonName ? `${tableName} · ${g.polygonName}` : tableName,
+                source: "upload",
+                fileName: tariffFileName,
+                polygonName: g.polygonName,
+                bands: g.bands,
+                policyClientId: id,
+              },
             },
-          },
-        });
+          });
+          if (!tableId) tableId = res.id;
+        }
         const idx = pushTariffTable(uploadedBands);
         const polygonIds =
           getLive()?.polygons.filter((p) => p.store === store).map((p) => p.id) ?? [];
@@ -741,6 +768,19 @@ export function PolicyFormPanel({
           description: `Tabela de frete "${tableName}" associada à política ${modality} da loja ${store} (${selectedTariff.bandCount} faixas de peso, ${selectedTariff.polygonIds.length} polígonos).`,
         });
       }
+    } else if (previousLink && tariffSource === "existente" && tariffIndex === null) {
+      // Usuário escolheu "Não associar tabela de frete": desvincula a tabela atual da política.
+      removePolicyTariff(id);
+      setExistingTariffName(null);
+      logAudit({
+        store,
+        module: "Cadastro de Política de Envio",
+        field: `Tabela de frete — ${modality}`,
+        before: previousLink.tableName,
+        after: "—",
+        action: "Remoção",
+        description: `Associação da tabela de frete "${previousLink.tableName}" removida da política ${modality} da loja ${store}.`,
+      });
     }
 
     updateCell(store, modality, { status: active ? "Ativa" : "Inativa" }, { silent: true });
@@ -760,8 +800,51 @@ export function PolicyFormPanel({
     setReplicaTarget("");
     setReplicaModality("");
     setSaved(id);
-    setIoMessage(result === "updated" ? "Política existente atualizada." : null);
-    onFinishEdit?.();
+      setIoMessage(result === "updated" ? "Política existente atualizada." : null);
+      onFinishEdit?.();
+    } finally {
+      setSaving(false);
+      setSaveProgress(null);
+    }
+  };
+
+  /** Remove do banco a tabela de frete atualmente associada à política. */
+  const removeCurrentTariff = async () => {
+    if (!initialPolicy || removingTariff) return;
+    const link = getPolicyTariff(initialPolicy.id);
+    if (!link) return;
+    setRemovingTariff(true);
+    setUploadError(null);
+    try {
+      await deletePolicyFreightTables({
+        data: link.tableId
+          ? { policyClientId: initialPolicy.id, tableId: link.tableId }
+          : { policyClientId: initialPolicy.id },
+      });
+      removePolicyTariff(initialPolicy.id);
+      setExistingTariffName(null);
+      setTariffIndex(null);
+      setTariffSource("existente");
+      setTariffFileName("");
+      setUploadedBands(null);
+      setUploadedPolygonName(null);
+      setUploadedGroups([]);
+      logAudit({
+        store: link.store,
+        module: "Cadastro de Política de Envio",
+        field: `Tabela de frete — ${link.modality || modality}`,
+        before: link.tableName,
+        after: "—",
+        action: "Remoção",
+        description: `Tabela de frete "${link.tableName}" removida do banco de dados.`,
+      });
+      setIoMessage(`Tabela de frete "${link.tableName}" removida do banco de dados.`);
+    } catch (err) {
+      console.error("Falha ao remover tabela de frete", err);
+      setUploadError("Falha ao remover a tabela de frete. Tente novamente.");
+    } finally {
+      setRemovingTariff(false);
+    }
   };
 
   /** Abre o mesmo fluxo de criação já preenchido, apenas trocando a loja. */
@@ -922,11 +1005,21 @@ export function PolicyFormPanel({
               </p>
             ) : null}
             {existingTariffName ? (
-              <p className="mb-3 rounded-lg border border-success/40 bg-success/10 p-2 text-xs text-success">
-                Esta política já possui a tabela <strong>{existingTariffName}</strong> enviada e
-                associada no banco. Você pode selecionar outra tabela ou enviar uma nova para
-                substituir a atual.
-              </p>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-success/40 bg-success/10 p-2 text-xs text-success">
+                <p>
+                  Esta política já possui a tabela <strong>{existingTariffName}</strong> enviada e
+                  associada no banco. Você pode selecionar outra tabela, enviar uma nova para
+                  substituir a atual ou removê-la do banco.
+                </p>
+                <button
+                  type="button"
+                  className="btn-ghost shrink-0 text-xs font-semibold text-danger disabled:opacity-40"
+                  disabled={removingTariff}
+                  onClick={() => void removeCurrentTariff()}
+                >
+                  {removingTariff ? "Removendo tabela…" : "Remover tabela de frete atual"}
+                </button>
+              </div>
             ) : null}
 
             <div className="space-y-3">
@@ -977,6 +1070,7 @@ export function PolicyFormPanel({
                       const sheet = await parseFreightSheet(buf);
                       setUploadedBands(sheet.bands);
                       setUploadedPolygonName(sheet.polygonName);
+                      setUploadedGroups(sheet.groups);
                       setTariffSource("upload");
                       setTariffFileName(file.name);
                     } catch (err) {
@@ -985,6 +1079,7 @@ export function PolicyFormPanel({
                       );
                       setUploadedBands(null);
                       setUploadedPolygonName(null);
+                      setUploadedGroups([]);
                       setTariffSource("existente");
                       setTariffFileName("");
                     } finally {
@@ -1004,9 +1099,13 @@ export function PolicyFormPanel({
                   <p className="mt-1 text-[11px] font-medium text-danger">{uploadError}</p>
                 ) : uploadedBands?.length ? (
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    <strong>{tariffFileName}</strong>: {uploadedBands.length}{" "}
-                    {uploadedBands.length === 1 ? "faixa lida" : "faixas de peso lidas"} da planilha.
-                    {uploadedPolygonName
+                    <strong>{tariffFileName}</strong>:{" "}
+                    {uploadedGroups.length > 1
+                      ? `${uploadedGroups.length} polígonos, cada um com suas próprias faixas de peso.`
+                      : `${uploadedBands.length} ${uploadedBands.length === 1 ? "faixa lida" : "faixas de peso lidas"} da planilha.`}
+                    {uploadedGroups.length > 1
+                      ? ""
+                      : uploadedPolygonName
                       ? ` Polígono associado: ${uploadedPolygonName}.`
                       : policyType === "Retira"
                         ? " A planilha não traz a coluna PolygonName — informe-a para associar ao polígono estadual."
@@ -1621,6 +1720,16 @@ export function PolicyFormPanel({
         </div>
       ) : null}
 
+      {saving ? (
+        <div className="flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 p-3 text-xs font-medium text-primary">
+          <span
+            className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+            aria-hidden="true"
+          />
+          {saveProgress ?? "Enviando política de envio…"}
+        </div>
+      ) : null}
+
       <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
         <button
           type="button"
@@ -1644,10 +1753,21 @@ export function PolicyFormPanel({
         ) : (
           <button
             type="button"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
             onClick={save}
+            disabled={saving}
           >
-            Salvar política de envio
+            {saving ? (
+              <>
+                <span
+                  className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden="true"
+                />
+                {saveProgress ?? "Enviando política de envio…"}
+              </>
+            ) : (
+              "Salvar política de envio"
+            )}
           </button>
         )}
       </div>

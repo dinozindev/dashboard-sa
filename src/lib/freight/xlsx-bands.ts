@@ -96,10 +96,18 @@ function toNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export interface FreightSheet {
-  bands: WeightBand[];
-  /** Nome do polígono informado na planilha (ex.: SAO_PAULO_RETIRA), quando houver */
+export interface FreightSheetGroup {
   polygonName: string | null;
+  bands: WeightBand[];
+}
+
+export interface FreightSheet {
+  /** Faixas do primeiro polígono (compatibilidade) */
+  bands: WeightBand[];
+  /** Nome do primeiro polígono informado na planilha (ex.: SAO_PAULO_RETIRA), quando houver */
+  polygonName: string | null;
+  /** Faixas de peso separadas por polígono (PolygonName), na ordem da planilha */
+  groups: FreightSheetGroup[];
 }
 
 /** Lê o conteúdo de um arquivo .xlsx/.xls e devolve as faixas de peso ordenadas. */
@@ -151,18 +159,23 @@ export async function parseFreightSheet(data: ArrayBuffer): Promise<FreightSheet
     return v == null || v === "" ? null : String(v);
   };
 
-  const bands: WeightBand[] = [];
-  let polygonName: string | null = null;
+  const groupMap = new Map<string, FreightSheetGroup>();
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
     if (!row || !row.length) continue;
-    if (!polygonName) polygonName = text(row, "polygonName");
+    const name = text(row, "polygonName")?.trim() || null;
     const ws = toNumber(cell(row, "ws"));
     const we = toNumber(cell(row, "we"));
     const amc = toNumber(cell(row, "amc"));
     const pew = toNumber(cell(row, "pew"));
     if (ws == null && we == null && amc == null && pew == null) continue;
-    bands.push({
+    const key = name ?? "";
+    let group = groupMap.get(key);
+    if (!group) {
+      group = { polygonName: name, bands: [] };
+      groupMap.set(key, group);
+    }
+    group.bands.push({
       ws,
       we,
       amc,
@@ -175,7 +188,9 @@ export async function parseFreightSheet(data: ArrayBuffer): Promise<FreightSheet
     });
   }
 
-  bands.sort((a, b) => (a.ws ?? -1) - (b.ws ?? -1));
-  if (!bands.length) throw new Error("A planilha não contém faixas de peso válidas.");
-  return { bands, polygonName };
+  const groups = [...groupMap.values()];
+  for (const g of groups) g.bands.sort((a, b) => (a.ws ?? -1) - (b.ws ?? -1));
+  const first = groups[0];
+  if (!first) throw new Error("A planilha não contém faixas de peso válidas.");
+  return { bands: first.bands, polygonName: first.polygonName, groups };
 }

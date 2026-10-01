@@ -433,15 +433,18 @@ export default function Dashboard() {
    * Cada política de envio carrega sua própria tabela; as tabelas antigas
    * (sem política vinculada) contam como "Entrega Normal".
    */
-  const tariffIdxByStore = useMemo(() => {
+  const { tariffIdxByStore, tariffIdxByPolygon } = useMemo(() => {
     const map = new Map<string, number>();
-    if (!live || modalityFilter === "todas") return map;
+    const byPolygon = new Map<string, number>();
+    if (!live || modalityFilter === "todas") return { tariffIdxByStore: map, tariffIdxByPolygon: byPolygon };
     for (const table of live.snapshot.freightTables) {
       if (!table.policyClientId) continue;
       const draft = live.drafts.find((d) => d.id === table.policyClientId);
       if (!draft || !draft.modalities.includes(modalityFilter)) continue;
       const idx = live.tableIndexById.get(table.id);
-      if (idx != null) map.set(table.store, idx);
+      if (idx == null) continue;
+      if (table.polygonName) byPolygon.set(`${table.store}|${table.polygonName}`, idx);
+      if (!map.has(table.store)) map.set(table.store, idx);
     }
     if (modalityFilter === LEGACY_MODALITY) {
       for (const table of live.snapshot.freightTables) {
@@ -450,7 +453,7 @@ export default function Dashboard() {
         if (idx != null) map.set(table.store, idx);
       }
     }
-    return map;
+    return { tariffIdxByStore: map, tariffIdxByPolygon: byPolygon };
   }, [live, modalityFilter]);
 
   /** Modalidades de Entrega no filtro da tabela de frete: Pequenos Volumes + as que têm "Entrega" no nome. */
@@ -480,7 +483,9 @@ export default function Dashboard() {
   /** Faixas de peso aplicáveis a um polígono, considerando a modalidade escolhida */
   const bandsOf = (rec: PolygonRecord | undefined | null) => {
     if (!rec) return undefined;
-    const idx = tariffIdxByStore.get(rec.store);
+    const polygonName = rec.id.split("|").pop() ?? rec.id;
+    const idx =
+      tariffIdxByPolygon.get(`${rec.store}|${polygonName}`) ?? tariffIdxByStore.get(rec.store);
     if (idx != null) {
       const base = dataset.tariffs[idx];
       if (base) return base.map((b, i) => overrides[`${rec.id}#${i}`] ?? b);

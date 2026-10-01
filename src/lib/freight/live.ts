@@ -142,9 +142,18 @@ function applySnapshot(raw: FreightSnapshotDto) {
     // tabela padrão da loja: a primeira sem política e, se todas já estiverem
     // vinculadas a alguma política, qualquer tabela daquela loja.
     const storeTables = (raw.freightTables ?? []).filter((t) => t.store === p.store);
-    const linkedTableId = p.policyClientId
-      ? (tableByPolicy.get(p.policyClientId) ?? null)
-      : ((storeTables.find((t) => !t.policyClientId) ?? storeTables[0])?.id ?? null);
+    // Tabela enviada especificamente para este polígono (PolygonName) tem prioridade.
+    const polygonName = p.id.split("|").pop() ?? p.id;
+    const ownTable = storeTables.find(
+      (t) =>
+        t.polygonName === polygonName &&
+        (!p.policyClientId || t.policyClientId === p.policyClientId),
+    );
+    const linkedTableId = ownTable
+      ? ownTable.id
+      : p.policyClientId
+        ? (tableByPolicy.get(p.policyClientId) ?? null)
+        : ((storeTables.find((t) => !t.policyClientId) ?? storeTables[0])?.id ?? null);
     const tableIdx = linkedTableId ? (tableIndexById.get(linkedTableId) ?? null) : null;
     polygons.push({
       id: p.id,
