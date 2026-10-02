@@ -76,7 +76,13 @@ export function PolicySchedulePanel({
               return (
                 <span
                   key={draft.id}
-                  className={draft.active ? "badge-open" : "badge-closed"}
+                  className={
+                    entries.length
+                      ? draft.active
+                        ? "badge-open"
+                        : "badge-closed"
+                      : "inline-flex items-center gap-1 rounded-full bg-warning/20 px-2 py-0.5 text-[11px] font-semibold text-warning-foreground"
+                  }
                   title={`${summary}`}
                 >
                   <strong>{store}</strong> ·  {summary}
