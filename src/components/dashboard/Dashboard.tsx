@@ -268,7 +268,7 @@ export default function Dashboard() {
   const allPolygons = live ? live.polygons : [];
 
   /** Modalidade escolhida para definir a tabela de frete usada no cálculo */
-  const [modalityFilter, setModalityFilter] = useState<string>("todas");
+  const [modalityFilter, setModalityFilter] = useState<string>(LEGACY_MODALITY);
 
   // Dados derivados: lojas ativas da região atual
   const regionStores = useMemo(
@@ -1059,6 +1059,7 @@ export default function Dashboard() {
                   active={modality === m}
                   onSelect={() => {
                     setModality(m);
+                    setModalityFilter(m === "Entrega" ? LEGACY_MODALITY : "todas");
                     setOpenFilter(null);
                   }}
                 >
@@ -1070,22 +1071,13 @@ export default function Dashboard() {
             {!isPickup ? (
               <FilterMenu
                 label="Modalidade de Entrega"
-                display={modalityFilter === "todas" ? "Tabela padrão da loja" : modalityFilter}
+                display={modalityFilter}
                 open={openFilter === "modalityFilter"}
                 onToggle={() => toggleFilter("modalityFilter")}
                 onClose={() => setOpenFilter(null)} // <-- Adicionar esta linha
                 triggerClass="w-56"
                 menuClass="w-72"
               >
-                <FilterOption
-                  active={modalityFilter === "todas"}
-                  onSelect={() => {
-                    setModalityFilter("todas");
-                    setOpenFilter(null);
-                  }}
-                >
-                  Tabela padrão da loja
-                </FilterOption>
                 {modalityOptions.map((m) => (
                   <FilterOption
                     key={m}
