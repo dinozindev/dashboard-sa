@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import { liveStores, useLive } from "@/lib/freight/live";
 import {
@@ -299,8 +299,14 @@ export function PoliciesPanel({
   );
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const matrixTopScrollRef = useRef<HTMLDivElement>(null);
+  const matrixScrollRef = useRef<HTMLDivElement>(null);
+  const matrixTableRef = useRef<HTMLTableElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
+  const detailsTableRef = useRef<HTMLTableElement>(null);
+  const [matrixScrollWidth, setMatrixScrollWidth] = useState(0);
+  const [detailsScrollWidth, setDetailsScrollWidth] = useState(0);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [newModality, setNewModality] = useState("");
   const [selectedModality, setSelectedModality] = useState<string | null>(null);
@@ -309,6 +315,33 @@ export function PoliciesPanel({
     : [];
   const usesScheduledDelivery =
     selectedModality === "Retira Televendas" || selectedModality === "Entrega Agendada";
+
+  useEffect(() => {
+    const updateScrollWidth = () => {
+      if (matrixScrollRef.current) {
+        setMatrixScrollWidth(matrixScrollRef.current.scrollWidth);
+      }
+    };
+    updateScrollWidth();
+
+    const observer = new ResizeObserver(updateScrollWidth);
+    if (matrixScrollRef.current) observer.observe(matrixScrollRef.current);
+    if (matrixTableRef.current) observer.observe(matrixTableRef.current);
+    return () => observer.disconnect();
+  }, [data.modalities, shownStores]);
+
+  useEffect(() => {
+    const updateScrollWidth = () => {
+      if (detailsTableRef.current) {
+        setDetailsScrollWidth(detailsTableRef.current.scrollWidth);
+      }
+    };
+    updateScrollWidth();
+
+    const observer = new ResizeObserver(updateScrollWidth);
+    if (detailsTableRef.current) observer.observe(detailsTableRef.current);
+    return () => observer.disconnect();
+  }, [selectedModality, shownStores, usesScheduledDelivery, canEdit]);
 
   const addModality = () => {
     const modality = newModality.trim();
@@ -486,26 +519,34 @@ export function PoliciesPanel({
         </p>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-xs">
+      <div
+        ref={matrixTopScrollRef}
+        aria-label="Rolagem horizontal da tabela de políticas"
+        className="overflow-x-auto rounded-t-xl border border-border border-b-0"
+        onScroll={(event) => {
+          if (matrixScrollRef.current) {
+            matrixScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+          }
+        }}
+      >
+        <div className="h-px" style={{ width: matrixScrollWidth }} />
+      </div>
+      <div
+        ref={matrixScrollRef}
+        className="overflow-x-auto rounded-b-xl border border-border"
+        onScroll={(event) => {
+          if (matrixTopScrollRef.current) {
+            matrixTopScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+          }
+        }}
+      >
+        <table ref={matrixTableRef} className="w-full text-xs">
           <thead className="bg-muted/60 uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="sticky left-0 z-10 bg-muted px-2 py-2 text-left">Modalidade</th>
-              {shownStores.map((s) => (
-                <th key={s.nome} className="px-3 py-2 text-center">
-                  {s.nome}
-                  <span className="block text-[10px] font-normal normal-case">
-                    {s.cidade}/{s.uf}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.modalities.map((m) => (
-              <tr key={m} className="border-t border-border">
-                <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium">
-                  <div className="flex min-w-[180px] items-center justify-between gap-2">
+              <th className="sticky left-0 z-10 bg-muted px-2 py-2 text-left">Loja</th>
+              {data.modalities.map((m) => (
+                <th key={m} className="min-w-[180px] px-3 py-2 text-center">
+                  <div className="flex flex-col items-center gap-1">
                     <span>
                       {m}
                       {SHIPPING_POLICY_DEFINITIONS.find((definition) => definition.name === m)?.id
@@ -514,14 +555,28 @@ export function PoliciesPanel({
                     </span>
                     <button
                       type="button"
-                      className="rounded-md border border-primary px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+                      className="rounded-md border border-primary px-2 py-1 text-[11px] font-medium normal-case text-primary hover:bg-primary/10"
                       onClick={() => setSelectedModality(m)}
                     >
                       Visualizar
                     </button>
                   </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shownStores.map((s) => (
+              <tr key={s.nome} className="border-t border-border">
+                <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium">
+                  <div className="min-w-[180px]">
+                    {s.nome}
+                    <span className="block text-[10px] font-normal text-muted-foreground">
+                      {s.cidade}/{s.uf}
+                    </span>
+                  </div>
                 </td>
-                {shownStores.map((s) => {
+                {data.modalities.map((m) => {
                   const cell = s.cells[m] ?? { status: "—" as PolicyStatus, note: "" };
                   const policy = drafts.find(
                     (draft) => draft.store === s.nome && draft.modalities.includes(m),
@@ -529,7 +584,7 @@ export function PoliciesPanel({
                   const divergences = policy ? findDivergences(policy, m) : [];
                   const divergent = divergences.length > 0;
                   return (
-                    <td key={s.nome} className="px-3 py-1.5 text-center">
+                    <td key={m} className="px-3 py-1.5 text-center">
                       {canEdit ? (
                         <select
                           aria-label={`Status de ${m} em ${s.nome}`}
@@ -600,28 +655,31 @@ export function PoliciesPanel({
         }}
       >
         {selectedModality ? (
-          <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
+          <DialogContent className="flex max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-6xl flex-col overflow-hidden p-3 sm:max-h-[90vh] sm:p-6">
             <DialogHeader>
               <DialogTitle>Políticas da modalidade</DialogTitle>
               <DialogDescription>
                 {selectedModality} · {shownStores.length} loja(s)
               </DialogDescription>
             </DialogHeader>
+            <p className="text-[11px] text-muted-foreground sm:hidden">
+              Deslize para os lados para ver todas as informações.
+            </p>
             <div
               ref={topScrollRef}
               aria-label="Rolagem horizontal da tabela"
-              className="sticky top-0 z-20 max-w-full overflow-x-auto rounded-t-lg bg-card pb-1"
+              className="max-w-full shrink-0 overflow-x-auto rounded-t-lg bg-card pb-1"
               onScroll={(event) => {
                 if (tableScrollRef.current) {
                   tableScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
                 }
               }}
             >
-              <div className="h-px min-w-[1700px] w-max" />
+              <div className="h-px" style={{ width: detailsScrollWidth }} />
             </div>
             <div
               ref={tableScrollRef}
-              className="max-w-full overflow-x-auto rounded-b-lg border border-border"
+              className="min-h-0 max-w-full overflow-auto rounded-b-lg border border-border"
               onScroll={(event) => {
                 if (topScrollRef.current) {
                   topScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
@@ -629,28 +687,31 @@ export function PoliciesPanel({
               }}
             >
               <table
+                ref={detailsTableRef}
                 className={
                   "w-full text-xs " + (usesScheduledDelivery ? "min-w-[1420px]" : "min-w-[1100px]")
                 }
               >
                 <thead className="bg-muted/60 text-left uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="sticky left-0 z-10 bg-muted px-3 py-2">Loja</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Tipo</th>
-                    <th className="px-3 py-2">Tabela de frete</th>
+                    <th className="sticky left-0 top-0 z-30 bg-muted px-3 py-2">Loja</th>
+                    <th className="sticky top-0 z-20 bg-muted px-3 py-2">Status</th>
+                    <th className="sticky top-0 z-20 bg-muted px-3 py-2">Tipo</th>
+                    <th className="sticky top-0 z-20 bg-muted px-3 py-2">Tabela de frete</th>
                     {usesScheduledDelivery ? (
                       <>
-                        <th className="px-3 py-2">Entrega agendada</th>
-                        <th className="px-3 py-2">Prazo máximo</th>
-                        <th className="px-3 py-2">Capacidade</th>
-                        <th className="px-3 py-2">Janelas agendadas</th>
+                        <th className="sticky top-0 z-20 bg-muted px-3 py-2">Entrega agendada</th>
+                        <th className="sticky top-0 z-20 bg-muted px-3 py-2">Prazo máximo</th>
+                        <th className="sticky top-0 z-20 bg-muted px-3 py-2">Capacidade</th>
+                        <th className="sticky top-0 z-20 bg-muted px-3 py-2">Janelas agendadas</th>
                       </>
                     ) : null}
                     {selectedModality === "Pequenos Volumes" ? (
-                      <th className="px-3 py-2">Dimensões</th>
+                      <th className="sticky top-0 z-20 bg-muted px-3 py-2">Dimensões</th>
                     ) : null}
-                    <th className="px-3 py-2">Fim de semana/feriados</th>
+                    <th className="sticky top-0 z-20 bg-muted px-3 py-2">
+                      Fim de semana/feriados
+                    </th>
                     {[
                       "Retira Fácil",
                       "Clique & Retira",
@@ -658,10 +719,12 @@ export function PoliciesPanel({
                       "Retira Imediata",
                       "Saldo Borderô",
                     ].includes(selectedModality ?? "") ? (
-                      <th className="px-3 py-2">Retirada</th>
+                      <th className="sticky top-0 z-20 bg-muted px-3 py-2">Retirada</th>
                     ) : null}
-                    <th className="px-3 py-2">Horários</th>
-                    {canEdit ? <th className="px-3 py-2">Ações</th> : null}
+                    <th className="sticky top-0 z-20 bg-muted px-3 py-2">Horários</th>
+                    {canEdit ? (
+                      <th className="sticky top-0 z-20 bg-muted px-3 py-2">Ações</th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
