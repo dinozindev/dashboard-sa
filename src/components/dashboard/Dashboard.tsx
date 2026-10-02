@@ -541,10 +541,9 @@ export default function Dashboard() {
     for (const table of live.snapshot.freightTables) {
       const name = table.polygonName;
       if (!name) continue;
-      if (modalityFilter !== "todas") {
-        const draft = live.drafts.find((d) => d.id === table.policyClientId);
-        if (!draft || !draft.modalities.includes(modalityFilter)) continue;
-      }
+      const draft = live.drafts.find((d) => d.id === table.policyClientId);
+      if (!draft || draft.policyType !== "Retira") continue;
+      if (modalityFilter !== "todas" && !draft.modalities.includes(modalityFilter)) continue;
       const first = table.bands?.[0];
       map.set(name, {
         price: first?.amc ?? null,
@@ -571,7 +570,7 @@ export default function Dashboard() {
       if (!table.policyClientId) continue;
       const draft = live.drafts.find((d) => d.id === table.policyClientId);
       if (!draft) continue;
-      if (draft.policyType !== "Retira" && !table.polygonName) continue;
+      if (draft.policyType !== "Retira") continue;
       for (const m of draft.modalities.length ? draft.modalities : ["—"]) {
         if (modalityFilter !== "todas" && m !== modalityFilter) continue;
         const first = table.bands?.[0];
