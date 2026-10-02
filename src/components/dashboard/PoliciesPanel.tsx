@@ -268,6 +268,11 @@ export function PoliciesPanel({
       (s) => BASE_STORES.includes(s.nome as never) || submitted.includes(s.nome as never),
     );
     const knownStores = new Set(matrixStores.map((s) => s.nome));
+    // Status reais gravados no banco para lojas cadastradas fora da lista padrão.
+    const dbCells = new Map<string, { status: string; note: string }>();
+    for (const c of live?.snapshot.policyCells ?? []) {
+      dbCells.set(`${c.store}||${c.modality}`, { status: c.status, note: c.note ?? "" });
+    }
     const extraStores = liveStores(live)
       .filter((s) => s.polygonCount > 0 && !knownStores.has(s.name))
       .map((s) => ({
@@ -277,10 +282,16 @@ export function PoliciesPanel({
         uf: s.region,
         cidade: s.name,
         cells: Object.fromEntries(
-          data.modalities.map((modality) => [
-            modality,
-            { status: "Não informada" as PolicyStatus, note: "" },
-          ]),
+          data.modalities.map((modality) => {
+            const db = dbCells.get(`${s.name}||${modality}`);
+            return [
+              modality,
+              {
+                status: (db?.status ?? "Não informada") as PolicyStatus,
+                note: db?.note ?? "",
+              },
+            ];
+          }),
         ),
       }));
     return [...matrixStores, ...extraStores];
