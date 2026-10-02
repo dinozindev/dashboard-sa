@@ -170,8 +170,7 @@ function syncMatrixStatus(draft: ShippingPolicyDraft) {
   }
 }
 
-/** Cria ou atualiza uma política no banco (atualização otimista local). */
-export function upsertPolicyDraft(draft: ShippingPolicyDraft): "created" | "updated" {
+function applyPolicyDraftLocally(draft: ShippingPolicyDraft): "created" | "updated" {
   let result: "created" | "updated" = "created";
   commitLocal((state) => {
     const index = state.drafts.findIndex(
@@ -186,13 +185,34 @@ export function upsertPolicyDraft(draft: ShippingPolicyDraft): "created" | "upda
       state.drafts.unshift(draft);
     }
   });
+  syncMatrixStatus(draft);
+  return result;
+}
+
+/** Cria ou atualiza uma política no banco (atualização otimista local). */
+export function upsertPolicyDraft(draft: ShippingPolicyDraft): "created" | "updated" {
+  const result = applyPolicyDraftLocally(draft);
   void upsertPolicy({ data: { draft: toPayload(draft) } })
     .then(() => refreshLive())
     .catch((err) => {
       console.error("Falha ao salvar política no banco", err);
       void refreshLive();
     });
-  syncMatrixStatus(draft);
+  return result;
+}
+
+/** Aguarda a persistência da política antes de gravar dados que a referenciam. */
+export async function upsertPolicyDraftAndWait(
+  draft: ShippingPolicyDraft,
+): Promise<"created" | "updated"> {
+  const result = applyPolicyDraftLocally(draft);
+  try {
+    await upsertPolicy({ data: { draft: toPayload(draft) } });
+  } catch (err) {
+    void refreshLive();
+    throw err;
+  }
+  void refreshLive();
   return result;
 }
 

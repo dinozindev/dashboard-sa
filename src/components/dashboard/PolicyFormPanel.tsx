@@ -12,7 +12,7 @@ import {
   getPolicyDrafts,
   removePolicyDraft,
   replacePolicyDrafts,
-  upsertPolicyDraft,
+  upsertPolicyDraftAndWait,
   usePolicyDrafts,
   type DayGroup,
   type DeliveryWindowRow,
@@ -676,7 +676,14 @@ export function PolicyFormPanel({
       shippingWindows: mode === "janela" ? windows : [],
       pickupTimes: mode === "coleta" ? pickupTimes : [],
     };
-    const result = upsertPolicyDraft(draft);
+    let result: "created" | "updated";
+    try {
+      result = await upsertPolicyDraftAndWait(draft);
+    } catch (err) {
+      console.error("Falha ao salvar política de envio", err);
+      setErrors((cur) => [...cur, "Falha ao gravar a política no banco. Tente novamente."]);
+      return;
+    }
     logPolicyChanges(existing, draft, modality);
 
     // Tabela de frete: Entrega (por faixa de peso) e Retira (valor fixo do estado)
@@ -695,6 +702,7 @@ export function PolicyFormPanel({
             : "Gravando tabela de frete no banco…",
         );
         let tableId = "";
+        const savedTableIds: string[] = [];
         for (const [gi, g] of groups.entries()) {
           if (gi > 0) setSaveProgress(`Gravando tabela de frete ${gi + 1} de ${groups.length}…`);
           const res = await saveFreightTable({
@@ -711,8 +719,12 @@ export function PolicyFormPanel({
               },
             },
           });
+          savedTableIds.push(res.id);
           if (!tableId) tableId = res.id;
         }
+        await deletePolicyFreightTables({
+          data: { policyClientId: id, keepTableIds: savedTableIds },
+        });
         const idx = pushTariffTable(uploadedBands);
         const polygonIds =
           getLive()?.polygons.filter((p) => p.store === store).map((p) => p.id) ?? [];

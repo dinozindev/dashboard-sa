@@ -609,12 +609,16 @@ export const saveFreightTable = createServerFn({ method: "POST" })
 
     let policyId: string | null = null;
     if (t.policyClientId) {
-      const { data: policy } = await supabase
+      const { data: policy, error: policyError } = await supabase
         .from("policies")
         .select("id")
         .eq("client_id", t.policyClientId)
         .maybeSingle();
+      fail(policyError);
       policyId = (policy?.id as string) ?? null;
+      if (!policyId) {
+        throw new Error(`Política ${t.policyClientId} não encontrada para associar a tabela de frete.`);
+      }
     }
 
     const { data: existing } = await supabase
@@ -703,22 +707,29 @@ export const linkFreightTable = createServerFn({ method: "POST" })
 
 /** Remove do banco as tabelas de frete associadas a uma política (e suas faixas). */
 export const deletePolicyFreightTables = createServerFn({ method: "POST" })
-  .validator((input: { policyClientId: string; tableId?: string }) => input)
+  .validator(
+    (input: { policyClientId: string; tableId?: string; keepTableIds?: string[] }) => input,
+  )
   .handler(async ({ data }) => {
     const supabase = publicClient();
     const ids: string[] = [];
     if (data.tableId) ids.push(data.tableId);
-    const { data: policy } = await supabase
+    const { data: policy, error: policyError } = await supabase
       .from("policies")
       .select("id")
       .eq("client_id", data.policyClientId)
       .maybeSingle();
+    fail(policyError);
     if (policy?.id) {
-      const { data: rows } = await supabase
+      const { data: rows, error: tablesError } = await supabase
         .from("freight_tables")
         .select("id")
         .eq("policy_id", policy.id);
-      for (const row of (rows ?? []) as { id: string }[]) ids.push(row.id);
+      fail(tablesError);
+      const keepTableIds = new Set(data.keepTableIds ?? []);
+      for (const row of (rows ?? []) as { id: string }[]) {
+        if (!keepTableIds.has(row.id)) ids.push(row.id);
+      }
     }
     const unique = [...new Set(ids)];
     if (unique.length) {

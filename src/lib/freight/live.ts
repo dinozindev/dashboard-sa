@@ -61,6 +61,15 @@ const emit = () => {
   for (const l of listeners) l();
 };
 
+export function normalizePolygonName(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function normalizeDraft(raw: object): ShippingPolicyDraft {
   const d = raw as Partial<ShippingPolicyDraft>;
   return {
@@ -146,7 +155,7 @@ function applySnapshot(raw: FreightSnapshotDto) {
     const polygonName = p.id.split("|").pop() ?? p.id;
     const ownTable = storeTables.find(
       (t) =>
-        t.polygonName === polygonName &&
+        normalizePolygonName(t.polygonName) === normalizePolygonName(polygonName) &&
         (!p.policyClientId || t.policyClientId === p.policyClientId),
     );
     const linkedTableId = ownTable
@@ -283,6 +292,59 @@ export function commitLocal(mutate: (state: LiveState) => void) {
   mutate(next);
   version = next.version;
   emit();
+}
+
+/** Atualiza localmente uma coleção para refletir envios e remoções sem aguardar o snapshot. */
+export function updateLivePolygonCollection(
+  store: string,
+  kind: "Entrega" | "Retira",
+  polygons: PolygonRecord[],
+  replace: boolean,
+) {
+  commitLocal((state) => {
+    const isTargetCollection = (polygon: { store: string; kind?: string | null }) =>
+      polygon.store === store && (polygon.kind === "Retira" ? "Retira" : "Entrega") === kind;
+    const addedPolygonIds = new Set(polygons.map((polygon) => polygon.id));
+    const currentPolygons = state.polygons.filter((polygon) => !isTargetCollection(polygon));
+    state.polygons = replace
+      ? [...currentPolygons, ...polygons]
+      : [...state.polygons.filter((polygon) => !addedPolygonIds.has(polygon.id)), ...polygons];
+
+    const currentSnapshotPolygons = state.snapshot.polygons.filter(
+      (polygon) => !isTargetCollection(polygon),
+    );
+    const addedSnapshotPolygons = polygons.map((polygon) => ({
+      id: polygon.id,
+      store: polygon.store,
+      district: polygon.district,
+      uf: polygon.uf,
+      band: polygon.band,
+      radius: polygon.radius,
+      rMin: polygon.rMin,
+      rMax: polygon.rMax,
+      areaKm2: polygon.areaKm2,
+      center: polygon.center,
+      policyClientId: polygon.policyClientId ?? "",
+      kind: polygon.kind ?? kind,
+      geojson: polygon.geom.length
+        ? { type: "MultiPolygon", coordinates: polygon.geom }
+        : null,
+    }));
+    const snapshotPolygons = replace
+      ? [...currentSnapshotPolygons, ...addedSnapshotPolygons]
+      : [
+          ...state.snapshot.polygons.filter((polygon) => !addedPolygonIds.has(polygon.id)),
+          ...addedSnapshotPolygons,
+        ];
+    const polygonCount = state.polygons.filter((polygon) => polygon.store === store).length;
+    state.snapshot = {
+      ...state.snapshot,
+      polygons: snapshotPolygons,
+      stores: state.snapshot.stores.map((item) =>
+        item.name === store ? { ...item, polygonCount } : item,
+      ),
+    };
+  });
 }
 
 /** Hook principal: estado do banco + recarga automática. */

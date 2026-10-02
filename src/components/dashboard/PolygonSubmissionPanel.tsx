@@ -8,7 +8,13 @@
  */
 
 import { useMemo, useRef, useState } from "react";
-import { useLive, liveStores, refreshLive, storeRegionOf } from "@/lib/freight/live";
+import {
+  useLive,
+  liveStores,
+  refreshLive,
+  storeRegionOf,
+  updateLivePolygonCollection,
+} from "@/lib/freight/live";
 import {
   deletePolygonCollection,
   deleteStatePolygon,
@@ -19,7 +25,7 @@ import {
 } from "@/lib/freight/remote.functions";
 import { logAudit } from "@/lib/freight/audit-log";
 import { useSubmittedStores, useDbStores } from "@/lib/freight/submitted-stores";
-import { UF_LIST, UF_NAMES } from "@/lib/freight/types";
+import { UF_LIST, UF_NAMES, type PolygonRecord } from "@/lib/freight/types";
 
 /** Features aceitas: Feature (Polygon/MultiPolygon) ou geometria direta */
 type AnyGeom = { type: "Polygon" | "MultiPolygon"; coordinates: unknown };
@@ -100,7 +106,6 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
   const live = useLive();
   const submitted = useSubmittedStores();
   const dbStores = useDbStores();
-  const drafts = live?.drafts ?? [];
 
   const [store, setStore] = useState("");
   const [kind, setKind] = useState<Kind>("Entrega");
@@ -118,8 +123,11 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
   const fileRef = useRef<HTMLInputElement>(null);
 
   const storeOptions = useMemo(
-    () => Array.from(new Set([...dbStores.map((s) => s.name), ...drafts.map((d) => d.store)])),
-    [dbStores, drafts],
+    () =>
+      Array.from(
+        new Set([...dbStores.map((s) => s.name), ...(live?.drafts ?? []).map((d) => d.store)]),
+      ),
+    [dbStores, live?.drafts],
   );
 
   /** Resumo por loja + tipo (Entrega/Retira) já cadastrado no banco */
@@ -256,8 +264,10 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
 
       if (replaceExisting) {
         await deletePolygonCollection({ data: { storeId, kind } });
+        updateLivePolygonCollection(storeName, kind, [], true);
       }
 
+      const localPolygons: PolygonRecord[] = [];
       const rows = geo.map((g, i) => {
         const coords = asMulti(g);
         const center = centroidOf(coords);
@@ -268,18 +278,39 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
           nameValue === undefined || String(nameValue).trim() === ""
             ? `${districtValue ?? storeName}_${bandOf(attrs)}_${String(i + 1).padStart(3, "0")}`
             : String(nameValue);
+        const areaKm2 = areaKm2Of(coords);
+        const band = bandOf(attrs);
+        const radius = numOf(attrs, ["Raio", "radius"]) ?? 0;
+        const rMin = numOf(attrs, ["Raio_Min", "rMin"]) ?? 0;
+        const rMax = numOf(attrs, ["Raio_Max", "rMax"]) ?? 0;
+        const district = districtValue === undefined ? null : String(districtValue);
+        localPolygons.push({
+          id: `${storeId}|${kind}|${polygonName}`,
+          store: storeName,
+          district,
+          uf: region,
+          band,
+          radius,
+          rMin,
+          rMax,
+          areaKm2,
+          center,
+          geom: coords,
+          kind,
+          tariff: null
+        });
         return {
           clientId: `${storeId}|${kind}|${polygonName}`,
           storeId,
           policyId: null,
           kind,
-          district: districtValue === undefined ? null : String(districtValue),
+          district,
           uf: region,
-          band: bandOf(attrs),
-          radius: numOf(attrs, ["Raio", "radius"]),
-          rMin: numOf(attrs, ["Raio_Min", "rMin"]),
-          rMax: numOf(attrs, ["Raio_Max", "rMax"]),
-          areaKm2: areaKm2Of(coords),
+          band,
+          radius,
+          rMin,
+          rMax,
+          areaKm2,
           centerLng: center[0],
           centerLat: center[1],
           geojson: JSON.stringify({ type: "MultiPolygon", coordinates: coords }),
@@ -289,8 +320,10 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       // envia em lotes de 200 para não estourar o limite da requisição
       let inserted = 0;
       for (let i = 0; i < rows.length; i += 200) {
-        const res = await insertPolygonRows({ data: { rows: rows.slice(i, i + 200) } });
+        const end = Math.min(i + 200, rows.length);
+        const res = await insertPolygonRows({ data: { rows: rows.slice(i, end) } });
         inserted += res.inserted;
+        updateLivePolygonCollection(storeName, kind, localPolygons.slice(i, end), false);
       }
 
       logAudit({
@@ -313,6 +346,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
       if (fileRef.current) fileRef.current.value = "";
       await refreshLive();
     } catch (e) {
+      if (replaceExisting) await refreshLive();
       setFeedback({
         kind: "err",
         text: e instanceof Error ? e.message : "Falha ao enviar os polígonos.",
@@ -328,6 +362,7 @@ export function PolygonSubmissionPanel({ onGoToMap }: { onGoToMap: () => void })
     if (!window.confirm(`Remover os polígonos de ${collectionKind} da loja de ${storeName}?`)) return;
     const { id: storeId } = await ensureStore({ data: { name: storeName, region: target.region } });
     await deletePolygonCollection({ data: { storeId, kind: collectionKind } });
+    updateLivePolygonCollection(storeName, collectionKind, [], true);
     logAudit({
       store: storeName,
       module: "Criação de Polígonos",

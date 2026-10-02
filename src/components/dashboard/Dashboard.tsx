@@ -26,7 +26,13 @@ import {
   hasSimulation,
   type Overrides,
 } from "@/lib/freight/dataset";
-import { availableStoreNames, liveStores, storeRegionOf, useLive } from "@/lib/freight/live";
+import {
+  availableStoreNames,
+  liveStores,
+  normalizePolygonName,
+  storeRegionOf,
+  useLive,
+} from "@/lib/freight/live";
 import { BAND_ORDER } from "@/lib/freight/palette";
 import { brl, calcPrice, kg } from "@/lib/freight/pricing";
 import { areaKm2OfMultiPolygon, distanceKm, pointInPolygon, polygonsAtPoint } from "@/lib/freight/geo";
@@ -437,14 +443,28 @@ export default function Dashboard() {
     const map = new Map<string, number>();
     const byPolygon = new Map<string, number>();
     if (!live || modalityFilter === "todas") return { tariffIdxByStore: map, tariffIdxByPolygon: byPolygon };
+    const namedTablesByStore = new Map<string, number[]>();
     for (const table of live.snapshot.freightTables) {
       if (!table.policyClientId) continue;
       const draft = live.drafts.find((d) => d.id === table.policyClientId);
       if (!draft || !draft.modalities.includes(modalityFilter)) continue;
       const idx = live.tableIndexById.get(table.id);
       if (idx == null) continue;
-      if (table.polygonName) byPolygon.set(`${table.store}|${table.polygonName}`, idx);
-      if (!map.has(table.store)) map.set(table.store, idx);
+      const polygonName = normalizePolygonName(table.polygonName);
+      if (polygonName) {
+        byPolygon.set(`${table.store}|${polygonName}`, idx);
+        const storeTables = namedTablesByStore.get(table.store) ?? [];
+        storeTables.push(idx);
+        namedTablesByStore.set(table.store, storeTables);
+      } else if (!map.has(table.store)) {
+        map.set(table.store, idx);
+      }
+    }
+    for (const [store, indexes] of namedTablesByStore) {
+      if (!map.has(store) && indexes.length === 1) {
+        const [singleIndex] = indexes;
+        if (singleIndex != null) map.set(store, singleIndex);
+      }
     }
     if (modalityFilter === LEGACY_MODALITY) {
       for (const table of live.snapshot.freightTables) {
@@ -485,7 +505,8 @@ export default function Dashboard() {
     if (!rec) return undefined;
     const polygonName = rec.id.split("|").pop() ?? rec.id;
     const idx =
-      tariffIdxByPolygon.get(`${rec.store}|${polygonName}`) ?? tariffIdxByStore.get(rec.store);
+      tariffIdxByPolygon.get(`${rec.store}|${normalizePolygonName(polygonName)}`) ??
+      tariffIdxByStore.get(rec.store);
     if (idx != null) {
       const base = dataset.tariffs[idx];
       if (base) return base.map((b, i) => overrides[`${rec.id}#${i}`] ?? b);
@@ -1211,7 +1232,7 @@ export default function Dashboard() {
                       para exibir a área de retira — nenhum contorno é desenhado por aproximação.
                     </p>
                   ) : null}
-                  {false && activeStatePolygons.length ? (
+                  {activeStatePolygons.length > 0 ? (
                     <div className="surface p-3">
                       <p className="eyebrow mb-2">
                         Frete da retira
