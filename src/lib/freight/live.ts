@@ -221,6 +221,7 @@ function applySnapshot(raw: FreightSnapshotDto) {
 
 /** Busca o estado do banco (deduplicada). */
 let queued: Promise<void> | null = null;
+let writeSeq = 0;
 
 export function refreshLive(): Promise<void> {
   // Se já há uma leitura em andamento, ela pode ter começado antes de uma
@@ -234,8 +235,17 @@ export function refreshLive(): Promise<void> {
     }
     return queued;
   }
+  const startSeq = writeSeq;
   inflight = getFreightSnapshot()
-    .then((raw) => applySnapshot(raw))
+    .then((raw) => {
+      // Uma alteração local aconteceu durante a leitura: o resultado pode
+      // estar desatualizado; descarta e lê de novo em seguida.
+      if (startSeq !== writeSeq) {
+        setTimeout(() => void refreshLive(), 300);
+        return;
+      }
+      applySnapshot(raw);
+    })
     .catch((err) => {
       // Mantém o último snapshot durante indisponibilidades transitórias.
       console.warn("Dados temporariamente indisponíveis; nova tentativa será feita.", err);
@@ -257,6 +267,7 @@ export const subscribeLive = (cb: () => void) => {
 /** Atualização otimista: muta o estado atual e notifica os listeners. */
 export function commitLocal(mutate: (state: LiveState) => void) {
   if (!current) return;
+  writeSeq += 1;
   const next: LiveState = {
     ...current,
     drafts: [...current.drafts],
