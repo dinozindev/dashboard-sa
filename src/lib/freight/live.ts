@@ -220,19 +220,29 @@ function applySnapshot(raw: FreightSnapshotDto) {
 }
 
 /** Busca o estado do banco (deduplicada). */
+let queued: Promise<void> | null = null;
+
 export function refreshLive(): Promise<void> {
-  if (!inflight) {
-    inflight = getFreightSnapshot()
-      .then((raw) => applySnapshot(raw))
-      .catch((err) => {
-        // Mantém o último snapshot durante indisponibilidades transitórias; o
-        // próximo ciclo tenta novamente sem acionar a tela de erro da prévia.
-        console.warn("Dados temporariamente indisponíveis; nova tentativa será feita.", err);
-      })
-      .finally(() => {
-        inflight = null;
+  // Se já há uma leitura em andamento, ela pode ter começado antes de uma
+  // gravação recente: agenda mais uma leitura para quando ela terminar.
+  if (inflight) {
+    if (!queued) {
+      queued = inflight.then(() => {
+        queued = null;
+        return refreshLive();
       });
+    }
+    return queued;
   }
+  inflight = getFreightSnapshot()
+    .then((raw) => applySnapshot(raw))
+    .catch((err) => {
+      // Mantém o último snapshot durante indisponibilidades transitórias.
+      console.warn("Dados temporariamente indisponíveis; nova tentativa será feita.", err);
+    })
+    .finally(() => {
+      inflight = null;
+    });
   return inflight;
 }
 
