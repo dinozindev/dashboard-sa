@@ -193,105 +193,177 @@ function scheduledStandard(opts: {
   ];
 }
 
-const minItems: FieldStandard = {
-  label: "Mínimo de itens",
-  expected: "1",
-  check: (d) => d.packageItems.minimum === 1,
-  actual: (d) => fmtNum(d.packageItems.minimum),
+// ============================================================================
+// REGRAS EM DADOS (gravadas no banco: padrão geral + exceção por loja)
+// ============================================================================
+
+export interface ScheduleRule {
+  mode: "janela" | "coleta";
+  days: string;
+  time?: string;
+  start?: string;
+  end?: string;
+}
+
+export interface ScheduledRule {
+  enabled: boolean;
+  maxDays?: number;
+  start?: string;
+  end?: string;
+}
+
+/**
+ * Regras de uma modalidade. Campo ausente = não verificado.
+ * Dimensão `null` = esperado desabilitado.
+ */
+export interface StandardRules {
+  largestEdge?: number | null;
+  sumOfDimensions?: number | null;
+  cubicWeightFactor?: number | null;
+  minimumWeightFactor?: number | null;
+  schedule?: ScheduleRule;
+  scheduled?: ScheduledRule;
+  saturday?: boolean;
+  sunday?: boolean;
+  holidays?: boolean;
+  minItems?: number;
+}
+
+const coleta15: ScheduleRule = { mode: "coleta", days: "seg-dom", time: "15:00" };
+
+/** Padrão inicial de fábrica (aba "Padrão" da planilha). */
+export const DEFAULT_RULES: Record<string, StandardRules> = {
+  "Pequenos Volumes": {
+    largestEdge: 220,
+    sumOfDimensions: null,
+    cubicWeightFactor: null,
+    minimumWeightFactor: null,
+    schedule: coleta15,
+    minItems: 1,
+  },
+  "Retira Fácil (Clique & Retira)": { schedule: coleta15, saturday: true, minItems: 1 },
+  "Retira Televendas": {
+    schedule: coleta15,
+    scheduled: { enabled: true, maxDays: 8, start: "08:00", end: "21:00" },
+    saturday: true,
+    minItems: 1,
+  },
+  "Retira Imediata": {
+    schedule: { mode: "janela", days: "Seg-dom", start: "07:00", end: "21:00" },
+    saturday: true,
+    sunday: true,
+    holidays: true,
+    minItems: 1,
+  },
+  "Saldo Borderô": {
+    schedule: { mode: "janela", days: "Seg-dom", start: "00:00", end: "23:59" },
+    saturday: true,
+    sunday: true,
+    holidays: true,
+    minItems: 1,
+  },
+  "Retira H+4 Ecommerce": {
+    schedule: { mode: "janela", days: "Seg-sab", start: "07:00", end: "15:00" },
+    saturday: true,
+    minItems: 1,
+  },
+  "Entrega Normal": { schedule: coleta15, minItems: 1 },
+  "Entrega Conforto Manhã": {
+    schedule: { mode: "coleta", days: "Seg-sab", time: "15:00" },
+    scheduled: { enabled: true, maxDays: 7, start: "08:00", end: "12:00" },
+    minItems: 1,
+  },
+  "Entrega Conforto Tarde": {
+    schedule: { mode: "coleta", days: "seg-sab", time: "15:00" },
+    scheduled: { enabled: true, maxDays: 7, start: "12:00", end: "18:00" },
+    minItems: 1,
+  },
+  "Entrega Agendada": {
+    schedule: coleta15,
+    scheduled: { enabled: true, maxDays: 8, start: "07:00", end: "18:00" },
+    saturday: true,
+    minItems: 1,
+  },
 };
 
-const coletaSegDom15 = scheduleStandard({ mode: "coleta", days: "seg-dom", time: "15:00" });
+/** Converte regras em verificações de campo. */
+export function buildFields(rules: StandardRules): FieldStandard[] {
+  const out: FieldStandard[] = [];
+  if (rules.largestEdge !== undefined)
+    out.push(dim("Maior aresta", rules.largestEdge, (d) => d.dimensions.largestEdge));
+  if (rules.sumOfDimensions !== undefined)
+    out.push(dim("Soma das dimensões", rules.sumOfDimensions, (d) => d.dimensions.sumOfDimensions));
+  if (rules.cubicWeightFactor !== undefined)
+    out.push(dim("Fator peso cúbico", rules.cubicWeightFactor, (d) => d.dimensions.cubicWeightFactor));
+  if (rules.minimumWeightFactor !== undefined)
+    out.push(
+      dim("Fator peso mínimo", rules.minimumWeightFactor, (d) => d.dimensions.minimumWeightFactor),
+    );
+  if (rules.schedule) out.push(scheduleStandard(rules.schedule));
+  if (rules.scheduled) out.push(...scheduledStandard(rules.scheduled));
+  if (rules.saturday !== undefined)
+    out.push(flag("Entrega aos sábados", rules.saturday, (d) => d.weekend.saturday));
+  if (rules.sunday !== undefined)
+    out.push(flag("Entrega aos domingos", rules.sunday, (d) => d.weekend.sunday));
+  if (rules.holidays !== undefined)
+    out.push(flag("Entrega em feriados", rules.holidays, (d) => d.weekend.holidays));
+  if (rules.minItems !== undefined) {
+    const min = rules.minItems;
+    out.push({
+      label: "Mínimo de itens",
+      expected: String(min),
+      check: (d) => d.packageItems.minimum === min,
+      actual: (d) => fmtNum(d.packageItems.minimum),
+    });
+  }
+  return out;
+}
 
-export const POLICY_STANDARDS: ModalityStandard[] = [
-  {
-    modality: "Pequenos Volumes",
-    fields: [
-      dim("Maior aresta", 220, (d) => d.dimensions.largestEdge),
-      dim("Soma das dimensões", null, (d) => d.dimensions.sumOfDimensions),
-      dim("Fator peso cúbico", null, (d) => d.dimensions.cubicWeightFactor),
-      dim("Fator peso mínimo", null, (d) => d.dimensions.minimumWeightFactor),
-      coletaSegDom15,
-      minItems,
-    ],
-  },
-  {
-    modality: "Retira Fácil (Clique & Retira)",
-    fields: [
-      coletaSegDom15,
-      flag("Entrega aos sábados", true, (d) => d.weekend.saturday),
-      minItems,
-    ],
-  },
-  {
-    modality: "Retira Televendas",
-    fields: [
-      coletaSegDom15,
-      ...scheduledStandard({ enabled: true, maxDays: 8, start: "08:00", end: "21:00" }),
-      flag("Entrega aos sábados", true, (d) => d.weekend.saturday),
-      minItems,
-    ],
-  },
-  {
-    modality: "Retira Imediata",
-    fields: [
-      scheduleStandard({ mode: "janela", days: "Seg-dom", start: "07:00", end: "21:00" }),
-      flag("Entrega aos sábados", true, (d) => d.weekend.saturday),
-      flag("Entrega aos domingos", true, (d) => d.weekend.sunday),
-      flag("Entrega em feriados", true, (d) => d.weekend.holidays),
-      minItems,
-    ],
-  },
-  {
-    modality: "Saldo Borderô",
-    fields: [
-      scheduleStandard({ mode: "janela", days: "Seg-dom", start: "00:00", end: "23:59" }),
-      flag("Entrega aos sábados", true, (d) => d.weekend.saturday),
-      flag("Entrega aos domingos", true, (d) => d.weekend.sunday),
-      flag("Entrega em feriados", true, (d) => d.weekend.holidays),
-      minItems,
-    ],
-  },
-  {
-    modality: "Retira H+4 Ecommerce",
-    fields: [
-      scheduleStandard({ mode: "janela", days: "Seg-sab", start: "07:00", end: "15:00" }),
-      flag("Entrega aos sábados", true, (d) => d.weekend.saturday),
-      minItems,
-    ],
-  },
-  {
-    modality: "Entrega Normal",
-    fields: [coletaSegDom15, minItems],
-  },
-  {
-    modality: "Entrega Conforto Manhã",
-    fields: [
-      scheduleStandard({ mode: "coleta", days: "Seg-sab", time: "15:00" }),
-      ...scheduledStandard({ enabled: true, maxDays: 7, start: "08:00", end: "12:00" }),
-      minItems,
-    ],
-  },
-  {
-    modality: "Entrega Conforto Tarde",
-    fields: [
-      scheduleStandard({ mode: "coleta", days: "seg-sab", time: "15:00" }),
-      ...scheduledStandard({ enabled: true, maxDays: 7, start: "12:00", end: "18:00" }),
-      minItems,
-    ],
-  },
-  {
-    modality: "Entrega Agendada",
-    fields: [
-      coletaSegDom15,
-      ...scheduledStandard({ enabled: true, maxDays: 8, start: "07:00", end: "18:00" }),
-      flag("Entrega aos sábados", true, (d) => d.weekend.saturday),
-      minItems,
-    ],
-  },
-];
+export const POLICY_STANDARDS: ModalityStandard[] = Object.entries(DEFAULT_RULES).map(
+  ([modality, rules]) => ({ modality, fields: buildFields(rules) }),
+);
 
-export function standardForModality(modality: string): ModalityStandard | undefined {
-  return POLICY_STANDARDS.find((s) => s.modality === modality);
+// ---------------------------------------------------------------------------
+// Fonte ativa (banco). `store` null = padrão geral.
+// ---------------------------------------------------------------------------
+
+export interface StandardRow {
+  store: string | null;
+  modality: string;
+  rules: StandardRules;
+}
+
+let activeRows: StandardRow[] | null = null;
+
+/** Define as regras vindas do banco (chamado a cada snapshot). */
+export function setStandardRows(rows: StandardRow[] | null) {
+  activeRows = rows;
+}
+
+export type RulesOrigin = "loja" | "geral" | "fabrica" | "nenhum";
+
+/** Resolve a regra: exceção da loja → padrão geral do banco → padrão de fábrica. */
+export function resolveRules(
+  modality: string,
+  store?: string | null,
+  rows: StandardRow[] | null = activeRows,
+): { rules: StandardRules | null; origin: RulesOrigin } {
+  if (store && rows) {
+    const own = rows.find((r) => r.store === store && r.modality === modality);
+    if (own) return { rules: own.rules, origin: "loja" };
+  }
+  const general = rows?.find((r) => r.store === null && r.modality === modality);
+  if (general) return { rules: general.rules, origin: "geral" };
+  const def = DEFAULT_RULES[modality];
+  return def ? { rules: def, origin: "fabrica" } : { rules: null, origin: "nenhum" };
+}
+
+export function standardForModality(
+  modality: string,
+  store?: string | null,
+): ModalityStandard | undefined {
+  const { rules } = resolveRules(modality, store);
+  return rules ? { modality, fields: buildFields(rules) } : undefined;
 }
 
 export interface StandardDivergence {
@@ -301,15 +373,14 @@ export interface StandardDivergence {
 }
 
 /**
- * Compara um rascunho de política com o padrão da modalidade.
- * Retorna a lista de campos fora do padrão (vazia = tudo conforme).
- * Modalidades sem padrão definido (ex.: TLV_VA_FRETE GRATIS) retornam [].
+ * Compara um rascunho de política com o padrão da modalidade (da loja da
+ * política, quando houver exceção). Retorna os campos fora do padrão.
  */
 export function findDivergences(
   draft: ShippingPolicyDraft,
   modality: string,
 ): StandardDivergence[] {
-  const standard = standardForModality(modality);
+  const standard = standardForModality(modality, draft.store);
   if (!standard) return [];
   return standard.fields
     .filter((field) => !field.check(draft))
