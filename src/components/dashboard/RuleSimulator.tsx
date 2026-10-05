@@ -58,7 +58,7 @@ export function RuleSimulator({ rec, bands, index, onIndex, overrides, setOverri
     <div className="surface space-y-3 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Simulador de regras (memória — não altera a planilha)
+          Simulador de regras
         </p>
         <button onClick={restore} className="btn-ghost text-xs">
           Restaurar valores originais da planilha

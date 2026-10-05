@@ -82,11 +82,12 @@ const TABS = [
   ["envio", "Envio de Lojas e Polígonos"],
   ["retirada", "Pontos de Retirada"],
   ["capacidade", "Capacidade Operacional"],
+  ["capacidadeEntrega", "Capacidade de Entrega"],
   ["auditoria", "Histórico de Auditoria"],
 ] as const;
 
 /** Aba ainda não finalizada, exibida com selo "Em Construção" */
-const UNDER_CONSTRUCTION_TABS: readonly string[] = [];
+const UNDER_CONSTRUCTION_TABS: readonly string[] = ["capacidadeEntrega"];
 
 type TabKey = (typeof TABS)[number][0];
 
@@ -98,11 +99,11 @@ const PROFILES = {
   },
   editor: {
     label: "Editor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidade"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidade", "capacidadeEntrega"] as TabKey[],
   },
   auditor: {
     label: "Auditor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidade", "auditoria"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidade", "capacidadeEntrega", "auditoria"] as TabKey[],
   },
 } as const;
 
@@ -840,18 +841,25 @@ export default function Dashboard() {
         <div className="bg-accent-gradient h-1 w-full" />
       </header>
 
-      <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-5">
-        <nav className="surface flex flex-wrap items-center gap-1 p-1.5">
+      <main className="mx-auto flex max-w-[1600px] flex-col items-start gap-4 px-4 py-5 md:flex-row">
+        <nav
+          aria-label="Navegação principal"
+          className="surface flex w-full shrink-0 gap-1 overflow-x-auto p-1.5 md:sticky md:top-4 md:max-h-[calc(100vh-2rem)] md:w-60 md:flex-col md:overflow-y-auto"
+        >
           {TABS.filter(([key]) => allowedTabs.includes(key)).map(([key, label]) => (
             <button
               key={key}
+              type="button"
               onClick={() => setTab(key)}
               aria-current={tab === key ? "page" : undefined}
-              className={tab === key ? "tab-pill-active" : "tab-pill"}
+              className={
+                "flex shrink-0 items-center justify-between gap-2 text-left md:w-full " +
+                (tab === key ? "tab-pill-active" : "tab-pill")
+              }
             >
-              {label}
+              <span>{label}</span>
               {UNDER_CONSTRUCTION_TABS.includes(key) && (
-                <span className="ml-2 inline-flex items-center rounded-full bg-warning/20 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-warning-foreground">
+                <span className="inline-flex shrink-0 items-center rounded-full bg-warning/20 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-warning-foreground">
                   Em Construção
                 </span>
               )}
@@ -859,6 +867,7 @@ export default function Dashboard() {
           ))}
         </nav>
 
+        <div className="min-w-0 w-full flex-1 space-y-4">
         {tab === "politicas" ? (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
@@ -917,6 +926,12 @@ export default function Dashboard() {
               </p>
               <CapacityPanel />
             </div>
+          </section>
+        ) : null}
+        {tab === "capacidadeEntrega" ? (
+          <section className="surface p-4">
+            <h2 className="section-title text-lg">Capacidade de Entrega</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Esta aba está em construção.</p>
           </section>
         ) : null}
         {tab === "auditoria" ? <AuditHistoryPanel /> : null}
@@ -1477,8 +1492,7 @@ export default function Dashboard() {
 
           </section>
         </div>
-
-
+        </div>
         {/* <footer className="pb-8 text-[11px] text-muted-foreground">
           Fonte: GeoJSON de polígonos + planilha de frete (associação Nome_Poligono ↔ PolygonName).
           Simulações de faixas são aplicadas apenas em memória e não alteram os arquivos originais.

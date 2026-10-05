@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { X } from "lucide-react";
 import {
   getCapacityOverview,
   saveCapacityConfig,
@@ -609,7 +610,12 @@ function StoreDetail({
     dto.consumption.find((c) => c.policy === policy && c.day === day)?.orders ?? 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div className="surface w-full max-w-4xl space-y-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -630,8 +636,14 @@ function StoreDetail({
             <button className="btn-ghost text-xs" onClick={onConfigure}>
               Configurar capacidade
             </button>
-            <button className="btn-ghost text-xs" onClick={onClose}>
-              Fechar
+            <button
+              type="button"
+              aria-label="Fechar detalhes da capacidade"
+              title="Fechar"
+              className="rounded-sm p-1 text-muted-foreground transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -794,7 +806,12 @@ function ConfigDialog({
   const todayKey = weekdayKeyOf(new Date());
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div className="surface w-full max-w-3xl space-y-4 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -803,8 +820,14 @@ function ConfigDialog({
               Unidade da capacidade operacional: <strong>quantidade de pedidos</strong> (fixa).
             </p>
           </div>
-          <button className="btn-ghost text-xs" onClick={onClose}>
-            Fechar
+          <button
+            type="button"
+            aria-label="Fechar configuração de capacidade"
+            title="Fechar"
+            className="rounded-sm p-1 text-muted-foreground transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
 
