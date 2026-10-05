@@ -451,8 +451,12 @@ export default function Dashboard() {
       const idx = live.tableIndexById.get(table.id);
       if (idx == null) continue;
       const polygonName = normalizePolygonName(table.polygonName);
-      if (polygonName) {
-        byPolygon.set(`${table.store}|${polygonName}`, idx);
+      const nameSuffix = table.name.includes(" · ")
+        ? normalizePolygonName(table.name.split(" · ").at(-1))
+        : "";
+      const tablePolygonNames = new Set([polygonName, nameSuffix].filter(Boolean));
+      if (tablePolygonNames.size) {
+        for (const name of tablePolygonNames) byPolygon.set(`${table.store}|${name}`, idx);
         const storeTables = namedTablesByStore.get(table.store) ?? [];
         storeTables.push(idx);
         namedTablesByStore.set(table.store, storeTables);

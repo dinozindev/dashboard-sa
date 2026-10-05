@@ -128,6 +128,7 @@ export interface FreightSnapshotDto {
 export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
   async (): Promise<FreightSnapshotDto> => {
     const supabase = publicClient();
+    const pageSize = 750;
 
     // Consultas deliberadamente sequenciais: abrir muitas conexões simultâneas
     // derrubava o pooler durante a retomada do banco (erros 520/522).
@@ -138,10 +139,19 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
       supabase.from("policies").select("id,client_id,store_id,data,created_at,updated_at").order("created_at"),
     );
     const tablesResult = await runRead(() =>
-      supabase.from("freight_tables").select("id,store_id,policy_id,name,source,file_name,polygon_name"),
+      supabase
+        .from("freight_tables")
+        .select("id,store_id,policy_id,name,source,file_name,polygon_name")
+        .order("id")
+        .range(0, pageSize - 1),
     );
     const bandsResult = await runRead(() =>
-      supabase.from("freight_bands").select("table_id,band_index,ws,we,amc,pew,pct,max_vol,time,country,min_ins").order("band_index"),
+      supabase
+        .from("freight_bands")
+        .select("table_id,band_index,ws,we,amc,pew,pct,max_vol,time,country,min_ins")
+        .order("table_id")
+        .order("band_index")
+        .range(0, pageSize - 1),
     );
     const statePolygonsResult = await runRead(() =>
       supabase.from("state_polygons_geo").select("uf,name,polygon_name,source,updated_at,geojson").order("uf"),
@@ -179,6 +189,41 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
       auditResult,
     ]) fail(result.error);
 
+    const tableRows = [...(tablesResult.data ?? [])];
+    if (tableRows.length === pageSize) {
+      for (let from = pageSize; ; from += pageSize) {
+        const { data, error } = await runRead(() =>
+          supabase
+            .from("freight_tables")
+            .select("id,store_id,policy_id,name,source,file_name,polygon_name")
+            .order("id")
+            .range(from, from + pageSize - 1),
+        );
+        fail(error);
+        const page = data ?? [];
+        tableRows.push(...page);
+        if (page.length < pageSize) break;
+      }
+    }
+
+    const freightBandRows = [...(bandsResult.data ?? [])];
+    if (freightBandRows.length === pageSize) {
+      for (let from = pageSize; ; from += pageSize) {
+        const { data, error } = await runRead(() =>
+          supabase
+            .from("freight_bands")
+            .select("table_id,band_index,ws,we,amc,pew,pct,max_vol,time,country,min_ins")
+            .order("table_id")
+            .order("band_index")
+            .range(from, from + pageSize - 1),
+        );
+        fail(error);
+        const page = data ?? [];
+        freightBandRows.push(...page);
+        if (page.length < pageSize) break;
+      }
+    }
+
     // O Data API limita respostas a 1.000 linhas. Paginar também reduz o pico de
     // memória e evita que milhares de geometrias sejam agregadas numa única SQL.
     const polygonRows: Array<{
@@ -197,7 +242,6 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
       kind: string | null;
       geojson: unknown;
     }> = [];
-    const pageSize = 750;
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await runRead(() =>
         supabase
@@ -224,7 +268,7 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
     }
 
     const bandsByTable = new Map<string, WeightBand[]>();
-    for (const band of bandsResult.data ?? []) {
+    for (const band of freightBandRows) {
       const bands = bandsByTable.get(band.table_id) ?? [];
       bands.push({
         ws: band.ws ?? 0,
@@ -254,7 +298,7 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
         const store = storeById.get(policy.store_id);
         return store ? [{ clientId: policy.client_id, store: store.name, data: policy.data as object, updatedAt: policy.updated_at }] : [];
       }),
-      freightTables: (tablesResult.data ?? []).flatMap((table) => {
+      freightTables: tableRows.flatMap((table) => {
         const store = storeById.get(table.store_id);
         if (!store) return [];
         return [{

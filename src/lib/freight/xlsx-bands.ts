@@ -160,16 +160,21 @@ export async function parseFreightSheet(data: ArrayBuffer): Promise<FreightSheet
   };
 
   const groupMap = new Map<string, FreightSheetGroup>();
+  let currentPolygonName: string | null = null;
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
     if (!row || !row.length) continue;
-    const name = text(row, "polygonName")?.trim() || null;
+    const rowPolygonName = text(row, "polygonName")?.trim() || null;
+    if (rowPolygonName) currentPolygonName = rowPolygonName;
+    // Planilhas frequentemente mesclam/repetem o nome do polígono só na
+    // primeira faixa; as linhas seguintes pertencem ao mesmo polígono.
+    const name = rowPolygonName ?? currentPolygonName;
     const ws = toNumber(cell(row, "ws"));
     const we = toNumber(cell(row, "we"));
     const amc = toNumber(cell(row, "amc"));
     const pew = toNumber(cell(row, "pew"));
     if (ws == null && we == null && amc == null && pew == null) continue;
-    const key = name ?? "";
+    const key = name ? norm(name) : "";
     let group = groupMap.get(key);
     if (!group) {
       group = { polygonName: name, bands: [] };

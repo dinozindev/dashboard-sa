@@ -71,6 +71,18 @@ export function normalizePolygonName(value: string | null | undefined): string {
     .trim();
 }
 
+/** Compatibiliza tabelas antigas cujo PolygonName existe apenas no nome gravado. */
+export function matchesFreightTablePolygon(
+  table: { name: string; polygonName?: string | null },
+  polygonName: string | null | undefined,
+): boolean {
+  const target = normalizePolygonName(polygonName);
+  if (!target) return false;
+  if (normalizePolygonName(table.polygonName) === target) return true;
+  const suffix = table.name.split(" · ").at(-1);
+  return Boolean(suffix && normalizePolygonName(suffix) === target);
+}
+
 function normalizeDraft(raw: object): ShippingPolicyDraft {
   const d = raw as Partial<ShippingPolicyDraft>;
   return {
@@ -154,11 +166,14 @@ function applySnapshot(raw: FreightSnapshotDto) {
     const storeTables = (raw.freightTables ?? []).filter((t) => t.store === p.store);
     // Tabela enviada especificamente para este polígono (PolygonName) tem prioridade.
     const polygonName = p.id.split("|").pop() ?? p.id;
-    const ownTable = storeTables.find(
+    const polygonTables = storeTables.filter(
       (t) =>
-        normalizePolygonName(t.polygonName) === normalizePolygonName(polygonName) &&
+        matchesFreightTablePolygon(t, polygonName) &&
         (!p.policyClientId || t.policyClientId === p.policyClientId),
     );
+    const ownTable =
+      polygonTables.find((t) => normalizePolygonName(t.polygonName) === normalizePolygonName(polygonName)) ??
+      (polygonTables.length === 1 ? polygonTables[0] : undefined);
     const linkedTableId = ownTable
       ? ownTable.id
       : p.policyClientId
