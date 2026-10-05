@@ -43,6 +43,19 @@ export type PolicyType = "Entrega" | "Retira";
 export const DAY_GROUPS = ["Segunda a sexta-feira", "Sábado", "Domingo"] as const;
 export type DayGroup = (typeof DAY_GROUPS)[number];
 
+export const POLICY_SCHEDULE_DAYS = [
+  "Todos os dias",
+  "Segunda a sexta-feira",
+  "Segunda a sábado",
+  "Domingo",
+  "Segunda-feira",
+  "Terça-feira",
+  "Quarta-feira",
+  "Quinta-feira",
+  "Sexta-feira",
+  "Sábado",
+] as const;
+
 /** Linha de janela de entrega agendada. */
 export interface DeliveryWindowRow {
   id: string;

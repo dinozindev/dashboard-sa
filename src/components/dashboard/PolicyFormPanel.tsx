@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { policies, shippingPolicyDefinition } from "@/lib/freight/policies";
 import {
   DAY_GROUPS,
+  POLICY_SCHEDULE_DAYS,
   emptyScheduledDelivery,
   getPolicyDrafts,
   removePolicyDraft,
@@ -42,17 +43,6 @@ import { parseFreightSheet, type FreightSheetGroup } from "@/lib/freight/xlsx-ba
 import type { WeightBand } from "@/lib/freight/types";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
-const DAYS = [
-  "Todos os dias",
-  "Segunda a sexta-feira",
-  "Domingo",
-  "Segunda-feira",
-  "Terça-feira",
-  "Quarta-feira",
-  "Quinta-feira",
-  "Sexta-feira",
-  "Sábado",
-];
 
 type StepKey =
   | "loja"
@@ -1324,7 +1314,7 @@ export function PolicyFormPanel({
                         )
                       }
                     >
-                      {DAYS.map((d) => (
+                      {POLICY_SCHEDULE_DAYS.map((d) => (
                         <option key={d} value={d}>
                           {d}
                         </option>
@@ -1398,7 +1388,7 @@ export function PolicyFormPanel({
                         )
                       }
                     >
-                      {DAYS.map((d) => (
+                      {POLICY_SCHEDULE_DAYS.map((d) => (
                         <option key={d} value={d}>
                           {d}
                         </option>

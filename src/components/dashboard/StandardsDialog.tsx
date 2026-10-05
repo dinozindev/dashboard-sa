@@ -10,11 +10,18 @@ import { refreshLive, useLive } from "@/lib/freight/live";
 import {
   DEFAULT_RULES,
   resolveRules,
+  type ScheduleRule,
+  type ScheduledCapacityRule,
   type StandardRow,
   type StandardRules,
 } from "@/lib/freight/policy-standards";
 import { deletePolicyStandard, savePolicyStandard } from "@/lib/freight/remote.functions";
 import { logAudit } from "@/lib/freight/audit-log";
+import {
+  DAY_GROUPS,
+  POLICY_SCHEDULE_DAYS,
+  type DayGroup,
+} from "@/lib/freight/policy-registry";
 
 const DIMENSIONS: Array<[keyof StandardRules, string]> = [
   ["largestEdge", "Maior aresta"],
@@ -37,6 +44,19 @@ const ORIGIN_LABEL = {
 
 function clean(rules: StandardRules): StandardRules {
   return JSON.parse(JSON.stringify(rules)) as StandardRules;
+}
+
+function scheduleDayOption(days: string): string {
+  if (POLICY_SCHEDULE_DAYS.some((option) => option === days)) return days;
+  const compactDays = days.toLowerCase().replace(/[^a-z]/g, "");
+  if (compactDays === "segdom") return "Todos os dias";
+  if (compactDays === "segsab") return "Segunda a sábado";
+  return days;
+}
+
+function scheduleRules(schedule: StandardRules["schedule"]): ScheduleRule[] {
+  const rules = schedule ? (Array.isArray(schedule) ? schedule : [schedule]) : [];
+  return rules.map((rule) => ({ ...rule, days: scheduleDayOption(rule.days) }));
 }
 
 export function StandardsDialog({
@@ -140,8 +160,13 @@ export function StandardsDialog({
     );
 
   const ro = !canEdit || busy;
-  const sched = form.schedule;
+  const hasSchedule = form.schedule !== undefined;
+  const sched = scheduleRules(form.schedule);
+  const scheduleMode = sched[0]?.mode ?? "coleta";
   const scd = form.scheduled;
+  const availableCapacityDays = DAY_GROUPS.filter(
+    (day) => !scd?.windows?.some((window) => window.days === day),
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -222,7 +247,7 @@ export function StandardsDialog({
             <input
               type="checkbox"
               disabled={ro}
-              checked={!!sched}
+              checked={hasSchedule}
               onChange={(e) =>
                 e.target.checked
                   ? set({ schedule: { mode: "coleta", days: "seg-dom", time: "15:00" } })
@@ -231,50 +256,151 @@ export function StandardsDialog({
             />
             Verificar horário
           </label>
-          {sched ? (
-            <div className="grid gap-2 sm:grid-cols-4">
+          {hasSchedule ? (
+            <div className="space-y-3">
               <select
                 className="input"
                 disabled={ro}
-                value={sched.mode}
-                onChange={(e) => set({ schedule: { ...sched, mode: e.target.value as "coleta" | "janela" } })}
+                value={scheduleMode}
+                onChange={(e) => {
+                  const mode = e.target.value as ScheduleRule["mode"];
+                  set({
+                    schedule: sched.map((rule) =>
+                      mode === "coleta"
+                        ? { mode, days: rule.days, time: rule.time ?? "15:00" }
+                        : {
+                            mode,
+                            days: rule.days,
+                            start: rule.start ?? "08:00",
+                            end: rule.end ?? "18:00",
+                          },
+                    ),
+                  });
+                }}
               >
                 <option value="coleta">Coleta</option>
                 <option value="janela">Janela de envio</option>
               </select>
-              <input
-                className="input"
+              {sched.map((rule, index) => (
+                <div
+                  key={index}
+                  className={
+                    "grid items-end gap-2 " +
+                    (sched.length > 1
+                      ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                      : "sm:grid-cols-2")
+                  }
+                >
+                  <label className="field-label">
+                    Dia(s)
+                    <select
+                      className="input mt-1"
+                      disabled={ro}
+                      value={rule.days}
+                      onChange={(e) =>
+                        set({
+                          schedule: sched.map((current, i) =>
+                            i === index ? { ...current, days: e.target.value } : current,
+                          ),
+                        })
+                      }
+                    >
+                      {POLICY_SCHEDULE_DAYS.map((day) => (
+                        <option key={day} value={day}>
+                          {day}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {scheduleMode === "coleta" ? (
+                    <label className="field-label">
+                      Horário de coleta
+                      <input
+                        type="time"
+                        className="input mt-1"
+                        disabled={ro}
+                        value={rule.time ?? ""}
+                        onChange={(e) =>
+                          set({
+                            schedule: sched.map((current, i) =>
+                              i === index ? { ...current, time: e.target.value } : current,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="field-label">
+                        Início
+                        <input
+                          type="time"
+                          className="input mt-1"
+                          disabled={ro}
+                          value={rule.start ?? ""}
+                          onChange={(e) =>
+                            set({
+                              schedule: sched.map((current, i) =>
+                                i === index ? { ...current, start: e.target.value } : current,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="field-label">
+                        Fim
+                        <input
+                          type="time"
+                          className="input mt-1"
+                          disabled={ro}
+                          value={rule.end ?? ""}
+                          onChange={(e) =>
+                            set({
+                              schedule: sched.map((current, i) =>
+                                i === index ? { ...current, end: e.target.value } : current,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {sched.length > 1 ? (
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs"
+                      disabled={ro}
+                      onClick={() =>
+                        set({ schedule: sched.filter((_, i) => i !== index) })
+                      }
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              <button
+                type="button"
+                className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
                 disabled={ro}
-                placeholder="Dias (ex.: seg-dom)"
-                value={sched.days}
-                onChange={(e) => set({ schedule: { ...sched, days: e.target.value } })}
-              />
-              {sched.mode === "coleta" ? (
-                <input
-                  type="time"
-                  className="input"
-                  disabled={ro}
-                  value={sched.time ?? ""}
-                  onChange={(e) => set({ schedule: { ...sched, time: e.target.value } })}
-                />
-              ) : (
-                <>
-                  <input
-                    type="time"
-                    className="input"
-                    disabled={ro}
-                    value={sched.start ?? ""}
-                    onChange={(e) => set({ schedule: { ...sched, start: e.target.value } })}
-                  />
-                  <input
-                    type="time"
-                    className="input"
-                    disabled={ro}
-                    value={sched.end ?? ""}
-                    onChange={(e) => set({ schedule: { ...sched, end: e.target.value } })}
-                  />
-                </>
-              )}
+                onClick={() =>
+                  set({
+                    schedule: [
+                      ...sched,
+                      scheduleMode === "coleta"
+                        ? { mode: "coleta", days: "Todos os dias", time: "15:00" }
+                        : {
+                            mode: "janela",
+                            days: "Todos os dias",
+                            start: "08:00",
+                            end: "18:00",
+                          },
+                    ],
+                  })
+                }
+              >
+                + Adicionar dia/horário
+              </button>
             </div>
           ) : null}
         </section>
@@ -297,7 +423,7 @@ export function StandardsDialog({
             <option value="on">Habilitada</option>
           </select>
           {scd?.enabled ? (
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="space-y-3">
               <label className="field-label">
                 Prazo máximo (dias)
                 <input
@@ -308,14 +434,261 @@ export function StandardsDialog({
                   onChange={(e) => set({ scheduled: { ...scd, maxDays: Number(e.target.value) } })}
                 />
               </label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="field-label">
+                  Início da janela
+                  <input
+                    type="time"
+                    className="input mt-1"
+                    disabled={ro}
+                    value={scd.start ?? ""}
+                    onChange={(e) => set({ scheduled: { ...scd, start: e.target.value } })}
+                  />
+                </label>
+                <label className="field-label">
+                  Fim da janela
+                  <input
+                    type="time"
+                    className="input mt-1"
+                    disabled={ro}
+                    value={scd.end ?? ""}
+                    onChange={(e) => set({ scheduled: { ...scd, end: e.target.value } })}
+                  />
+                </label>
+              </div>
               <label className="field-label">
-                Início
-                <input type="time" className="input mt-1" disabled={ro} value={scd.start ?? ""} onChange={(e) => set({ scheduled: { ...scd, start: e.target.value } })} />
+                Verificação de capacidade
+                <select
+                  className="input mt-1"
+                  disabled={ro}
+                  value={
+                    scd.capacityEnabled === undefined ? "skip" : scd.capacityEnabled ? "on" : "off"
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "skip") {
+                      const next = { ...scd };
+                      delete next.capacityEnabled;
+                      delete next.unit;
+                      delete next.windows;
+                      set({ scheduled: next });
+                      return;
+                    }
+                    const windows =
+                      scd.windows ??
+                      (availableCapacityDays[0]
+                        ? [
+                            {
+                              days: availableCapacityDays[0],
+                              capacity: 1,
+                              additional: 0,
+                              start: "08:00",
+                              end: "18:00",
+                            } satisfies ScheduledCapacityRule,
+                          ]
+                        : []);
+                    set({
+                      scheduled: {
+                        ...scd,
+                        capacityEnabled: value === "on",
+                        unit: scd.unit ?? "Itens",
+                        windows,
+                      },
+                    });
+                  }}
+                >
+                  <option value="skip">Não verificar</option>
+                  <option value="off">Desabilitada</option>
+                  <option value="on">Habilitada</option>
+                </select>
               </label>
-              <label className="field-label">
-                Fim
-                <input type="time" className="input mt-1" disabled={ro} value={scd.end ?? ""} onChange={(e) => set({ scheduled: { ...scd, end: e.target.value } })} />
-              </label>
+              {scd.capacityEnabled ? (
+                <div className="space-y-3 rounded-lg border border-border p-3">
+                  <fieldset className="flex flex-wrap gap-4 text-sm">
+                    <legend className="field-label mb-1">Unidade de capacidade</legend>
+                    {(["Itens", "Pedidos"] as const).map((unit) => (
+                      <label key={unit} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="standard-scheduled-unit"
+                          disabled={ro}
+                          checked={(scd.unit ?? "Itens") === unit}
+                          onChange={() => set({ scheduled: { ...scd, unit } })}
+                        />
+                        {unit}
+                      </label>
+                    ))}
+                  </fieldset>
+                  {(scd.windows ?? []).map((window, index) => (
+                    <div key={`${window.days}-${index}`} className="space-y-2 rounded-md border border-border p-3">
+                      <div className="flex flex-wrap gap-2">
+                        {DAY_GROUPS.map((day) => {
+                          const occupied = scd.windows?.some(
+                            (other, otherIndex) => other.days === day && otherIndex !== index,
+                          );
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              disabled={ro || occupied}
+                              onClick={() =>
+                                set({
+                                  scheduled: {
+                                    ...scd,
+                                    windows: scd.windows?.map((current, currentIndex) =>
+                                      currentIndex === index ? { ...current, days: day } : current,
+                                    ),
+                                  },
+                                })
+                              }
+                              className={
+                                "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+                                (window.days === day
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : occupied
+                                    ? "border-border text-muted-foreground opacity-40"
+                                    : "border-border hover:bg-muted/60")
+                              }
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="field-label">
+                          Capacidade ({scd.unit ?? "Itens"})
+                          <input
+                            type="number"
+                            min={1}
+                            className="input mt-1"
+                            disabled={ro}
+                            value={window.capacity}
+                            onChange={(e) =>
+                              set({
+                                scheduled: {
+                                  ...scd,
+                                  windows: scd.windows?.map((current, currentIndex) =>
+                                    currentIndex === index
+                                      ? { ...current, capacity: Number(e.target.value) }
+                                      : current,
+                                  ),
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="field-label">
+                          Valor adicional (R$)
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            className="input mt-1"
+                            disabled={ro}
+                            value={window.additional}
+                            onChange={(e) =>
+                              set({
+                                scheduled: {
+                                  ...scd,
+                                  windows: scd.windows?.map((current, currentIndex) =>
+                                    currentIndex === index
+                                      ? { ...current, additional: Number(e.target.value) }
+                                      : current,
+                                  ),
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="field-label">
+                          Horário de início
+                          <input
+                            type="time"
+                            className="input mt-1"
+                            disabled={ro}
+                            value={window.start}
+                            onChange={(e) =>
+                              set({
+                                scheduled: {
+                                  ...scd,
+                                  windows: scd.windows?.map((current, currentIndex) =>
+                                    currentIndex === index
+                                      ? { ...current, start: e.target.value }
+                                      : current,
+                                  ),
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="field-label">
+                          Horário de término
+                          <input
+                            type="time"
+                            className="input mt-1"
+                            disabled={ro}
+                            value={window.end}
+                            onChange={(e) =>
+                              set({
+                                scheduled: {
+                                  ...scd,
+                                  windows: scd.windows?.map((current, currentIndex) =>
+                                    currentIndex === index
+                                      ? { ...current, end: e.target.value }
+                                      : current,
+                                  ),
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-ghost text-xs text-danger"
+                        disabled={ro}
+                        onClick={() =>
+                          set({
+                            scheduled: {
+                              ...scd,
+                              windows: scd.windows?.filter((_, currentIndex) => currentIndex !== index),
+                            },
+                          })
+                        }
+                      >
+                        Remover janela
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-40"
+                    disabled={ro || availableCapacityDays.length === 0}
+                    onClick={() => {
+                      const day = availableCapacityDays[0] as DayGroup | undefined;
+                      if (!day) return;
+                      set({
+                        scheduled: {
+                          ...scd,
+                          windows: [
+                            ...(scd.windows ?? []),
+                            {
+                              days: day,
+                              capacity: 1,
+                              additional: 0,
+                              start: "08:00",
+                              end: "18:00",
+                            },
+                          ],
+                        },
+                      });
+                    }}
+                  >
+                    + Adicionar janela de capacidade
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>

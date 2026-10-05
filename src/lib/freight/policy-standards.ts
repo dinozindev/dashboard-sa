@@ -65,6 +65,12 @@ const DAY_ALIASES: Record<string, string> = {
 
 function expandDays(raw: string): string[] {
   const key = normDays(raw);
+  const namedDaySets: Record<string, string[]> = {
+    todososdias: DAY_SETS.segdom,
+    segundaasextafeira: DAY_SETS.segsexta,
+    segundaasabado: DAY_SETS.segsab,
+  };
+  if (namedDaySets[key]) return namedDaySets[key];
   for (const [setKey, days] of Object.entries(DAY_SETS)) {
     if (key === setKey || key === setKey + "sabado" || key.replace(/\s/g, "") === setKey) {
       return days;
@@ -107,90 +113,172 @@ const flag = (
 });
 
 /** Padrão de horário: modo "coleta" (horário único) ou "janela" (faixa por dia). */
-function scheduleStandard(opts: {
-  mode: "janela" | "coleta";
-  days: string;
-  start?: string;
-  end?: string;
-  time?: string;
-}): FieldStandard {
-  const expectedDays = expandDays(opts.days);
-  const expectedLabel =
-    opts.mode === "coleta"
-      ? `Coleta ${opts.days} às ${opts.time}`
-      : `Janela ${opts.days} ${opts.start}–${opts.end}`;
+function scheduleStandard(schedule: ScheduleRules): FieldStandard {
+  const rules = Array.isArray(schedule) ? schedule : [schedule];
+  const mode = rules[0]?.mode ?? "coleta";
+  const expected = new Map<string, string[]>();
+  for (const rule of rules) {
+    for (const day of expandDays(rule.days)) {
+      const value =
+        rule.mode === "coleta" ? (rule.time ?? "") : `${rule.start ?? ""}–${rule.end ?? ""}`;
+      expected.set(day, [...(expected.get(day) ?? []), value]);
+    }
+  }
+  const expectedLabel = rules
+    .map((rule) =>
+      rule.mode === "coleta"
+        ? `Coleta ${rule.days} às ${rule.time}`
+        : `Janela ${rule.days} ${rule.start}–${rule.end}`,
+    )
+    .join("; ");
   return {
-    label: opts.mode === "coleta" ? "Horário de coleta" : "Janela de envio",
+    label: mode === "coleta" ? "Horário de coleta" : "Janela de envio",
     expected: expectedLabel,
     check: (d) => {
-      if (d.scheduleMode !== opts.mode) return false;
-      if (opts.mode === "coleta") {
-        if (!d.pickupTimes.length) return false;
-        return d.pickupTimes.every((p) => {
-          const days = expandDays(p.day);
-          return (
-            p.time === opts.time &&
-            expectedDays.every((day) => days.includes(day)) &&
-            days.every((day) => expectedDays.includes(day))
-          );
-        });
+      if (d.scheduleMode !== mode) return false;
+      const actual = new Map<string, string[]>();
+      if (mode === "coleta") {
+        for (const pickup of d.pickupTimes) {
+          for (const day of expandDays(pickup.day)) {
+            actual.set(day, [...(actual.get(day) ?? []), pickup.time]);
+          }
+        }
+      } else {
+        for (const window of d.shippingWindows) {
+          for (const day of expandDays(window.day)) {
+            const value = `${window.start}–${window.end}`;
+            actual.set(day, [...(actual.get(day) ?? []), value]);
+          }
+        }
       }
-      if (!d.shippingWindows.length) return false;
-      return d.shippingWindows.every((w) => {
-        const days = expandDays(w.day);
-        return (
-          w.start === opts.start &&
-          w.end === opts.end &&
-          expectedDays.every((day) => days.includes(day)) &&
-          days.every((day) => expectedDays.includes(day))
-        );
-      });
+      return (
+        actual.size === expected.size &&
+        [...expected].every(([day, values]) => {
+          const actualValues = actual.get(day);
+          return (
+            actualValues !== undefined &&
+            JSON.stringify([...values].sort()) === JSON.stringify([...actualValues].sort())
+          );
+        })
+      );
     },
     actual: (d) => {
-      if (d.scheduleMode !== opts.mode) {
+      if (d.scheduleMode !== mode) {
         return d.scheduleMode === "coleta" ? "configurado como coleta" : "configurado como janela";
       }
-      if (opts.mode === "coleta") {
-        const p = d.pickupTimes[0];
-        return p ? `Coleta ${p.day} às ${p.time}` : "sem horário de coleta";
+      if (mode === "coleta") {
+        return d.pickupTimes.length
+          ? d.pickupTimes.map((p) => `Coleta ${p.day} às ${p.time}`).join("; ")
+          : "sem horário de coleta";
       }
-      const w = d.shippingWindows[0];
-      return w ? `Janela ${w.day} ${w.start}–${w.end}` : "sem janela de envio";
+      return d.shippingWindows.length
+        ? d.shippingWindows.map((w) => `Janela ${w.day} ${w.start}–${w.end}`).join("; ")
+        : "sem janela de envio";
     },
   };
 }
 
-function scheduledStandard(opts: {
-  enabled: boolean;
-  maxDays?: number;
-  start?: string;
-  end?: string;
-}): FieldStandard[] {
+function scheduledStandard(opts: ScheduledRule): FieldStandard[] {
   if (!opts.enabled) {
     return [flag("Entrega agendada", false, (d) => d.scheduledDelivery.enabled)];
   }
-  return [
+  const fields: FieldStandard[] = [
     flag("Entrega agendada", true, (d) => d.scheduledDelivery.enabled),
     {
       label: "Tempo máximo de entrega",
       expected: `${opts.maxDays} dias`,
-      check: (d) => !d.scheduledDelivery.enabled || d.scheduledDelivery.maxDays === opts.maxDays,
+      check: (d) =>
+        !d.scheduledDelivery.enabled ||
+        opts.maxDays === undefined ||
+        d.scheduledDelivery.maxDays === opts.maxDays,
       actual: (d) =>
         d.scheduledDelivery.enabled ? `${d.scheduledDelivery.maxDays} dias` : "desabilitado",
     },
-    {
+  ];
+  if (opts.start !== undefined || opts.end !== undefined) {
+    fields.push({
       label: "Janela da entrega agendada",
       expected: `${opts.start}–${opts.end}`,
       check: (d) =>
         !d.scheduledDelivery.enabled ||
         (d.scheduledDelivery.windows.length > 0 &&
-          d.scheduledDelivery.windows.every((w) => w.start === opts.start && w.end === opts.end)),
+          d.scheduledDelivery.windows.every(
+            (w) =>
+              (opts.start === undefined || w.start === opts.start) &&
+              (opts.end === undefined || w.end === opts.end),
+          )),
       actual: (d) => {
         const w = d.scheduledDelivery.windows[0];
         return d.scheduledDelivery.enabled && w ? `${w.start}–${w.end}` : "não configurada";
       },
-    },
-  ];
+    });
+  }
+  if (opts.capacityEnabled !== undefined) {
+    fields.push(
+      flag(
+        "Capacidade de entrega",
+        opts.capacityEnabled,
+        (d) => d.scheduledDelivery.capacityEnabled,
+      ),
+    );
+  }
+  if (opts.capacityEnabled && opts.unit !== undefined) {
+    fields.push({
+      label: "Unidade da capacidade",
+      expected: opts.unit,
+      check: (d) =>
+        !d.scheduledDelivery.capacityEnabled || d.scheduledDelivery.unit === opts.unit,
+      actual: (d) => d.scheduledDelivery.unit,
+    });
+  }
+  if (opts.capacityEnabled && opts.windows !== undefined) {
+    const expectedWindows = [...opts.windows].sort((a, b) => a.days.localeCompare(b.days));
+    fields.push({
+      label: "Janelas de capacidade agendada",
+      expected: expectedWindows.length
+        ? expectedWindows
+            .map(
+              (w) =>
+                `${w.days}: ${w.start}–${w.end}, ${w.capacity} ${opts.unit ?? "unidades"}${
+                  w.additional ? `, +R$ ${w.additional}` : ""
+                }`,
+            )
+            .join("; ")
+        : "sem janelas",
+      check: (d) => {
+        if (!d.scheduledDelivery.enabled || !d.scheduledDelivery.capacityEnabled) return true;
+        const actualWindows = [...d.scheduledDelivery.windows].sort((a, b) =>
+          a.days.localeCompare(b.days),
+        );
+        return (
+          actualWindows.length === expectedWindows.length &&
+          expectedWindows.every((expected, index) => {
+            const actual = actualWindows[index];
+            return (
+              actual !== undefined &&
+              actual.days === expected.days &&
+              actual.capacity === expected.capacity &&
+              actual.additional === expected.additional &&
+              actual.start === expected.start &&
+              actual.end === expected.end
+            );
+          })
+        );
+      },
+      actual: (d) =>
+        d.scheduledDelivery.windows.length
+          ? d.scheduledDelivery.windows
+              .map(
+                (w) =>
+                  `${w.days}: ${w.start}–${w.end}, ${w.capacity} ${d.scheduledDelivery.unit}${
+                    w.additional ? `, +R$ ${w.additional}` : ""
+                  }`,
+              )
+              .join("; ")
+          : "sem janelas",
+    });
+  }
+  return fields;
 }
 
 // ============================================================================
@@ -205,11 +293,24 @@ export interface ScheduleRule {
   end?: string;
 }
 
+type ScheduleRules = ScheduleRule | ScheduleRule[];
+
 export interface ScheduledRule {
   enabled: boolean;
   maxDays?: number;
   start?: string;
   end?: string;
+  capacityEnabled?: boolean;
+  unit?: "Itens" | "Pedidos";
+  windows?: ScheduledCapacityRule[];
+}
+
+export interface ScheduledCapacityRule {
+  days: "Segunda a sexta-feira" | "Sábado" | "Domingo";
+  capacity: number;
+  additional: number;
+  start: string;
+  end: string;
 }
 
 /**
@@ -221,7 +322,7 @@ export interface StandardRules {
   sumOfDimensions?: number | null;
   cubicWeightFactor?: number | null;
   minimumWeightFactor?: number | null;
-  schedule?: ScheduleRule;
+  schedule?: ScheduleRules;
   scheduled?: ScheduledRule;
   saturday?: boolean;
   sunday?: boolean;

@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { StandardsDialog } from "./StandardsDialog";
 
 /** Agrupa cada campo padrão na coluna correspondente da tabela de visualização. */
 const FIELD_GROUP: Record<string, string> = {
@@ -251,9 +252,11 @@ function PolicyDetails({
 export function PoliciesPanel({
   onEditPolicy,
   canEdit,
+  canEditStandards,
 }: {
   onEditPolicy: (policy: ShippingPolicyDraft) => void;
   canEdit: boolean;
+  canEditStandards: boolean;
 }) {
   const data = usePolicyMatrix();
   const drafts = usePolicyDrafts();
@@ -261,6 +264,22 @@ export function PoliciesPanel({
   const submitted = useSubmittedStores();
   const live = useLive();
   const [region, setRegion] = useState("Todas");
+  const [standardsOpen, setStandardsOpen] = useState(false);
+  const standardsStores = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...data.stores.map((store) => store.nome),
+          ...liveStores(live).map((store) => store.name),
+          ...(live?.snapshot.policyStandards ?? [])
+            .map((standard) => standard.store)
+            .filter((store): store is string => Boolean(store)),
+        ]),
+      )
+        .filter((store) => store.trim().length > 0)
+        .sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [data.stores, live],
+  );
 
   /** Lojas liberadas: só entram na listagem quando têm polígonos cadastrados. */
   const availableStores = useMemo(() => {
@@ -418,6 +437,13 @@ export function PoliciesPanel({
           </p> */}
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+            onClick={() => setStandardsOpen(true)}
+          >
+            Configurar Padrões
+          </button>
           {/* <button
             type="button"
             className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
@@ -970,6 +996,13 @@ export function PoliciesPanel({
           </DialogContent>
         ) : null}
       </Dialog>
+      <StandardsDialog
+        open={standardsOpen}
+        onOpenChange={setStandardsOpen}
+        canEdit={canEditStandards}
+        stores={standardsStores}
+        modalities={data.modalities}
+      />
     </div>
   );
 }

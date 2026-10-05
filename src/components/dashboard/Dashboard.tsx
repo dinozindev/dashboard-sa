@@ -882,6 +882,7 @@ export default function Dashboard() {
             {policyTab === "matriz" ? (
               <PoliciesPanel
                 canEdit={profile !== "consultor"}
+                canEditStandards={profile !== "consultor"}
                 onEditPolicy={(policy) => {
                   setEditingPolicy(policy);
                   setTab("cadastro");
