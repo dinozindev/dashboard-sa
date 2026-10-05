@@ -134,6 +134,13 @@
       "when": 1790779610220,
       "tag": "0018_capacity_default_limits_10",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791208936341,
+      "tag": "0019_policy_standards",
+      "breakpoints": true
     }
   ]
 }

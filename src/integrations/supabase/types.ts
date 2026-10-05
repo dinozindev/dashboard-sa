@@ -437,6 +437,38 @@ export type Database = {
           },
         ]
       }
+      policy_standards: {
+        Row: {
+          id: string
+          modality: string
+          rules: Json
+          store_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          modality: string
+          rules?: Json
+          store_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          modality?: string
+          rules?: Json
+          store_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_standards_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       polygons: {
         Row: {
           area_km2: number | null
