@@ -110,7 +110,7 @@ export interface FreightSnapshotDto {
   }>;
   dockLinks: Array<{ store: string; dock: string; policyClientId: string }>;
   policyCells: Array<{ store: string; modality: string; status: string; note: string }>;
-  policyStandards: Array<{ store: string | null; modality: string; rules: unknown }>;
+  policyStandards: Array<{ store: string | null; modality: string; rules: Record<string, any> }>;
   customModalities: string[];
   audit: Array<{
     id: string;
@@ -319,9 +319,9 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
       }),
       policyCells: policyCellsResult.data ?? [],
       policyStandards: (standardsResult.data ?? []).flatMap((row) => {
-        if (!row.store_id) return [{ store: null, modality: row.modality, rules: row.rules }];
+        if (!row.store_id) return [{ store: null, modality: row.modality, rules: (row.rules ?? {}) as Record<string, any> }];
         const store = storeById.get(row.store_id);
-        return store ? [{ store: store.name, modality: row.modality, rules: row.rules }] : [];
+        return store ? [{ store: store.name, modality: row.modality, rules: (row.rules ?? {}) as Record<string, any> }] : [];
       }),
       customModalities: (modalitiesResult.data ?? []).map((modality) => modality.name),
       audit: auditResult.data ?? [],
