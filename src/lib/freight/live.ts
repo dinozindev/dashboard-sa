@@ -11,6 +11,7 @@
  *   localmente (otimista) e envia ao banco via `remote.functions.ts`.
  */
 
+import { setStandardRows, type StandardRules } from "./policy-standards";
 import { useEffect, useSyncExternalStore } from "react";
 import {
   getFreightSnapshot,
@@ -211,6 +212,14 @@ function applySnapshot(raw: FreightSnapshotDto) {
     action: a.action as AuditEntry["action"],
     description: a.description ?? "",
   }));
+
+  setStandardRows(
+    (raw.policyStandards ?? []).map((row) => ({
+      store: row.store,
+      modality: row.modality,
+      rules: (row.rules ?? {}) as StandardRules,
+    })),
+  );
 
   version += 1;
   current = {

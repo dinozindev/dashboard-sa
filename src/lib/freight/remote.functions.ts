@@ -110,6 +110,7 @@ export interface FreightSnapshotDto {
   }>;
   dockLinks: Array<{ store: string; dock: string; policyClientId: string }>;
   policyCells: Array<{ store: string; modality: string; status: string; note: string }>;
+  policyStandards: Array<{ store: string | null; modality: string; rules: unknown }>;
   customModalities: string[];
   audit: Array<{
     id: string;
@@ -157,6 +158,9 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
     const modalitiesResult = await runRead(() =>
       supabase.from("modalities").select("name,position").order("position").order("name"),
     );
+    const standardsResult = await runRead(() =>
+      supabase.from("policy_standards").select("store_id,modality,rules"),
+    );
     const auditResult = await runRead(() =>
       supabase.from("audit_log").select("id,at,store,module,field,before,after,action,description").order("at", { ascending: false }).limit(2000),
     );
@@ -171,6 +175,7 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
       dockLinksResult,
       policyCellsResult,
       modalitiesResult,
+      standardsResult,
       auditResult,
     ]) fail(result.error);
 
@@ -313,6 +318,11 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
         return store && policy ? [{ store: store.name, dock: link.dock, policyClientId: policy.client_id }] : [];
       }),
       policyCells: policyCellsResult.data ?? [],
+      policyStandards: (standardsResult.data ?? []).flatMap((row) => {
+        if (!row.store_id) return [{ store: null, modality: row.modality, rules: row.rules }];
+        const store = storeById.get(row.store_id);
+        return store ? [{ store: store.name, modality: row.modality, rules: row.rules }] : [];
+      }),
       customModalities: (modalitiesResult.data ?? []).map((modality) => modality.name),
       audit: auditResult.data ?? [],
     };
@@ -913,5 +923,49 @@ export const deleteStore = createServerFn({ method: "POST" })
     fail((await supabase.from("pickup_points").delete().eq("store_id", storeId)).error);
     fail((await supabase.from("policy_cells").delete().eq("store", data.name)).error);
     fail((await supabase.from("stores").delete().eq("id", storeId)).error);
+    return { ok: true };
+  });
+
+// ============================================================================
+// PADRÕES DAS POLÍTICAS (geral + exceção por loja)
+// ============================================================================
+
+async function storeIdByName(supabase: ReturnType<typeof publicClient>, name: string) {
+  const { data } = await supabase.from("stores").select("id").eq("name", name).maybeSingle();
+  if (!data?.id) throw new Error("Loja não encontrada.");
+  return data.id as string;
+}
+
+/** Grava o padrão geral (store null) ou a exceção de uma loja. */
+export const savePolicyStandard = createServerFn({ method: "POST" })
+  .inputValidator((input: { store: string | null; modality: string; rules: Record<string, unknown> }) => input)
+  .handler(async ({ data }) => {
+    const supabase = publicClient();
+    const storeId = data.store ? await storeIdByName(supabase, data.store) : null;
+    let q = supabase.from("policy_standards").delete().eq("modality", data.modality);
+    q = storeId ? q.eq("store_id", storeId) : q.is("store_id", null);
+    fail((await q).error);
+    fail(
+      (
+        await supabase.from("policy_standards").insert({
+          store_id: storeId,
+          modality: data.modality,
+          rules: data.rules as never,
+          updated_at: new Date().toISOString(),
+        })
+      ).error,
+    );
+    return { ok: true };
+  });
+
+/** Remove a exceção de uma loja (volta a seguir o geral) ou o padrão geral (volta ao de fábrica). */
+export const deletePolicyStandard = createServerFn({ method: "POST" })
+  .inputValidator((input: { store: string | null; modality: string }) => input)
+  .handler(async ({ data }) => {
+    const supabase = publicClient();
+    const storeId = data.store ? await storeIdByName(supabase, data.store) : null;
+    let q = supabase.from("policy_standards").delete().eq("modality", data.modality);
+    q = storeId ? q.eq("store_id", storeId) : q.is("store_id", null);
+    fail((await q).error);
     return { ok: true };
   });
