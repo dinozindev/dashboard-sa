@@ -66,9 +66,9 @@ const DAY_ALIASES: Record<string, string> = {
 function expandDays(raw: string): string[] {
   const key = normDays(raw);
   const namedDaySets: Record<string, string[]> = {
-    todososdias: DAY_SETS.segdom,
-    segundaasextafeira: DAY_SETS.segsexta,
-    segundaasabado: DAY_SETS.segsab,
+    todososdias: DAY_SETS["segdom"] ?? [],
+    segundaasextafeira: DAY_SETS["segsexta"] ?? [],
+    segundaasabado: DAY_SETS["segsab"] ?? [],
   };
   if (namedDaySets[key]) return namedDaySets[key];
   for (const [setKey, days] of Object.entries(DAY_SETS)) {

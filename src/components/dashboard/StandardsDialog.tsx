@@ -535,7 +535,7 @@ export function StandardsDialog({
                                 set({
                                   scheduled: {
                                     ...scd,
-                                    windows: scd.windows?.map((current, currentIndex) =>
+                                    windows: (scd.windows ?? []).map((current, currentIndex) =>
                                       currentIndex === index ? { ...current, days: day } : current,
                                     ),
                                   },
@@ -568,7 +568,7 @@ export function StandardsDialog({
                               set({
                                 scheduled: {
                                   ...scd,
-                                  windows: scd.windows?.map((current, currentIndex) =>
+                                  windows: (scd.windows ?? []).map((current, currentIndex) =>
                                     currentIndex === index
                                       ? { ...current, capacity: Number(e.target.value) }
                                       : current,
@@ -591,7 +591,7 @@ export function StandardsDialog({
                               set({
                                 scheduled: {
                                   ...scd,
-                                  windows: scd.windows?.map((current, currentIndex) =>
+                                  windows: (scd.windows ?? []).map((current, currentIndex) =>
                                     currentIndex === index
                                       ? { ...current, additional: Number(e.target.value) }
                                       : current,
@@ -612,7 +612,7 @@ export function StandardsDialog({
                               set({
                                 scheduled: {
                                   ...scd,
-                                  windows: scd.windows?.map((current, currentIndex) =>
+                                  windows: (scd.windows ?? []).map((current, currentIndex) =>
                                     currentIndex === index
                                       ? { ...current, start: e.target.value }
                                       : current,
@@ -633,7 +633,7 @@ export function StandardsDialog({
                               set({
                                 scheduled: {
                                   ...scd,
-                                  windows: scd.windows?.map((current, currentIndex) =>
+                                  windows: (scd.windows ?? []).map((current, currentIndex) =>
                                     currentIndex === index
                                       ? { ...current, end: e.target.value }
                                       : current,
@@ -652,7 +652,7 @@ export function StandardsDialog({
                           set({
                             scheduled: {
                               ...scd,
-                              windows: scd.windows?.filter((_, currentIndex) => currentIndex !== index),
+                              windows: (scd.windows ?? []).filter((_, currentIndex) => currentIndex !== index),
                             },
                           })
                         }

@@ -478,7 +478,6 @@ export type Database = {
           client_id: string
           created_at: string
           district: string | null
-          geojson_cache: Json | null
           geom: unknown
           id: string
           kind: string
@@ -497,7 +496,6 @@ export type Database = {
           client_id: string
           created_at?: string
           district?: string | null
-          geojson_cache?: Json | null
           geom: unknown
           id?: string
           kind?: string
@@ -516,7 +514,6 @@ export type Database = {
           client_id?: string
           created_at?: string
           district?: string | null
-          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           kind?: string
@@ -570,7 +567,6 @@ export type Database = {
       }
       state_polygons: {
         Row: {
-          geojson_cache: Json | null
           geom: unknown
           id: string
           name: string
@@ -580,7 +576,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          geojson_cache?: Json | null
           geom: unknown
           id?: string
           name: string
@@ -590,7 +585,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           name?: string
@@ -628,6 +622,36 @@ export type Database = {
           name?: string
           note?: string | null
           region?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1037,8 +1061,19 @@ export type Database = {
       get_freight_snapshot: { Args: never; Returns: Json }
       get_freight_snapshot_core: { Args: never; Returns: Json }
       gettransactionid: { Args: never; Returns: unknown }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       insert_polygons: { Args: { payload: Json }; Returns: number }
       longtransactionsenabled: { Args: never; Returns: boolean }
+      pickup_point_name: {
+        Args: { p_kind: string; p_store: string }
+        Returns: string
+      }
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
         | { Args: { use_typmod?: boolean }; Returns: string }
@@ -1674,7 +1709,7 @@ export type Database = {
       upsert_state_polygon: { Args: { payload: Json }; Returns: number }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "consultor" | "editor" | "auditor"
     }
     CompositeTypes: {
       geometry_dump: {
@@ -1809,6 +1844,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["consultor", "editor", "auditor"],
+    },
   },
 } as const

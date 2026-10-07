@@ -16,6 +16,7 @@
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ClientOnly } from "@tanstack/react-router";
+import { AccessManagementPanel } from "./AccessManagementPanel";
 import {
   dataset,
   stores as staticStoreRefs,
@@ -207,7 +208,17 @@ function FilterOption({
   );
 }
 
-export default function Dashboard() {
+export default function Dashboard({
+  role,
+  userEmail,
+  userId,
+  onSignOut,
+}: {
+  role: ProfileKey;
+  userEmail: string;
+  userId: string;
+  onSignOut: () => void;
+}) {
   // ============================================================================
   // ESTADO: Abas principais
   // ============================================================================
@@ -218,8 +229,8 @@ export default function Dashboard() {
   /** Sub-aba dentro de "Políticas de Envio": matriz ou docas */
   const [policyTab, setPolicyTab] = useState<"matriz" | "docas">("matriz");
 
-  /** Perfil de acesso simulado (Consultor / Editor / Auditor) */
-  const [profile, setProfile] = useState<ProfileKey>("auditor");
+  /** Perfil de acesso real do usuário logado */
+  const profile: ProfileKey = role;
 
   /** Abas permitidas para o perfil atual */
   const allowedTabs = PROFILES[profile].tabs;
@@ -792,24 +803,17 @@ export default function Dashboard() {
       <header className="bg-brand-gradient text-white">
         <div className="border-b border-white/15 bg-black/15">
           <div className="mx-auto flex max-w-[1600px] items-center justify-end gap-2 px-4 py-1.5">
-            <label
-              htmlFor="profile-select"
-              className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70"
+            <span className="text-xs text-white/80">{userEmail}</span>
+            <span className="rounded-md border border-white/25 bg-white/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
+              {PROFILES[profile].label}
+            </span>
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="rounded-md border border-white/25 px-2 py-0.5 text-xs font-semibold text-white hover:bg-white/10"
             >
-              Visualização
-            </label>
-            <select
-              id="profile-select"
-              className="rounded-md border border-white/25 bg-white/10 px-2 py-1 text-xs font-semibold text-white outline-none [&>option]:text-foreground"
-              value={profile}
-              onChange={(e) => setProfile(e.target.value as ProfileKey)}
-            >
-              {(Object.keys(PROFILES) as ProfileKey[]).map((key) => (
-                <option key={key} value={key}>
-                  {PROFILES[key].label}
-                </option>
-              ))}
-            </select>
+              Sair
+            </button>
           </div>
         </div>
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-6">
@@ -934,7 +938,12 @@ export default function Dashboard() {
             <p className="mt-1 text-sm text-muted-foreground">Esta aba está em construção.</p>
           </section>
         ) : null}
-        {tab === "auditoria" ? <AuditHistoryPanel /> : null}
+        {tab === "auditoria" ? (
+          <div className="space-y-4">
+            <AccessManagementPanel currentUserId={userId} currentEmail={userEmail} />
+            <AuditHistoryPanel />
+          </div>
+        ) : null}
 
         <div className={tab === "operacao" ? "space-y-4" : "hidden"}>
           {/* Filtros */}

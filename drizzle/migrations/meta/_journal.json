@@ -141,6 +141,13 @@
       "when": 1791208936341,
       "tag": "0019_policy_standards",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791377688226,
+      "tag": "0020_user_roles_corporate_auth",
+      "breakpoints": true
     }
   ]
 }

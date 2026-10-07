@@ -25,7 +25,8 @@ export type AuditModule =
   | "Políticas de Envio"
   | "Docas"
   | "Pontos de Retirada"
-  | "Criação de Polígonos";
+  | "Criação de Polígonos"
+  | "Gestão de Acessos";
 
 export interface AuditEntry {
   id: string;
