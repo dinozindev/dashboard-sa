@@ -25,6 +25,7 @@ function AuthPage() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     const check = async () => {
@@ -35,7 +36,8 @@ function AuthPage() {
         setError("Acesso permitido apenas para e-mails @obramax.com.br ou @ext.obramax.com.br.");
         return;
       }
-      navigate({ to: "/", replace: true });
+      setRedirecting(true);
+      await navigate({ to: "/", replace: true });
     };
     void check();
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
