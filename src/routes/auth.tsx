@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
 import { isCorporateEmail } from "@/lib/auth/roles";
+import { isLocalDevelopment } from "@/lib/auth/local-development";
 
 const title = "Entrar · Obramax Dashboard de Frete";
 const description = "Acesso restrito a colaboradores Obramax com e-mail corporativo.";
@@ -26,17 +27,14 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
-  const [isLocal, setIsLocal] = useState(false);
-  const [devEmail, setDevEmail] = useState("");
-  const [devPassword, setDevPassword] = useState("");
-  const [devInfo, setDevInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    const h = window.location.hostname;
-    setIsLocal(h === "localhost" || h === "127.0.0.1");
-  }, []);
+    if (isLocalDevelopment()) {
+      setRedirecting(true);
+      void navigate({ to: "/", replace: true });
+      return;
+    }
 
-  useEffect(() => {
     const check = async () => {
       const { data } = await supabase.auth.getUser();
       if (!data.user) return;
@@ -84,41 +82,6 @@ function AuthPage() {
     }
   };
 
-  const devSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setDevInfo(null);
-    if (!isCorporateEmail(devEmail)) {
-      setError("Acesso permitido apenas para e-mails @obramax.com.br ou @ext.obramax.com.br.");
-      return;
-    }
-    setLoading(true);
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email: devEmail,
-      password: devPassword,
-    });
-    setLoading(false);
-    if (err) setError(`Não foi possível entrar: ${err.message}`);
-  };
-
-  const devSignUp = async () => {
-    setError(null);
-    setDevInfo(null);
-    if (!isCorporateEmail(devEmail)) {
-      setError("Acesso permitido apenas para e-mails @obramax.com.br ou @ext.obramax.com.br.");
-      return;
-    }
-    setLoading(true);
-    const { error: err } = await supabase.auth.signUp({
-      email: devEmail,
-      password: devPassword,
-      options: { emailRedirectTo: `${window.location.origin}/auth` },
-    });
-    setLoading(false);
-    if (err) setError(`Não foi possível criar o acesso: ${err.message}`);
-    else setDevInfo("Acesso criado. Confirme pelo link enviado ao seu e-mail e depois clique em Entrar.");
-  };
-
   if (redirecting) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-brand-gradient px-4">
@@ -145,7 +108,7 @@ function AuthPage() {
           OX
         </span>
         <div>
-          <h1 className="font-display text-xl font-bold text-foreground">Dashboard de Frete</h1>
+          <h1 className="font-display text-xl font-bold text-foreground">Painel OMS</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Entre com seu e-mail corporativo. Você será direcionado ao PingID da Obramax.
           </p>
@@ -159,54 +122,16 @@ function AuthPage() {
           {loading ? "Redirecionando…" : "Entrar com e-mail corporativo"}
         </button>
         {error ? (
-          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+          <p
+            role="alert"
+            className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
+          >
             {error}
           </p>
         ) : null}
-        {isLocal ? (
-          <form
-            onSubmit={devSignIn}
-            className="space-y-2 border-t border-border pt-4 text-left"
-          >
-            <p className="text-[11px] font-semibold text-muted-foreground">
-              Acesso local (localhost) com e-mail e senha
-            </p>
-            <input
-              type="email"
-              required
-              placeholder="seu.nome@obramax.com.br"
-              value={devEmail}
-              onChange={(e) => setDevEmail(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <input
-              type="password"
-              required
-              minLength={8}
-              placeholder="Senha"
-              value={devPassword}
-              onChange={(e) => setDevPassword(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <div className="flex gap-2">
-              <button type="submit" disabled={loading} className="btn-primary flex-1 justify-center">
-                Entrar
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={devSignUp}
-                className="flex-1 rounded-md border border-input px-3 py-2 text-sm"
-              >
-                Criar acesso
-              </button>
-            </div>
-            {devInfo ? <p className="text-xs text-muted-foreground">{devInfo}</p> : null}
-          </form>
-        ) : null}
-        <p className="text-[11px] text-muted-foreground">
+        {/* <p className="text-[11px] text-muted-foreground">
           Apenas @obramax.com.br e @ext.obramax.com.br
-        </p>
+        </p> */}
       </div>
     </div>
   );

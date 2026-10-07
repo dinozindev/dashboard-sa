@@ -67,16 +67,7 @@ function toCsv(rows: AuditEntry[]) {
   ];
   const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
   const body = rows.map((r) =>
-    [
-      formatAuditDate(r.at),
-      r.store,
-      r.module,
-      r.action,
-      r.field,
-      r.before,
-      r.after,
-      r.description,
-    ]
+    [formatAuditDate(r.at), r.store, r.module, r.action, r.field, r.before, r.after, r.description]
       .map(esc)
       .join(";"),
   );
@@ -102,9 +93,9 @@ export function AuditHistoryPanel() {
   );
 
   const filtered = useMemo(() => {
-    const min = period === "personalizado" ? (from ? new Date(from).getTime() : null) : startOf(period);
-    const max =
-      period === "personalizado" && to ? new Date(`${to}T23:59:59`).getTime() : null;
+    const min =
+      period === "personalizado" ? (from ? new Date(from).getTime() : null) : startOf(period);
+    const max = period === "personalizado" && to ? new Date(`${to}T23:59:59`).getTime() : null;
     const q = query.trim().toLocaleLowerCase();
     return entries
       .filter((e) => (store === "Todas" ? true : e.store === store))
@@ -118,8 +109,7 @@ export function AuditHistoryPanel() {
       })
       .filter((e) =>
         q
-          ? e.description.toLocaleLowerCase().includes(q) ||
-            e.field.toLocaleLowerCase().includes(q)
+          ? e.description.toLocaleLowerCase().includes(q) || e.field.toLocaleLowerCase().includes(q)
           : true,
       )
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
@@ -196,7 +186,7 @@ export function AuditHistoryPanel() {
           </div>
           <div className="mx-auto flex w-full max-w-xs flex-col justify-center rounded-xl border border-border p-3 text-center">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Polígonos adicionados 
+              Polígonos adicionados
             </p>
             <p className="text-xl font-semibold tabular-nums">
               {polygonsAdded.toLocaleString("pt-BR")}
@@ -323,16 +313,16 @@ export function AuditHistoryPanel() {
           </p>
         ) : (
           <div className="max-h-[32rem] overflow-auto rounded-xl border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[1100px] table-fixed text-sm">
               <thead className="sticky top-0 bg-muted/80 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-2 text-left">Data/Hora</th>
-                  <th className="px-2 py-2 text-left">Loja</th>
-                  <th className="px-2 py-2 text-left">Aba de origem</th>
-                  <th className="px-2 py-2 text-left">Tipo de ação</th>
-                  <th className="px-2 py-2 text-left">Campo alterado</th>
-                  <th className="px-2 py-2 text-left">Valor anterior → novo</th>
-                  <th className="px-2 py-2 text-left">Descrição</th>
+                  <th className="w-36 px-2 py-2 text-left">Data/Hora</th>
+                  <th className="w-28 px-2 py-2 text-left">Loja</th>
+                  <th className="w-40 px-2 py-2 text-left">Aba de origem</th>
+                  <th className="w-32 px-2 py-2 text-left">Tipo de ação</th>
+                  <th className="w-40 px-2 py-2 text-left">Campo alterado</th>
+                  <th className="w-64 px-2 py-2 text-left">Valor anterior → novo</th>
+                  <th className="w-56 px-2 py-2 text-left">Descrição</th>
                 </tr>
               </thead>
               <tbody>
@@ -356,15 +346,39 @@ export function AuditHistoryPanel() {
                       </td>
                       <td className="px-2 py-1.5">{e.field}</td>
                       <td className="px-2 py-1.5">
-                        <span className="text-muted-foreground">{e.before}</span> →{" "}
-                        <strong>{e.after}</strong>
+                        <div className="min-w-0 space-y-1">
+                          <p className="truncate text-muted-foreground" title={e.before}>
+                            <span className="font-medium">De:</span> {e.before || "—"}
+                          </p>
+                          <p className="truncate font-semibold" title={e.after}>
+                            <span className="font-medium">Para:</span> {e.after || "—"}
+                          </p>
+                        </div>
                       </td>
                       <td className="max-w-72 truncate px-2 py-1.5">{e.description}</td>
                     </tr>
                     {openId === e.id ? (
                       <tr className="border-t border-border bg-muted/30">
-                        <td colSpan={7} className="px-3 py-2 text-xs text-muted-foreground">
-                          {e.description}
+                        <td colSpan={7} className="px-3 py-3 text-xs">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="min-w-0">
+                              <p className="mb-1 font-semibold text-muted-foreground">
+                                Valor anterior
+                              </p>
+                              <p className="max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-md bg-background/70 p-2">
+                                {e.before || "—"}
+                              </p>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="mb-1 font-semibold text-muted-foreground">Valor novo</p>
+                              <p className="max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-md bg-background/70 p-2">
+                                {e.after || "—"}
+                              </p>
+                            </div>
+                            <p className="whitespace-pre-wrap break-words text-muted-foreground sm:col-span-2">
+                              {e.description}
+                            </p>
+                          </div>
                         </td>
                       </tr>
                     ) : null}

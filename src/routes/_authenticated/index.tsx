@@ -23,13 +23,15 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 function Index() {
-  const { user } = Route.useRouteContext();
+  const { user, isLocalDevelopment } = Route.useRouteContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: role, isLoading } = useQuery({
-    queryKey: ["my-role", user.id],
+    queryKey: ["my-role", user?.id ?? "local-development"],
+    enabled: !isLocalDevelopment,
     queryFn: async (): Promise<AppRole> => {
+      if (!user) throw new Error("No authenticated user is available.");
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -40,6 +42,18 @@ function Index() {
     },
   });
 
+  if (isLocalDevelopment) {
+    return (
+      <Dashboard
+        role="auditor"
+        userEmail="Desenvolvimento local"
+        userId="local-development"
+        onSignOut={() => {}}
+        isDevelopmentSession
+      />
+    );
+  }
+
   const signOut = async () => {
     await queryClient.cancelQueries();
     queryClient.clear();
@@ -47,7 +61,7 @@ function Index() {
     navigate({ to: "/auth", replace: true });
   };
 
-  if (!isCorporateEmail(user.email)) {
+  if (!user || !isCorporateEmail(user.email)) {
     void signOut();
     return null;
   }
@@ -60,5 +74,7 @@ function Index() {
     );
   }
 
-  return <Dashboard role={role} userEmail={user.email ?? ""} userId={user.id} onSignOut={signOut} />;
+  return (
+    <Dashboard role={role} userEmail={user.email ?? ""} userId={user.id} onSignOut={signOut} />
+  );
 }

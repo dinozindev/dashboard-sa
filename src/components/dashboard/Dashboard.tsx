@@ -213,11 +213,13 @@ export default function Dashboard({
   userEmail,
   userId,
   onSignOut,
+  isDevelopmentSession = false,
 }: {
   role: ProfileKey;
   userEmail: string;
   userId: string;
   onSignOut: () => void;
+  isDevelopmentSession?: boolean;
 }) {
   // ============================================================================
   // ESTADO: Abas principais
@@ -807,13 +809,15 @@ export default function Dashboard({
             <span className="rounded-md border border-white/25 bg-white/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
               {PROFILES[profile].label}
             </span>
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="rounded-md border border-white/25 px-2 py-0.5 text-xs font-semibold text-white hover:bg-white/10"
-            >
-              Sair
-            </button>
+            {!isDevelopmentSession ? (
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="rounded-md border border-white/25 px-2 py-0.5 text-xs font-semibold text-white hover:bg-white/10"
+              >
+                Sair
+              </button>
+            ) : null}
           </div>
         </div>
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-6">
@@ -940,7 +944,9 @@ export default function Dashboard({
         ) : null}
         {tab === "auditoria" ? (
           <div className="space-y-4">
-            <AccessManagementPanel currentUserId={userId} currentEmail={userEmail} />
+            {!isDevelopmentSession ? (
+              <AccessManagementPanel currentUserId={userId} currentEmail={userEmail} />
+            ) : null}
             <AuditHistoryPanel />
           </div>
         ) : null}
