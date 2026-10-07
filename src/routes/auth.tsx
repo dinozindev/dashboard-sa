@@ -25,6 +25,7 @@ function AuthPage() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     const check = async () => {
@@ -35,7 +36,10 @@ function AuthPage() {
         setError("Acesso permitido apenas para e-mails @obramax.com.br ou @ext.obramax.com.br.");
         return;
       }
-      navigate({ to: "/", replace: true });
+      setRedirecting(true);
+      // Mantém o indicador visível por um instante antes de trocar de página
+      await new Promise((r) => setTimeout(r, 800));
+      await navigate({ to: "/", replace: true });
     };
     void check();
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
@@ -70,6 +74,25 @@ function AuthPage() {
       setLoading(false);
     }
   };
+
+  if (redirecting) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-gradient px-4">
+        <div className="surface w-full max-w-sm space-y-5 p-8 text-center">
+          <span
+            aria-hidden
+            className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-primary/20 border-t-primary"
+          />
+          <div>
+            <h1 className="font-display text-lg font-semibold text-foreground">Entrando…</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Preparando seu dashboard, só um instante.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-brand-gradient px-4">
