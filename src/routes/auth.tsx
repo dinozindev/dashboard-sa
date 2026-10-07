@@ -37,6 +37,8 @@ function AuthPage() {
         return;
       }
       setRedirecting(true);
+      // Mantém o indicador visível por um instante antes de trocar de página
+      await new Promise((r) => setTimeout(r, 800));
       await navigate({ to: "/", replace: true });
     };
     void check();
