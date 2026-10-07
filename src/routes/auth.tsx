@@ -44,7 +44,12 @@ function AuthPage() {
     // Erros vindos do retorno do Google (ex.: domínio bloqueado no cadastro)
     const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search);
     if (params.get("error")) {
-      setError("Acesso permitido apenas para e-mails @obramax.com.br ou @ext.obramax.com.br.");
+      const desc = (params.get("error_description") ?? "").replace(/\+/g, " ");
+      setError(
+        /obramax|corporativ/i.test(desc)
+          ? "Acesso permitido apenas para e-mails @obramax.com.br ou @ext.obramax.com.br."
+          : `Não foi possível entrar: ${desc || params.get("error")}`,
+      );
     }
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
