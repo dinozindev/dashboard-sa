@@ -73,6 +73,25 @@ function AuthPage() {
     }
   };
 
+  if (redirecting) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-gradient px-4">
+        <div className="surface w-full max-w-sm space-y-5 p-8 text-center">
+          <span
+            aria-hidden
+            className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-primary/20 border-t-primary"
+          />
+          <div>
+            <h1 className="font-display text-lg font-semibold text-foreground">Entrando…</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Preparando seu dashboard, só um instante.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-brand-gradient px-4">
       <div className="surface w-full max-w-sm space-y-6 p-8 text-center">
