@@ -232,10 +232,15 @@ export default function Dashboard({
   const [policyTab, setPolicyTab] = useState<"matriz" | "docas">("matriz");
 
   /** Perfil de acesso real do usuário logado */
-  const profile: ProfileKey = role;
+  const [devRole, setDevRole] = useState<ProfileKey>(role);
+  const profile: ProfileKey = isDevelopmentSession ? devRole : role;
 
   /** Abas permitidas para o perfil atual */
   const allowedTabs = PROFILES[profile].tabs;
+
+  useEffect(() => {
+    if (isDevelopmentSession) setDevRole(role);
+  }, [isDevelopmentSession, role]);
 
   // Se a aba ativa não é permitida no perfil escolhido, volta para a primeira
   useEffect(() => {
@@ -716,7 +721,7 @@ export default function Dashboard({
    */
   const tooltipFor = (rec: PolygonRecord) => {
     const r = calcPrice(bandsOf(rec), weight);
-    return `<strong>${polygonLabel(rec)}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} (${rec.rMin}–${rec.rMax} km)<br/>${rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
+    return `<strong>${polygonLabel(rec)}</strong><br/>Loja: ${rec.store}<br/>Faixa: ${rec.band} <br/>${rec.district ? `Município/Distrito: ${rec.district}<br/>` : ""
       }${isPickup
         ? "Modalidade Retira — sem custo de frete"
         : `Peso ${kg(weight)}: <strong>${r.ok ? brl(r.total) : "Regra não encontrada"}</strong>`
@@ -806,9 +811,27 @@ export default function Dashboard({
         <div className="border-b border-white/15 bg-black/15">
           <div className="mx-auto flex max-w-[1600px] items-center justify-end gap-2 px-4 py-1.5">
             <span className="text-xs text-white/80">{userEmail}</span>
-            <span className="rounded-md border border-white/25 bg-white/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
-              {PROFILES[profile].label}
-            </span>
+            {isDevelopmentSession ? (
+              <label className="flex items-center gap-2 rounded-md border border-white/25 bg-white/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
+                <span>Perfil</span>
+                <select
+                  value={profile}
+                  onChange={(e) => setDevRole(e.target.value as ProfileKey)}
+                  className="rounded border border-white/20 bg-slate-900/80 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white outline-none"
+                  aria-label="Selecionar perfil de acesso em desenvolvimento"
+                >
+                  {Object.entries(PROFILES).map(([key, value]) => (
+                    <option key={key} value={key}>
+                      {value.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span className="rounded-md border border-white/25 bg-white/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
+                {PROFILES[profile].label}
+              </span>
+            )}
             {!isDevelopmentSession ? (
               <button
                 type="button"
@@ -1413,7 +1436,7 @@ export default function Dashboard({
                   <div>
                     <h2 className="section-title text-lg">{polygonLabel(selected)}</h2>
                     <p className="text-xs text-muted-foreground">
-                      {selected.store} · faixa {selected.band} ({selected.rMin}–{selected.rMax} km) ·
+                      {selected.store} · Faixa {selected.band} ·
                       {" "}
                       {selected.areaKm2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km²
                       {selected.district ? ` · ${selected.district}` : ""}
