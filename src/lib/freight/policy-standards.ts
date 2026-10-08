@@ -471,6 +471,42 @@ export interface StandardDivergence {
   label: string;
   expected: string;
   actual: string;
+  /** Justificativa registrada para este mesmo valor, quando houver. */
+  justification?: PolicyJustification;
+}
+
+/** Campos que exigem justificativa quando ficam fora do padrão. */
+export const JUSTIFIABLE_FIELDS = new Set([
+  "Maior aresta",
+  "Horário de coleta",
+  "Janela de envio",
+  "Tempo máximo de entrega",
+  "Janela da entrega agendada",
+]);
+
+export interface PolicyJustification {
+  modality: string;
+  label: string;
+  expected: string;
+  value: string;
+  reason: string;
+  by: string;
+  at: string;
+}
+
+/** Última justificativa gravada para o campo com exatamente o valor atual. */
+export function justificationFor(
+  draft: ShippingPolicyDraft,
+  modality: string,
+  label: string,
+  value: string,
+): PolicyJustification | undefined {
+  const list = draft.justifications ?? [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const j = list[i]!;
+    if (j.modality === modality && j.label === label) return j.value === value ? j : undefined;
+  }
+  return undefined;
 }
 
 /**
@@ -485,11 +521,22 @@ export function findDivergences(
   if (!standard) return [];
   return standard.fields
     .filter((field) => !field.check(draft))
-    .map((field) => ({
-      label: field.label,
-      expected: field.expected,
-      actual: field.actual(draft),
-    }));
+    .map((field) => {
+      const actual = field.actual(draft);
+      return {
+        label: field.label,
+        expected: field.expected,
+        actual,
+        justification: justificationFor(draft, modality, field.label, actual),
+      };
+    });
+}
+
+/** Campos fora do padrão que exigem justificativa e ainda não foram justificados. */
+export function unjustifiedDivergences(draft: ShippingPolicyDraft, modality: string) {
+  return findDivergences(draft, modality).filter(
+    (d) => JUSTIFIABLE_FIELDS.has(d.label) && !d.justification,
+  );
 }
 
 /** True quando a política tem algum campo fora do padrão em qualquer modalidade. */

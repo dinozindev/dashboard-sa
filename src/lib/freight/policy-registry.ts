@@ -120,6 +120,16 @@ export interface ShippingPolicyDraft {
   scheduleMode: "janela" | "coleta";
   shippingWindows: ShippingWindow[];
   pickupTimes: PickupTime[];
+  /** Histórico de justificativas para valores fora do padrão. */
+  justifications?: Array<{
+    modality: string;
+    label: string;
+    expected: string;
+    value: string;
+    reason: string;
+    by: string;
+    at: string;
+  }>;
 }
 
 /** Mantido por compatibilidade com importações antigas. */
