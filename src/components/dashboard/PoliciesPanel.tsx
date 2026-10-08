@@ -23,7 +23,7 @@ import {
   usePolicyDrafts,
   type ShippingPolicyDraft,
 } from "@/lib/freight/policy-registry";
-import { findDivergences } from "@/lib/freight/policy-standards";
+import { findDivergences, type StandardDivergence } from "@/lib/freight/policy-standards";
 import { downloadJson, readJsonFile } from "@/lib/freight/json-file";
 import { usePolicyTariffs } from "@/lib/freight/policy-tariff-store";
 import { logAudit } from "@/lib/freight/audit-log";
@@ -60,12 +60,28 @@ function WarnCell({
   group,
   children,
 }: {
-  divergences: Array<{ label: string; expected: string; actual: string }>;
+  divergences: StandardDivergence[];
   group: string;
   children: ReactNode;
 }) {
   const list = divergences.filter((d) => FIELD_GROUP[d.label] === group);
   if (!list.length) return <>{children}</>;
+  const allJustified = list.every((d) => d.justification);
+  if (allJustified) {
+    return (
+      <span className="inline-block rounded-md border border-primary/50 bg-accent px-2 py-1 text-accent-foreground">
+        <span className="block">
+          <span aria-hidden className="mr-1 font-semibold">✔</span>
+          {children}
+        </span>
+        {list.map((d) => (
+          <span key={d.label} className="mt-1 block text-[10px] leading-snug">
+            Justificado: “{d.justification!.reason}” — {d.justification!.by}
+          </span>
+        ))}
+      </span>
+    );
+  }
   return (
     <span
       title={list.map((d) => `${d.label}: esperado ${d.expected}, atual ${d.actual}`).join("\n")}
@@ -76,6 +92,69 @@ function WarnCell({
       </span>
       {children}
     </span>
+  );
+}
+
+function JustificationHistory({ drafts }: { drafts: ShippingPolicyDraft[] }) {
+  const [storeFilter, setStoreFilter] = useState("Todas");
+  const rows = useMemo(
+    () =>
+      drafts
+        .flatMap((d) => (d.justifications ?? []).map((j) => ({ ...j, store: d.store })))
+        .sort((a, b) => b.at.localeCompare(a.at)),
+    [drafts],
+  );
+  const storeOptions = [...new Set(rows.map((r) => r.store))].sort();
+  const shown = storeFilter === "Todas" ? rows : rows.filter((r) => r.store === storeFilter);
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <h3 className="section-title text-base">Histórico de justificativas (valores fora do padrão)</h3>
+        <label className="field-label">
+          Loja
+          <select className="input mt-1 w-44" value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)}>
+            <option value="Todas">Todas</option>
+            {storeOptions.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {shown.length ? (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/60 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-2 py-2 text-left">Data</th>
+                <th className="px-2 py-2 text-left">Quem alterou</th>
+                <th className="px-2 py-2 text-left">Loja</th>
+                <th className="px-2 py-2 text-left">Modalidade</th>
+                <th className="px-2 py-2 text-left">Campo</th>
+                <th className="px-2 py-2 text-left">Padrão</th>
+                <th className="px-2 py-2 text-left">Novo valor</th>
+                <th className="px-2 py-2 text-left">Justificativa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r, i) => (
+                <tr key={`${r.at}-${r.label}-${i}`} className="border-t border-border align-top">
+                  <td className="whitespace-nowrap px-2 py-1.5">{new Date(r.at).toLocaleString("pt-BR")}</td>
+                  <td className="px-2 py-1.5">{r.by}</td>
+                  <td className="px-2 py-1.5">{r.store}</td>
+                  <td className="px-2 py-1.5">{r.modality}</td>
+                  <td className="px-2 py-1.5 font-medium">{r.label}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground">{r.expected}</td>
+                  <td className="px-2 py-1.5">{r.value}</td>
+                  <td className="px-2 py-1.5">{r.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">Nenhuma justificativa registrada ainda.</p>
+      )}
+    </div>
   );
 }
 
@@ -1003,6 +1082,7 @@ export function PoliciesPanel({
         stores={standardsStores}
         modalities={data.modalities}
       />
+      <JustificationHistory drafts={drafts} />
     </div>
   );
 }
