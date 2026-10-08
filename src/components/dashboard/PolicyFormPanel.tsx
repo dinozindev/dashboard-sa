@@ -27,6 +27,11 @@ import { removePolicyFromDocks } from "@/lib/freight/docks-store";
 import { BASE_STORES, useSubmittedStores } from "@/lib/freight/submitted-stores";
 import { readJsonFile } from "@/lib/freight/json-file";
 import { logAudit } from "@/lib/freight/audit-log";
+import {
+  findDivergences,
+  JUSTIFIABLE_FIELDS,
+  unjustifiedDivergences,
+} from "@/lib/freight/policy-standards";
 import { tariffTablesForStore } from "@/lib/freight/tariff-tables";
 import {
   getPolicyTariff,
@@ -362,10 +367,13 @@ function Stepper({
 export function PolicyFormPanel({
   initialPolicy,
   onFinishEdit,
+  userEmail = "",
 }: {
   initialPolicy?: ShippingPolicyDraft | null;
   onFinishEdit?: () => void;
+  userEmail?: string;
 }) {
+  const [justification, setJustification] = useState("");
   const submitted = useSubmittedStores();
   /** Regra: só lojas com polígonos cadastrados podem ter política de envio. */
   const stores = useMemo(
@@ -657,7 +665,7 @@ export function PolicyFormPanel({
     justifications: replicating ? [] : (existing?.justifications ?? []),
   });
 
-  const previewDraft = modality ? buildDraft(currentStep.key === "revisao" ? findExisting() : undefined) : null;
+  const previewDraft = modality ? buildDraft(findExisting()) : null;
   const allDivergences = previewDraft
     ? findDivergences(previewDraft, modality).filter((d) => JUSTIFIABLE_FIELDS.has(d.label))
     : [];
@@ -710,6 +718,18 @@ export function PolicyFormPanel({
       return;
     }
     logPolicyChanges(existing, draft, modality);
+    for (const d of pending) {
+      logAudit({
+        store,
+        module: "Políticas de Envio",
+        field: `Justificativa · ${modality} · ${d.label}`,
+        before: d.expected,
+        after: d.actual,
+        action: "Edição",
+        description: `${userEmail || "Usuário não identificado"}: ${reason}`,
+      });
+    }
+    setJustification("");
 
     // Tabela de frete: Entrega (por faixa de peso) e Retira (valor fixo do estado)
     const previousLink = getPolicyTariff(id);
@@ -1745,6 +1765,45 @@ export function PolicyFormPanel({
             ))}
           </dl>
         </Section>
+      ) : null}
+
+      {pendingDivergences.length ? (
+        <div className="space-y-2 rounded-xl border border-warning bg-warning/15 p-3 text-xs text-warning-foreground">
+          <p className="font-semibold">⚠️ Valores fora do padrão — justificativa obrigatória ao salvar</p>
+          <ul className="list-inside list-disc space-y-0.5">
+            {pendingDivergences.map((d) => (
+              <li key={d.label}>
+                <strong>{d.label}</strong>: padrão {d.expected}, informado {d.actual}
+              </li>
+            ))}
+          </ul>
+          {currentStep.key === "revisao" ? (
+            <label className="block font-medium">
+              Justificativa
+              <textarea
+                className="input mt-1 min-h-[72px] w-full"
+                maxLength={1000}
+                value={justification}
+                onChange={(e) => setJustification(e.target.value)}
+                placeholder="Explique por que esta loja precisa de um valor diferente do padrão"
+              />
+            </label>
+          ) : (
+            <p>Você poderá justificar na etapa de Revisão.</p>
+          )}
+        </div>
+      ) : null}
+      {allDivergences.filter((d) => d.justification).length ? (
+        <div className="space-y-1 rounded-xl border border-primary/40 bg-accent p-3 text-xs text-accent-foreground">
+          <p className="font-semibold">✔ Fora do padrão, com justificativa</p>
+          {allDivergences
+            .filter((d) => d.justification)
+            .map((d) => (
+              <p key={d.label}>
+                <strong>{d.label}</strong> ({d.actual}): “{d.justification!.reason}” — {d.justification!.by}
+              </p>
+            ))}
+        </div>
       ) : null}
 
       {errors.length ? (
