@@ -620,10 +620,59 @@ export function PolicyFormPanel({
     setStep((cur) => Math.max(0, cur - 1));
   };
 
+  const findExisting = () => {
+    const source = replicating ? null : initialPolicy;
+    return source
+      ? getPolicyDrafts().find((draft) => draft.id === source.id)
+      : getPolicyDrafts().find(
+          (draft) => draft.store === store && draft.modalities.includes(modality),
+        );
+  };
+
+  const buildDraft = (existing: ShippingPolicyDraft | undefined): ShippingPolicyDraft => ({
+    id: existing?.id ?? `pol-${Date.now()}`,
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+    store,
+    active,
+    policyType,
+    assistedSale: hasScheduledDelivery,
+    scheduledDelivery: hasScheduledDelivery ? sched : emptyScheduledDelivery(),
+    modalities: [modality],
+    dimensions: {
+      sumOfDimensions,
+      largestEdge,
+      cubicWeightFactor: cubic,
+      minimumWeightFactor: minWeight,
+    },
+    packageItems: {
+      minimum: minimumItems,
+      minimumValue: minimumItemsValue,
+      maximumValue: maximumItemsValue,
+    },
+    weekend: { saturday, sunday, holidays },
+    pickup: { enabled: pickupEnabled, seller: pickupEnabled ? effectiveSeller : "" },
+    scheduleMode: mode,
+    shippingWindows: mode === "janela" ? windows : [],
+    pickupTimes: mode === "coleta" ? pickupTimes : [],
+    justifications: replicating ? [] : (existing?.justifications ?? []),
+  });
+
+  const previewDraft = modality ? buildDraft(currentStep.key === "revisao" ? findExisting() : undefined) : null;
+  const allDivergences = previewDraft
+    ? findDivergences(previewDraft, modality).filter((d) => JUSTIFIABLE_FIELDS.has(d.label))
+    : [];
+  const pendingDivergences = allDivergences.filter((d) => !d.justification);
+
   const save = async () => {
     const errs = steps
       .filter((s) => s.key !== "revisao")
       .flatMap((s) => validateStep(s.key));
+    const existingDraft = findExisting();
+    const pending = unjustifiedDivergences(buildDraft(existingDraft), modality);
+    const reason = justification.trim();
+    if (pending.length && reason.length < 5)
+      errs.push("Há valores fora do padrão: escreva a justificativa (mínimo 5 caracteres).");
+    if (reason.length > 1000) errs.push("A justificativa deve ter no máximo 1000 caracteres.");
     setErrors(errs);
     if (errs.length) {
       setSaved(null);
@@ -632,39 +681,25 @@ export function PolicyFormPanel({
     setSaving(true);
     setSaveProgress("Salvando política de envio…");
     try {
-    const source = replicating ? null : initialPolicy;
-    const existing = source
-      ? getPolicyDrafts().find((draft) => draft.id === source.id)
-      : getPolicyDrafts().find(
-          (draft) => draft.store === store && draft.modalities.includes(modality),
-        );
-
+    const existing = existingDraft;
     const id = existing?.id ?? `pol-${Date.now()}`;
+    const now = new Date().toISOString();
+    const base = buildDraft(existing);
     const draft: ShippingPolicyDraft = {
+      ...base,
       id,
-      createdAt: existing?.createdAt ?? new Date().toISOString(),
-      store,
-      active,
-      policyType,
-      assistedSale: hasScheduledDelivery,
-      scheduledDelivery: hasScheduledDelivery ? sched : emptyScheduledDelivery(),
-      modalities: [modality],
-      dimensions: {
-        sumOfDimensions,
-        largestEdge,
-        cubicWeightFactor: cubic,
-        minimumWeightFactor: minWeight,
-      },
-      packageItems: {
-        minimum: minimumItems,
-        minimumValue: minimumItemsValue,
-        maximumValue: maximumItemsValue,
-      },
-      weekend: { saturday, sunday, holidays },
-      pickup: { enabled: pickupEnabled, seller: pickupEnabled ? effectiveSeller : "" },
-      scheduleMode: mode,
-      shippingWindows: mode === "janela" ? windows : [],
-      pickupTimes: mode === "coleta" ? pickupTimes : [],
+      justifications: [
+        ...(base.justifications ?? []),
+        ...pending.map((d) => ({
+          modality,
+          label: d.label,
+          expected: d.expected,
+          value: d.actual,
+          reason,
+          by: userEmail || "Usuário não identificado",
+          at: now,
+        })),
+      ],
     };
     let result: "created" | "updated";
     try {
