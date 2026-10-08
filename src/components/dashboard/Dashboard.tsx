@@ -941,6 +941,7 @@ export default function Dashboard({
           <PolicyFormPanel
             initialPolicy={editingPolicy}
             onFinishEdit={() => setEditingPolicy(null)}
+            userEmail={userEmail}
           />
         ) : null}
         {tab === "envio" ? (
