@@ -20,6 +20,7 @@ import {
 import {
   removePolicyDraft,
   removePolicyDraftsByModality,
+  upsertPolicyDraftAndWait,
   usePolicyDrafts,
   type ShippingPolicyDraft,
 } from "@/lib/freight/policy-registry";
@@ -74,11 +75,6 @@ function WarnCell({
           <span aria-hidden className="mr-1 font-semibold">✔</span>
           {children}
         </span>
-        {list.map((d) => (
-          <span key={d.label} className="mt-1 block text-[10px] leading-snug">
-            Justificado: “{d.justification!.reason}” — {d.justification!.by}
-          </span>
-        ))}
       </span>
     );
   }
@@ -95,17 +91,101 @@ function WarnCell({
   );
 }
 
-function JustificationHistory({ drafts }: { drafts: ShippingPolicyDraft[] }) {
+function JustificationHistory({
+  drafts,
+  canEdit,
+}: {
+  drafts: ShippingPolicyDraft[];
+  canEdit: boolean;
+}) {
   const [storeFilter, setStoreFilter] = useState("Todas");
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const rows = useMemo(
     () =>
-      drafts
-        .flatMap((d) => (d.justifications ?? []).map((j) => ({ ...j, store: d.store })))
+      drafts.flatMap((d) => {
+        const justifications = d.justifications ?? [];
+        const latestByField = new Map<string, number>();
+        justifications.forEach((j, index) => {
+          latestByField.set(JSON.stringify([j.modality, j.label]), index);
+        });
+        return justifications.map((j, index) => ({
+          ...j,
+          store: d.store,
+          draftId: d.id,
+          isLatest: latestByField.get(JSON.stringify([j.modality, j.label])) === index,
+        }));
+      })
         .sort((a, b) => b.at.localeCompare(a.at)),
     [drafts],
   );
   const storeOptions = [...new Set(rows.map((r) => r.store))].sort();
   const shown = storeFilter === "Todas" ? rows : rows.filter((r) => r.store === storeFilter);
+  const rejectJustification = async (row: (typeof rows)[number]) => {
+    const draft = drafts.find((item) => item.id === row.draftId);
+    if (!draft) {
+      setError("A política desta justificativa não foi encontrada. Atualize a página e tente novamente.");
+      return;
+    }
+    const justifications = draft.justifications ?? [];
+    let latestIndex = -1;
+    for (let i = justifications.length - 1; i >= 0; i--) {
+      const j = justifications[i]!;
+      if (j.modality === row.modality && j.label === row.label) {
+        latestIndex = i;
+        break;
+      }
+    }
+    const latestJustification = latestIndex >= 0 ? justifications[latestIndex] : undefined;
+    const isLatest =
+      row.isLatest &&
+      latestJustification?.value === row.value &&
+      latestJustification.at === row.at &&
+      latestJustification.reason === row.reason &&
+      latestJustification.by === row.by;
+    if (!isLatest) {
+      setError("Somente a justificativa mais recente deste campo pode ser rejeitada.");
+      return;
+    }
+    const justificationExists = justifications.some(
+      (j) =>
+        j.modality === row.modality &&
+        j.label === row.label &&
+        j.value === row.value &&
+        j.at === row.at &&
+        j.reason === row.reason &&
+        j.by === row.by,
+    );
+    if (!justificationExists) {
+      setError("Esta justificativa já foi alterada. Atualize a página antes de tentar novamente.");
+      return;
+    }
+
+    const actionKey = `${row.draftId}-${row.modality}-${row.label}-${row.value}`;
+    setRejecting(actionKey);
+    setError(null);
+    const updatedDraft: ShippingPolicyDraft = {
+      ...draft,
+      justifications: justifications.filter((_, index) => index !== latestIndex),
+    };
+    try {
+      await upsertPolicyDraftAndWait(updatedDraft);
+      logAudit({
+        store: row.store,
+        module: "Políticas de Envio",
+        field: `Justificativa · ${row.modality} · ${row.label}`,
+        before: row.reason,
+        after: "Rejeitada",
+        action: "Remoção",
+        description: `Justificativa do campo "${row.label}" rejeitada; valor ${row.value} voltou a ficar fora do padrão.`,
+      });
+    } catch (err) {
+      console.error("Falha ao rejeitar justificativa", err);
+      setError("Não foi possível rejeitar a justificativa. Tente novamente.");
+    } finally {
+      setRejecting(null);
+    }
+  };
   return (
     <div className="space-y-2 border-t border-border pt-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -120,6 +200,9 @@ function JustificationHistory({ drafts }: { drafts: ShippingPolicyDraft[] }) {
           </select>
         </label>
       </div>
+      {error ? (
+        <p role="alert" className="text-xs text-danger">{error}</p>
+      ) : null}
       {shown.length ? (
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-xs">
@@ -133,6 +216,7 @@ function JustificationHistory({ drafts }: { drafts: ShippingPolicyDraft[] }) {
                 <th className="px-2 py-2 text-left">Padrão</th>
                 <th className="px-2 py-2 text-left">Novo valor</th>
                 <th className="px-2 py-2 text-left">Justificativa</th>
+                {canEdit ? <th className="px-2 py-2 text-left">Ações</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -146,6 +230,22 @@ function JustificationHistory({ drafts }: { drafts: ShippingPolicyDraft[] }) {
                   <td className="px-2 py-1.5 text-muted-foreground">{r.expected}</td>
                   <td className="px-2 py-1.5">{r.value}</td>
                   <td className="px-2 py-1.5">{r.reason}</td>
+                  {canEdit ? (
+                    <td className="px-2 py-1.5">
+                      {r.isLatest ? (
+                        <button
+                          type="button"
+                          className="rounded-md border border-danger/50 px-2 py-1 font-medium text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={rejecting !== null}
+                          onClick={() => void rejectJustification(r)}
+                        >
+                          {rejecting === `${r.draftId}-${r.modality}-${r.label}-${r.value}`
+                            ? "Rejeitando…"
+                            : "Rejeitar"}
+                        </button>
+                      ) : null}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -774,9 +874,7 @@ export function PoliciesPanel({
                           }
                           title={divergences
                             .map(
-                              (d) =>
-                                `${d.label}: esperado ${d.expected}, atual ${d.actual}` +
-                                (d.justification ? ` — justificado: ${d.justification.reason}` : ""),
+                              (d) => `${d.label}: esperado ${d.expected}, atual ${d.actual}`,
                             )
                             .join("\n")}
                         >
@@ -886,12 +984,14 @@ export function PoliciesPanel({
                     const tariffLink = policy ? tariffLinks[policy.id] : null;
                     const divergences =
                       policy && selectedModality ? findDivergences(policy, selectedModality) : [];
+                    const problems = divergences.filter((d) => !d.justification);
+                    const justifiedDivergences = divergences.filter((d) => d.justification);
                     return (
                       <tr key={store.nome} className="border-t border-border align-top">
                         <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold">
                           <div className="flex items-center gap-2">
                             <span>{store.nome}</span>
-                            {divergences.length ? (
+                            {problems.length ? (
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <button
@@ -912,7 +1012,7 @@ export function PoliciesPanel({
                                       Problemas encontrados
                                     </p>
                                     <ul className="space-y-2 text-xs">
-                                      {divergences.map((d) => (
+                                      {problems.map((d) => (
                                         <li
                                           key={d.label}
                                           className="rounded-md border border-warning/40 bg-warning/10 p-2"
@@ -925,6 +1025,54 @@ export function PoliciesPanel({
                                           </div>
                                           <div className="text-muted-foreground">
                                             Atual: {d.actual}
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            ) : null}
+                            {justifiedDivergences.length ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    aria-label="Justificativas registradas"
+                                    className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-accent text-[12px] font-bold text-accent-foreground transition hover:bg-accent/80"
+                                  >
+                                    <span aria-hidden>✔</span>
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  side="right"
+                                  align="start"
+                                  className="w-80 p-3"
+                                >
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-semibold text-accent-foreground">
+                                      Justificativas registradas
+                                    </p>
+                                    <ul className="space-y-2 text-xs">
+                                      {justifiedDivergences.map((d) => (
+                                        <li
+                                          key={d.label}
+                                          className="rounded-md border border-primary/30 bg-accent/50 p-2"
+                                        >
+                                          <div className="font-medium text-accent-foreground">
+                                            {d.label}
+                                          </div>
+                                          <div className="mt-1 text-muted-foreground">
+                                            Esperado: {d.expected}
+                                          </div>
+                                          <div className="text-muted-foreground">
+                                            Atual: {d.actual}
+                                          </div>
+                                          <div className="mt-1">
+                                            {d.justification!.reason}
+                                          </div>
+                                          <div className="mt-1 text-muted-foreground">
+                                            Justificado por {d.justification!.by}
                                           </div>
                                         </li>
                                       ))}
@@ -1121,7 +1269,7 @@ export function PoliciesPanel({
       />
       </>
       ) : (
-        <JustificationHistory drafts={drafts} />
+        <JustificationHistory drafts={drafts} canEdit={canEdit} />
       )}
     </div>
   );

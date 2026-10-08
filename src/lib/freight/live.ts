@@ -220,6 +220,7 @@ function applySnapshot(raw: FreightSnapshotDto) {
   const audit: AuditEntry[] = (raw.audit ?? []).map((a) => ({
     id: a.id,
     at: a.at,
+    actor: a.actor ?? "Não identificado",
     store: a.store,
     module: a.module as AuditEntry["module"],
     field: a.field,

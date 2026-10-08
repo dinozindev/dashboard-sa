@@ -32,6 +32,7 @@ export interface AuditEntry {
   id: string;
   /** ISO 8601 */
   at: string;
+  actor: string;
   store: string;
   module: AuditModule;
   field: string;
@@ -49,6 +50,11 @@ const MAX_ENTRIES = 2000;
 
 let seq = 0;
 let refreshTimer: number | null = null;
+let currentActor = "Usuário não identificado";
+
+export function setAuditActor(actor: string) {
+  currentActor = actor.trim() || "Usuário não identificado";
+}
 
 /** Recarrega o histórico do banco com um pequeno atraso (agrupa várias gravações). */
 function scheduleRefresh() {
@@ -73,10 +79,13 @@ export function getAuditLog(): AuditEntry[] {
 export const getAuditStorageError = () => null;
 
 /** Registra uma alteração no histórico (gravação otimista + banco). */
-export function logAudit(entry: Omit<AuditEntry, "id" | "at"> & { at?: string }) {
+export function logAudit(
+  entry: Omit<AuditEntry, "id" | "at" | "actor"> & { at?: string },
+) {
   const full: AuditEntry = {
     id: `tmp-${Date.now()}-${++seq}`,
     at: entry.at ?? new Date().toISOString(),
+    actor: currentActor,
     store: entry.store,
     module: entry.module,
     field: entry.field,
@@ -91,6 +100,7 @@ export function logAudit(entry: Omit<AuditEntry, "id" | "at"> & { at?: string })
   });
   const row: AuditRowPayload = {
     at: full.at,
+    actor: full.actor,
     store: full.store,
     module: full.module,
     field: full.field,

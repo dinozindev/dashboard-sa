@@ -62,13 +62,13 @@ import {
 } from "./SchedulePanel";
 
 
-import { CapacityPanel } from "./CapacityPanel";
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
 import { DocksPanel } from "./DocksPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
 import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
 import { AuditHistoryPanel } from "./AuditHistoryPanel";
+import { setAuditActor } from "@/lib/freight/audit-log";
 import { PickupPointsPanel } from "./PickupPointsPanel";
 import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 
@@ -82,7 +82,6 @@ const TABS = [
   ["cadastro", "Cadastro de Política de Envio"],
   ["envio", "Envio de Lojas e Polígonos"],
   ["retirada", "Pontos de Retirada"],
-  ["capacidade", "Capacidade Operacional"],
   ["capacidadeEntrega", "Capacidade de Entrega"],
   ["auditoria", "Histórico de Auditoria"],
 ] as const;
@@ -100,11 +99,11 @@ const PROFILES = {
   },
   editor: {
     label: "Editor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidade", "capacidadeEntrega"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidadeEntrega"] as TabKey[],
   },
   auditor: {
     label: "Auditor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidade", "capacidadeEntrega", "auditoria"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidadeEntrega", "auditoria"] as TabKey[],
   },
 } as const;
 
@@ -241,6 +240,10 @@ export default function Dashboard({
   useEffect(() => {
     if (isDevelopmentSession) setDevRole(role);
   }, [isDevelopmentSession, role]);
+
+  useEffect(() => {
+    setAuditActor(userEmail);
+  }, [userEmail]);
 
   // Se a aba ativa não é permitida no perfil escolhido, volta para a primeira
   useEffect(() => {
@@ -948,18 +951,6 @@ export default function Dashboard({
           <PolygonSubmissionPanel onGoToMap={() => setTab("operacao")} />
         ) : null}
         {tab === "retirada" ? <PickupPointsPanel /> : null}
-        {tab === "capacidade" ? (
-          <section className="space-y-3">
-            <div className="surface p-4">
-              <h2 className="section-title text-lg">Capacidade operacional</h2>
-              <p className="mb-3 text-xs text-muted-foreground">
-                Capacidade das lojas para receber e preparar pedidos. A unidade é sempre
-                quantidade de pedidos e o acompanhamento vai até D+3.
-              </p>
-              <CapacityPanel />
-            </div>
-          </section>
-        ) : null}
         {tab === "capacidadeEntrega" ? (
           <section className="surface p-4">
             <h2 className="section-title text-lg">Capacidade de Entrega</h2>

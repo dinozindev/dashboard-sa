@@ -57,6 +57,7 @@ function startOf(period: PeriodKey): number | null {
 function toCsv(rows: AuditEntry[]) {
   const head = [
     "Data/Hora",
+    "Quem fez",
     "Loja",
     "Aba de origem",
     "Tipo de ação",
@@ -67,7 +68,7 @@ function toCsv(rows: AuditEntry[]) {
   ];
   const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
   const body = rows.map((r) =>
-    [formatAuditDate(r.at), r.store, r.module, r.action, r.field, r.before, r.after, r.description]
+    [formatAuditDate(r.at), r.actor, r.store, r.module, r.action, r.field, r.before, r.after, r.description]
       .map(esc)
       .join(";"),
   );
@@ -313,10 +314,11 @@ export function AuditHistoryPanel() {
           </p>
         ) : (
           <div className="max-h-[32rem] overflow-auto rounded-xl border border-border">
-            <table className="w-full min-w-[1100px] table-fixed text-sm">
+            <table className="w-full min-w-[1240px] table-fixed text-sm">
               <thead className="sticky top-0 bg-muted/80 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="w-36 px-2 py-2 text-left">Data/Hora</th>
+                  <th className="w-48 px-2 py-2 text-left">Quem fez</th>
                   <th className="w-28 px-2 py-2 text-left">Loja</th>
                   <th className="w-40 px-2 py-2 text-left">Aba de origem</th>
                   <th className="w-32 px-2 py-2 text-left">Tipo de ação</th>
@@ -335,6 +337,7 @@ export function AuditHistoryPanel() {
                       <td className="whitespace-nowrap px-2 py-1.5 tabular-nums">
                         {formatAuditDate(e.at)}
                       </td>
+                      <td className="break-words px-2 py-1.5">{e.actor || "Não identificado"}</td>
                       <td className="px-2 py-1.5 font-medium">{e.store}</td>
                       <td className="px-2 py-1.5">{e.module}</td>
                       <td className="px-2 py-1.5">
@@ -359,7 +362,7 @@ export function AuditHistoryPanel() {
                     </tr>
                     {openId === e.id ? (
                       <tr className="border-t border-border bg-muted/30">
-                        <td colSpan={7} className="px-3 py-3 text-xs">
+                        <td colSpan={8} className="px-3 py-3 text-xs">
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div className="min-w-0">
                               <p className="mb-1 font-semibold text-muted-foreground">

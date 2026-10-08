@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           action: string
           after: string | null
+          actor: string | null
           at: string
           before: string | null
           description: string | null
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           action: string
           after?: string | null
+          actor?: string | null
           at?: string
           before?: string | null
           description?: string | null
@@ -40,6 +42,7 @@ export type Database = {
         Update: {
           action?: string
           after?: string | null
+          actor?: string | null
           at?: string
           before?: string | null
           description?: string | null

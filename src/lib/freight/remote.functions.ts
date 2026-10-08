@@ -115,6 +115,7 @@ export interface FreightSnapshotDto {
   audit: Array<{
     id: string;
     at: string;
+    actor: string | null;
     store: string;
     module: string;
     field: string;
@@ -172,7 +173,7 @@ export const getFreightSnapshot = createServerFn({ method: "GET" }).handler(
       supabase.from("policy_standards").select("store_id,modality,rules"),
     );
     const auditResult = await runRead(() =>
-      supabase.from("audit_log").select("id,at,store,module,field,before,after,action,description").order("at", { ascending: false }).limit(2000),
+      supabase.from("audit_log").select("id,at,actor,store,module,field,before,after,action,description").order("at", { ascending: false }).limit(2000),
     );
 
     for (const result of [
@@ -885,6 +886,7 @@ export const deleteStatePolygon = createServerFn({ method: "POST" })
 
 export interface AuditRowPayload {
   at: string;
+  actor: string;
   store: string;
   module: string;
   field: string;
