@@ -84,11 +84,12 @@ const TABS = [
   ["envio", "Envio de Lojas e Polígonos"],
   ["retirada", "Pontos de Retirada"],
   ["capacidadeEntrega", "Capacidade de Entrega"],
+  ["simulador", "Simulador de Envio"],
   ["auditoria", "Histórico de Auditoria"],
 ] as const;
 
 /** Aba ainda não finalizada, exibida com selo "Em Construção" */
-const UNDER_CONSTRUCTION_TABS: readonly string[] = [];
+const UNDER_CONSTRUCTION_TABS: readonly string[] = ["simulador"];
 
 type TabKey = (typeof TABS)[number][0];
 
@@ -96,15 +97,15 @@ type TabKey = (typeof TABS)[number][0];
 const PROFILES = {
   consultor: {
     label: "Consultor",
-    tabs: ["operacao", "politicas"] as TabKey[],
+    tabs: ["operacao", "politicas", "capacidadeEntrega", "simulador"] as TabKey[],
   },
   editor: {
     label: "Editor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidadeEntrega"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidadeEntrega", "simulador"] as TabKey[],
   },
   auditor: {
     label: "Auditor",
-    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidadeEntrega", "auditoria"] as TabKey[],
+    tabs: ["operacao", "politicas", "cadastro", "envio", "retirada", "capacidadeEntrega", "simulador", "auditoria"] as TabKey[],
   },
 } as const;
 
@@ -946,6 +947,22 @@ export default function Dashboard({
             ) : (
               <DocksPanel canEdit={profile !== "consultor"} />
             )}
+          </div>
+        ) : null}
+        {tab === "simulador" ? (
+          <div className="surface flex min-h-[420px] flex-col items-center justify-center gap-4 p-10 text-center">
+            <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-warning-foreground">
+              Em Construção
+            </span>
+            <div className="space-y-2">
+              <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
+                Simulador de Envio
+              </h2>
+              <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
+                Esta funcionalidade está sendo desenvolvida e será liberada em breve com simulação de frete,
+                regras de política e previsão de capacidade.
+              </p>
+            </div>
           </div>
         ) : null}
         {tab === "cadastro" ? (
