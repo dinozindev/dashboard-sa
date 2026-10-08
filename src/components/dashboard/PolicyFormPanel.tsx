@@ -708,7 +708,7 @@ export function PolicyFormPanel({
           label: d.label,
           expected: d.expected,
           value: d.actual,
-          reason,
+          reason: reasons[d.label],
           by: userEmail || "Usuário não identificado",
           at: now,
         })),
@@ -731,10 +731,10 @@ export function PolicyFormPanel({
         before: d.expected,
         after: d.actual,
         action: "Edição",
-        description: `${userEmail || "Usuário não identificado"}: ${reason}`,
+        description: `${userEmail || "Usuário não identificado"}: ${reasons[d.label]}`,
       });
     }
-    setJustification("");
+    setJustifications({});
 
     // Tabela de frete: Entrega (por faixa de peso) e Retira (valor fixo do estado)
     const previousLink = getPolicyTariff(id);
@@ -1783,18 +1783,24 @@ export function PolicyFormPanel({
             ))}
           </ul>
           {currentStep.key === "revisao" ? (
-            <label className="block font-medium">
-              Justificativa
-              <textarea
-                className="input mt-1 min-h-[72px] w-full"
-                maxLength={1000}
-                value={justification}
-                onChange={(e) => setJustification(e.target.value)}
-                placeholder="Explique por que esta loja precisa de um valor diferente do padrão"
-              />
-            </label>
+            <div className="space-y-2">
+              {pendingDivergences.map((d) => (
+                <label key={d.label} className="block font-medium">
+                  Justificativa — {d.label}
+                  <textarea
+                    className="input mt-1 min-h-[72px] w-full"
+                    maxLength={1000}
+                    value={justifications[d.label] ?? ""}
+                    onChange={(e) =>
+                      setJustifications((cur) => ({ ...cur, [d.label]: e.target.value }))
+                    }
+                    placeholder={`Explique por que "${d.label}" precisa de um valor diferente do padrão`}
+                  />
+                </label>
+              ))}
+            </div>
           ) : (
-            <p>Você poderá justificar na etapa de Revisão.</p>
+            <p>Você poderá justificar cada campo na etapa de Revisão.</p>
           )}
         </div>
       ) : null}
