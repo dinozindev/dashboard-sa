@@ -373,7 +373,7 @@ export function PolicyFormPanel({
   onFinishEdit?: () => void;
   userEmail?: string;
 }) {
-  const [justification, setJustification] = useState("");
+  const [justifications, setJustifications] = useState<Record<string, string>>({});
   const submitted = useSubmittedStores();
   /** Regra: só lojas com polígonos cadastrados podem ter política de envio. */
   const stores = useMemo(
@@ -677,10 +677,15 @@ export function PolicyFormPanel({
       .flatMap((s) => validateStep(s.key));
     const existingDraft = findExisting();
     const pending = unjustifiedDivergences(buildDraft(existingDraft), modality);
-    const reason = justification.trim();
-    if (pending.length && reason.length < 5)
-      errs.push("Há valores fora do padrão: escreva a justificativa (mínimo 5 caracteres).");
-    if (reason.length > 1000) errs.push("A justificativa deve ter no máximo 1000 caracteres.");
+    const reasons: Record<string, string> = {};
+    for (const d of pending) {
+      const reason = (justifications[d.label] ?? "").trim();
+      reasons[d.label] = reason;
+      if (reason.length < 5)
+        errs.push(`"${d.label}" está fora do padrão: escreva a justificativa (mínimo 5 caracteres).`);
+      else if (reason.length > 1000)
+        errs.push(`A justificativa de "${d.label}" deve ter no máximo 1000 caracteres.`);
+    }
     setErrors(errs);
     if (errs.length) {
       setSaved(null);
