@@ -708,7 +708,7 @@ export function PolicyFormPanel({
           label: d.label,
           expected: d.expected,
           value: d.actual,
-          reason: reasons[d.label],
+          reason: reasons[d.label] ?? "",
           by: userEmail || "Usuário não identificado",
           at: now,
         })),

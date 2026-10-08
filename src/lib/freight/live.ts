@@ -119,6 +119,7 @@ function normalizeDraft(raw: object): ShippingPolicyDraft {
     scheduleMode: d.scheduleMode === "coleta" ? "coleta" : "janela",
     shippingWindows: Array.isArray(d.shippingWindows) ? d.shippingWindows : [],
     pickupTimes: Array.isArray(d.pickupTimes) ? d.pickupTimes : [],
+    justifications: Array.isArray(d.justifications) ? d.justifications : [],
   };
 }
 

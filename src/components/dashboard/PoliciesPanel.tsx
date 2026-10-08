@@ -419,6 +419,7 @@ export function PoliciesPanel({
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [newModality, setNewModality] = useState("");
   const [selectedModality, setSelectedModality] = useState<string | null>(null);
+  const [view, setView] = useState<"matriz" | "justificativas">("matriz");
   const selectedPolicyDrafts = selectedModality
     ? drafts.filter((policy) => policy.modalities.includes(selectedModality))
     : [];
@@ -507,6 +508,32 @@ export function PoliciesPanel({
 
   return (
     <div className="space-y-3 surface p-4">
+      <div role="tablist" className="flex gap-1 border-b border-border">
+        {(
+          [
+            ["matriz", "Políticas por loja"],
+            ["justificativas", "Histórico de justificativas"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={view === key}
+            onClick={() => setView(key)}
+            className={
+              "-mb-px border-b-2 px-3 py-2 text-xs font-semibold transition " +
+              (view === key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === "matriz" ? (
+      <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="section-title text-lg">Políticas de envio por loja</h2>
@@ -699,6 +726,7 @@ export function PoliciesPanel({
                   );
                   const divergences = policy ? findDivergences(policy, m) : [];
                   const divergent = divergences.length > 0;
+                  const justified = divergent && divergences.every((d) => d.justification);
                   return (
                     <td key={m} className="px-3 py-1.5 text-center">
                       {canEdit ? (
@@ -710,13 +738,13 @@ export function PoliciesPanel({
                           }
                           className={
                             "w-full min-w-[140px] rounded-md border px-2 py-1 text-xs font-medium focus:border-primary focus:outline-none " +
-                            (divergent ? "border-warning " : "border-transparent ") +
+                            (divergent && !justified ? "border-warning " : divergent ? "border-primary/50 " : "border-transparent ") +
                             STATUS_CLASS[cell.status]
                           }
                         >
                           {divergent ? (
                             <option disabled value="__fora_do_padrao" className="text-warning-foreground">
-                              ⚠ Fora do padrão
+                              {justified ? "✔ Justificado" : "⚠ Fora do padrão"}
                             </option>
                           ) : null}
                           {STATUS_OPTIONS.map((opt) => (
@@ -738,12 +766,21 @@ export function PoliciesPanel({
                       )}
                       {divergent ? (
                         <p
-                          className="mt-1 w-full rounded-md bg-warning/20 px-2 py-1 text-center text-[11px] font-medium text-warning-foreground"
+                          className={
+                            "mt-1 w-full rounded-md px-2 py-1 text-center text-[11px] font-medium " +
+                            (justified
+                              ? "border border-primary/50 bg-accent text-accent-foreground"
+                              : "bg-warning/20 text-warning-foreground")
+                          }
                           title={divergences
-                            .map((d) => `${d.label}: esperado ${d.expected}, atual ${d.actual}`)
+                            .map(
+                              (d) =>
+                                `${d.label}: esperado ${d.expected}, atual ${d.actual}` +
+                                (d.justification ? ` — justificado: ${d.justification.reason}` : ""),
+                            )
                             .join("\n")}
                         >
-                          ⚠ Fora do padrão
+                          {justified ? "✔ Justificado" : "⚠ Fora do padrão"}
                         </p>
                       ) : null}
                       {m === "Pequenos Volumes" ? (
@@ -1082,7 +1119,10 @@ export function PoliciesPanel({
         stores={standardsStores}
         modalities={data.modalities}
       />
-      <JustificationHistory drafts={drafts} />
+      </>
+      ) : (
+        <JustificationHistory drafts={drafts} />
+      )}
     </div>
   );
 }
