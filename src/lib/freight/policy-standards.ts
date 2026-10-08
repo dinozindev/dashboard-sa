@@ -472,7 +472,7 @@ export interface StandardDivergence {
   expected: string;
   actual: string;
   /** Justificativa registrada para este mesmo valor, quando houver. */
-  justification?: PolicyJustification;
+  justification?: PolicyJustification | undefined;
 }
 
 /** Campos que exigem justificativa quando ficam fora do padrão. */
