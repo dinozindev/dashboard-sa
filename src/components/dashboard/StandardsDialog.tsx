@@ -20,6 +20,8 @@ import { logAudit } from "@/lib/freight/audit-log";
 import {
   DAY_GROUPS,
   POLICY_SCHEDULE_DAYS,
+  formatDaySelection,
+  normalizeDaySelection,
   type DayGroup,
 } from "@/lib/freight/policy-registry";
 
@@ -165,7 +167,7 @@ export function StandardsDialog({
   const scheduleMode = sched[0]?.mode ?? "coleta";
   const scd = form.scheduled;
   const availableCapacityDays = DAY_GROUPS.filter(
-    (day) => !scd?.windows?.some((window) => window.days === day),
+    (day) => !scd?.windows?.some((window) => normalizeDaySelection(window.days).includes(day)),
   );
 
   return (
@@ -519,31 +521,43 @@ export function StandardsDialog({
                       </label>
                     ))}
                   </fieldset>
-                  {(scd.windows ?? []).map((window, index) => (
-                    <div key={`${window.days}-${index}`} className="space-y-2 rounded-md border border-border p-3">
+                  {(scd.windows ?? []).map((window, index) => {
+                    const selected = normalizeDaySelection(window.days);
+                    return (
+                    <div key={`${formatDaySelection(window.days)}-${index}`} className="space-y-2 rounded-md border border-border p-3">
                       <div className="flex flex-wrap gap-2">
                         {DAY_GROUPS.map((day) => {
                           const occupied = scd.windows?.some(
-                            (other, otherIndex) => other.days === day && otherIndex !== index,
+                            (other, otherIndex) =>
+                              otherIndex !== index && normalizeDaySelection(other.days).includes(day),
                           );
+                          const selectedDay = selected.includes(day);
                           return (
                             <button
                               key={day}
                               type="button"
-                              disabled={ro || occupied}
+                              disabled={ro || (occupied && !selectedDay)}
                               onClick={() =>
                                 set({
                                   scheduled: {
                                     ...scd,
-                                    windows: (scd.windows ?? []).map((current, currentIndex) =>
-                                      currentIndex === index ? { ...current, days: day } : current,
-                                    ),
+                                    windows: (scd.windows ?? []).map((current, currentIndex) => {
+                                      if (currentIndex !== index) return current;
+                                      const currentSelected = normalizeDaySelection(current.days);
+                                      const nextSelected = selectedDay
+                                        ? currentSelected.filter((item) => item !== day)
+                                        : [...currentSelected, day];
+                                      return {
+                                        ...current,
+                                        days: nextSelected.length ? nextSelected : currentSelected,
+                                      };
+                                    }),
                                   },
                                 })
                               }
                               className={
                                 "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
-                                (window.days === day
+                                (selectedDay
                                   ? "border-primary bg-primary/10 text-primary"
                                   : occupied
                                     ? "border-border text-muted-foreground opacity-40"
@@ -660,7 +674,8 @@ export function StandardsDialog({
                         Remover janela
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                   <button
                     type="button"
                     className="rounded-lg border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-40"
@@ -674,7 +689,7 @@ export function StandardsDialog({
                           windows: [
                             ...(scd.windows ?? []),
                             {
-                              days: day,
+                              days: [day],
                               capacity: 1,
                               additional: 0,
                               start: "08:00",

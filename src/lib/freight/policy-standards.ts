@@ -10,7 +10,7 @@
  * o padrão é que aquele campo NÃO esteja configurado.
  */
 
-import type { ShippingPolicyDraft } from "./policy-registry";
+import type { DaySelection, ShippingPolicyDraft } from "./policy-registry";
 
 export interface FieldStandard {
   /** Rótulo amigável do campo (como aparece no formulário). */
@@ -232,14 +232,18 @@ function scheduledStandard(opts: ScheduledRule): FieldStandard[] {
     });
   }
   if (opts.capacityEnabled && opts.windows !== undefined) {
-    const expectedWindows = [...opts.windows].sort((a, b) => a.days.localeCompare(b.days));
+    const daySignature = (days: DaySelection | string | undefined) =>
+      (Array.isArray(days) ? days : days ? [days] : []).sort().join("+");
+    const expectedWindows = [...opts.windows].sort((a, b) =>
+      daySignature(a.days).localeCompare(daySignature(b.days)),
+    );
     fields.push({
       label: "Janelas de capacidade agendada",
       expected: expectedWindows.length
         ? expectedWindows
             .map(
               (w) =>
-                `${w.days}: ${w.start}–${w.end}, ${w.capacity} ${opts.unit ?? "unidades"}${
+                `${Array.isArray(w.days) ? w.days.join(" + ") : w.days}: ${w.start}–${w.end}, ${w.capacity} ${opts.unit ?? "unidades"}${
                   w.additional ? `, +R$ ${w.additional}` : ""
                 }`,
             )
@@ -248,7 +252,7 @@ function scheduledStandard(opts: ScheduledRule): FieldStandard[] {
       check: (d) => {
         if (!d.scheduledDelivery.enabled || !d.scheduledDelivery.capacityEnabled) return true;
         const actualWindows = [...d.scheduledDelivery.windows].sort((a, b) =>
-          a.days.localeCompare(b.days),
+          daySignature(a.days).localeCompare(daySignature(b.days)),
         );
         return (
           actualWindows.length === expectedWindows.length &&
@@ -256,7 +260,7 @@ function scheduledStandard(opts: ScheduledRule): FieldStandard[] {
             const actual = actualWindows[index];
             return (
               actual !== undefined &&
-              actual.days === expected.days &&
+              daySignature(actual.days) === daySignature(expected.days) &&
               actual.capacity === expected.capacity &&
               actual.additional === expected.additional &&
               actual.start === expected.start &&
@@ -270,7 +274,7 @@ function scheduledStandard(opts: ScheduledRule): FieldStandard[] {
           ? d.scheduledDelivery.windows
               .map(
                 (w) =>
-                  `${w.days}: ${w.start}–${w.end}, ${w.capacity} ${d.scheduledDelivery.unit}${
+                  `${Array.isArray(w.days) ? w.days.join(" + ") : w.days}: ${w.start}–${w.end}, ${w.capacity} ${d.scheduledDelivery.unit}${
                     w.additional ? `, +R$ ${w.additional}` : ""
                   }`,
               )
@@ -306,7 +310,7 @@ export interface ScheduledRule {
 }
 
 export interface ScheduledCapacityRule {
-  days: "Segunda a sexta-feira" | "Sábado" | "Domingo";
+  days: DaySelection;
   capacity: number;
   additional: number;
   start: string;

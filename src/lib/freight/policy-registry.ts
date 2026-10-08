@@ -42,6 +42,17 @@ export type PolicyType = "Entrega" | "Retira";
 
 export const DAY_GROUPS = ["Segunda a sexta-feira", "Sábado", "Domingo"] as const;
 export type DayGroup = (typeof DAY_GROUPS)[number];
+export type DaySelection = DayGroup | DayGroup[];
+
+export function normalizeDaySelection(days: DaySelection | string | undefined): DayGroup[] {
+  const source = Array.isArray(days) ? days : days ? [days as DayGroup] : [];
+  return source.filter((day): day is DayGroup => DAY_GROUPS.includes(day as DayGroup));
+}
+
+export function formatDaySelection(days: DaySelection | string | undefined): string {
+  const selected = normalizeDaySelection(days);
+  return selected.length ? selected.join(" + ") : "Sem dia";
+}
 
 export const POLICY_SCHEDULE_DAYS = [
   "Todos os dias",
@@ -59,7 +70,7 @@ export const POLICY_SCHEDULE_DAYS = [
 /** Linha de janela de entrega agendada. */
 export interface DeliveryWindowRow {
   id: string;
-  days: DayGroup;
+  days: DaySelection;
   capacity: number;
   additional: number;
   start: string;

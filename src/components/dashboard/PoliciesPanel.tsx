@@ -18,6 +18,7 @@ import {
   usePolicyMatrix,
 } from "@/lib/freight/policy-status-store";
 import {
+  formatDaySelection,
   removePolicyDraft,
   removePolicyDraftsByModality,
   upsertPolicyDraftAndWait,
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StandardsDialog } from "./StandardsDialog";
+import { HolidaysPanel } from "./HolidaysPanel";
 
 /** Agrupa cada campo padrão na coluna correspondente da tabela de visualização. */
 const FIELD_GROUP: Record<string, string> = {
@@ -357,7 +359,7 @@ function PolicyDetails({
                   <p>Capacidade em: {policy.scheduledDelivery.unit}</p>
                   {policy.scheduledDelivery.windows.map((w) => (
                     <p key={w.id}>
-                      {w.days}: {w.start}–{w.end} · {w.capacity} {policy.scheduledDelivery.unit} ·
+                      {formatDaySelection(w.days)}: {w.start}–{w.end} · {w.capacity} {policy.scheduledDelivery.unit} ·
                       adicional R$ {w.additional.toFixed(2)}
                     </p>
                   ))}
@@ -519,7 +521,7 @@ export function PoliciesPanel({
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [newModality, setNewModality] = useState("");
   const [selectedModality, setSelectedModality] = useState<string | null>(null);
-  const [view, setView] = useState<"matriz" | "justificativas">("matriz");
+  const [view, setView] = useState<"matriz" | "justificativas" | "feriados">("matriz");
   const selectedPolicyDrafts = selectedModality
     ? drafts.filter((policy) => policy.modalities.includes(selectedModality))
     : [];
@@ -613,6 +615,7 @@ export function PoliciesPanel({
           [
             ["matriz", "Políticas por loja"],
             ["justificativas", "Histórico de justificativas"],
+            ["feriados", "Feriados"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -1137,7 +1140,7 @@ export function PoliciesPanel({
                                             key={window.id}
                                             className="rounded border border-border bg-muted/20 px-2 py-1 leading-tight"
                                           >
-                                            <span className="font-medium">{window.days}</span>
+                                            <span className="font-medium">{formatDaySelection(window.days)}</span>
                                             <span className="block text-muted-foreground">
                                               {window.start}-{window.end}
                                               {policy.scheduledDelivery.capacityEnabled
@@ -1269,7 +1272,11 @@ export function PoliciesPanel({
       />
       </>
       ) : (
-        <JustificationHistory drafts={drafts} canEdit={canEdit} />
+        view === "feriados" ? (
+          <HolidaysPanel canEdit={canEdit} />
+        ) : (
+          <JustificationHistory drafts={drafts} canEdit={canEdit} />
+        )
       )}
     </div>
   );

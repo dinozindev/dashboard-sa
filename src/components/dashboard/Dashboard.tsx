@@ -64,6 +64,7 @@ import {
 
 import { ComparePanel } from "./ComparePanel";
 import { PoliciesPanel } from "./PoliciesPanel";
+import { DeliveryCapacityPanel } from "./DeliveryCapacityPanel";
 import { DocksPanel } from "./DocksPanel";
 import { PolicyFormPanel } from "./PolicyFormPanel";
 import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
@@ -87,7 +88,7 @@ const TABS = [
 ] as const;
 
 /** Aba ainda não finalizada, exibida com selo "Em Construção" */
-const UNDER_CONSTRUCTION_TABS: readonly string[] = ["capacidadeEntrega"];
+const UNDER_CONSTRUCTION_TABS: readonly string[] = [];
 
 type TabKey = (typeof TABS)[number][0];
 
@@ -959,10 +960,13 @@ export default function Dashboard({
         ) : null}
         {tab === "retirada" ? <PickupPointsPanel /> : null}
         {tab === "capacidadeEntrega" ? (
-          <section className="surface p-4">
-            <h2 className="section-title text-lg">Capacidade de Entrega</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Esta aba está em construção.</p>
-          </section>
+          <DeliveryCapacityPanel
+            canEdit={profile !== "consultor"}
+            onEditPolicy={(policy) => {
+              setEditingPolicy(policy);
+              navigateToTab("cadastro");
+            }}
+          />
         ) : null}
         {tab === "auditoria" ? (
           <div className="space-y-4">

@@ -14,3 +14,4 @@
 - Capacity projection math lives in `src/lib/freight/capacity-model.ts`, separate from the server functions, so the D+3 overflow rules stay testable and UI-independent.
 
 - Access control uses Google sign-in (corporate Google federates to PingID) plus `public.user_roles` (consultor/editor/auditor); a signup trigger rejects non-corporate domains and auditors manage roles in-app, because governance stays with the app team without IdP metadata.
+- Delivery capacity days live in `delivery_capacity_days` (store_id, modality, day); the panel only creates/updates rows for today onward from the policy's scheduled-delivery windows, so past days stay as immutable history. Holidays live in `holidays` and remove matching days.

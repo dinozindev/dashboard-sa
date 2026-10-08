@@ -10,7 +10,9 @@ import {
   DAY_GROUPS,
   POLICY_SCHEDULE_DAYS,
   emptyScheduledDelivery,
+  formatDaySelection,
   getPolicyDrafts,
+  normalizeDaySelection,
   removePolicyDraft,
   replacePolicyDrafts,
   upsertPolicyDraftAndWait,
@@ -101,7 +103,9 @@ const onOff = (v: boolean) => (v ? "Ativa" : "Inativa");
 
 const describeDeliveryWindows = (d: ShippingPolicyDraft) =>
   d.scheduledDelivery.windows
-    .map((w) => `${w.days} ${w.start}-${w.end} (${w.capacity}, +R$ ${w.additional})`)
+    .map(
+      (w) => `${formatDaySelection(w.days)} ${w.start}-${w.end} (${w.capacity}, +R$ ${w.additional})`,
+    )
     .join("; ") || "—";
 
 const describeWindows = (d: ShippingPolicyDraft) =>
@@ -497,7 +501,7 @@ export function PolicyFormPanel({
     setMaxVisited((cur) => Math.min(cur, steps.length - 1));
   }, [steps.length]);
 
-  const usedDayGroups = sched.windows.map((w) => w.days);
+  const usedDayGroups = sched.windows.flatMap((w) => normalizeDaySelection(w.days));
   const freeDayGroups = DAY_GROUPS.filter((g) => !usedDayGroups.includes(g));
 
   const patchSched = (patch: Partial<ScheduledDelivery>) =>
@@ -508,6 +512,20 @@ export function PolicyFormPanel({
       ...cur,
       windows: cur.windows.map((w) => (w.id === id ? { ...w, ...patch } : w)),
     }));
+
+  const toggleWindowDay = (id: string, day: DayGroup) => {
+    setSched((cur) => ({
+      ...cur,
+      windows: cur.windows.map((w) => {
+        if (w.id !== id) return w;
+        const selected = normalizeDaySelection(w.days);
+        const next = selected.includes(day)
+          ? selected.filter((item) => item !== day)
+          : [...selected, day];
+        return { ...w, days: next.length ? next : selected };
+      }),
+    }));
+  };
 
   useEffect(() => {
     if (!initialPolicy) {
@@ -589,7 +607,8 @@ export function PolicyFormPanel({
         errs.push("Informe o tempo máximo de entrega (em dias).");
       if (sched.capacityEnabled) {
         sched.windows.forEach((w, i) => {
-          if (!w.days || !w.start || !w.end || !w.capacity)
+          const selectedDays = normalizeDaySelection(w.days);
+          if (!selectedDays.length || !w.start || !w.end || !w.capacity)
             errs.push(`Preencha os campos obrigatórios da janela de entrega ${i + 1}.`);
         });
       }
@@ -1577,23 +1596,25 @@ export function PolicyFormPanel({
                       ))}
                     </div>
 
-                    {sched.windows.map((w) => (
+                    {sched.windows.map((w) => {
+                      const selectedGroups = normalizeDaySelection(w.days);
+                      return (
                       <div
                         key={w.id}
                         className="space-y-2 rounded-lg border border-border p-3"
                       >
                         <div className="flex flex-wrap gap-2">
                           {DAY_GROUPS.map((g) => {
-                            const taken = usedDayGroups.includes(g) && w.days !== g;
+                            const taken = usedDayGroups.includes(g) && !selectedGroups.includes(g);
                             return (
                               <button
                                 key={g}
                                 type="button"
                                 disabled={taken}
-                                onClick={() => patchWindow(w.id, { days: g as DayGroup })}
+                                onClick={() => toggleWindowDay(w.id, g)}
                                 className={
                                   "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
-                                  (w.days === g
+                                  (selectedGroups.includes(g)
                                     ? "border-primary bg-primary/10 text-primary"
                                     : taken
                                       ? "border-border text-muted-foreground opacity-40"
@@ -1672,7 +1693,8 @@ export function PolicyFormPanel({
                           </button>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
 
                     <div className="flex flex-wrap justify-between gap-2">
                       <button
@@ -1695,7 +1717,7 @@ export function PolicyFormPanel({
                               ...cur.windows,
                               {
                                 id: uid(),
-                                days: group,
+                                days: [group],
                                 capacity: 0,
                                 additional: 0,
                                 start: "08:00",

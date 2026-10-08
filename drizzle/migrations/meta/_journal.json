@@ -148,6 +148,13 @@
       "when": 1791377688226,
       "tag": "0020_user_roles_corporate_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791494006917,
+      "tag": "0021_holidays_delivery_capacity",
+      "breakpoints": true
     }
   ]
 }
