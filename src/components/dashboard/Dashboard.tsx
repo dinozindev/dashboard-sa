@@ -236,6 +236,10 @@ export default function Dashboard({
 
   /** Abas permitidas para o perfil atual */
   const allowedTabs = PROFILES[profile].tabs;
+  const navigateToTab = (nextTab: TabKey) => {
+    if (nextTab !== "cadastro") setEditingPolicy(null);
+    setTab(nextTab);
+  };
 
   useEffect(() => {
     if (isDevelopmentSession) setDevRole(role);
@@ -247,7 +251,10 @@ export default function Dashboard({
 
   // Se a aba ativa não é permitida no perfil escolhido, volta para a primeira
   useEffect(() => {
-    if (!allowedTabs.includes(tab)) setTab(allowedTabs[0] ?? "operacao");
+    if (!allowedTabs.includes(tab)) {
+      setEditingPolicy(null);
+      setTab(allowedTabs[0] ?? "operacao");
+    }
   }, [allowedTabs, tab]);
 
   // ============================================================================
@@ -884,7 +891,7 @@ export default function Dashboard({
             <button
               key={key}
               type="button"
-              onClick={() => setTab(key)}
+              onClick={() => navigateToTab(key)}
               aria-current={tab === key ? "page" : undefined}
               className={
                 "flex shrink-0 items-center justify-between gap-2 text-left md:w-full " +
@@ -932,7 +939,7 @@ export default function Dashboard({
                 canEditStandards={profile !== "consultor"}
                 onEditPolicy={(policy) => {
                   setEditingPolicy(policy);
-                  setTab("cadastro");
+                  navigateToTab("cadastro");
                 }}
               />
             ) : (
@@ -948,7 +955,7 @@ export default function Dashboard({
           />
         ) : null}
         {tab === "envio" ? (
-          <PolygonSubmissionPanel onGoToMap={() => setTab("operacao")} />
+          <PolygonSubmissionPanel onGoToMap={() => navigateToTab("operacao")} />
         ) : null}
         {tab === "retirada" ? <PickupPointsPanel /> : null}
         {tab === "capacidadeEntrega" ? (
