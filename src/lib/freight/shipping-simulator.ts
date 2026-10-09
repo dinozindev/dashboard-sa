@@ -96,6 +96,7 @@ export function simulate(live: LiveState, lng: number, lat: number, weight: numb
     pointInPolygon(lng, lat, { geom: s.geom } as unknown as PolygonRecord),
   );
   if (state?.polygonName) {
+    const statePolygonName = state.polygonName;
     for (const table of live.snapshot.freightTables) {
       if (table.polygonName !== state.polygonName) continue;
       const draft = table.policyClientId ? draftById.get(table.policyClientId) : undefined;
@@ -105,7 +106,7 @@ export function simulate(live: LiveState, lng: number, lat: number, weight: numb
       const price: PriceBreakdown =
         amc == null
           ? { ok: false, message: "Tabela sem valor", basePrice: 0, includedWeight: 0, extraWeight: 0, extraRate: 0, total: 0 }
-          : { ok: true, band: first, basePrice: amc, includedWeight: weight, extraWeight: 0, extraRate: 0, total: amc };
+          : { ok: true, band: first as WeightBand, basePrice: amc, includedWeight: weight, extraWeight: 0, extraRate: 0, total: amc };
       for (const modality of draft.modalities.length ? draft.modalities : ["Retira"]) {
         options.push({
           id: `${table.id}-${modality}`,
@@ -113,7 +114,7 @@ export function simulate(live: LiveState, lng: number, lat: number, weight: numb
           store: table.store,
           modality,
           table: table.name,
-          polygon: state.polygonName,
+          polygon: statePolygonName,
           price,
           time: (first?.time as string | null | undefined) ?? null,
         });
