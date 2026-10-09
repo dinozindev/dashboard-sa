@@ -79,7 +79,7 @@ export function ShippingSimulatorPanel() {
     return simulate(live, point.lng, point.lat, calcWeight);
   }, [live, point, calcWeight]);
 
-  const usePoint = async (lat: number, lng: number, addr?: Address) => {
+  const setPointAndAddress = async (lat: number, lng: number, addr?: Address) => {
     setPoint({ lat, lng });
     setLatIn(lat.toFixed(6));
     setLngIn(lng.toFixed(6));
@@ -98,13 +98,18 @@ export function ShippingSimulatorPanel() {
       if (clean) {
         if (clean.length !== 8) throw new Error("O CEP deve ter 8 dígitos.");
         const g = await geocodeCep(clean);
-        await usePoint(g.lat, g.lng, g.address);
+        await setPointAndAddress(g.lat, g.lng, g.address);
       } else if (latIn && lngIn) {
         const lat = Number(latIn.replace(",", "."));
         const lng = Number(lngIn.replace(",", "."));
-        if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
+        if (
+          !Number.isFinite(lat) ||
+          !Number.isFinite(lng) ||
+          Math.abs(lat) > 90 ||
+          Math.abs(lng) > 180
+        )
           throw new Error("Latitude/longitude inválidas.");
-        await usePoint(lat, lng);
+        await setPointAndAddress(lat, lng);
       } else if (!point) {
         throw new Error("Informe o CEP, a latitude/longitude ou clique no mapa.");
       }
@@ -114,6 +119,18 @@ export function ShippingSimulatorPanel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const reset = () => {
+    setWeight("1");
+    setCep("");
+    setLatIn("");
+    setLngIn("");
+    setPoint(null);
+    setAddress(null);
+    setError(null);
+    setCalcWeight(null);
+    setOpen(null);
   };
 
   const options = result?.options ?? [];
@@ -140,11 +157,11 @@ export function ShippingSimulatorPanel() {
             />
           </label>
         </div>
-        <div className="grid items-end gap-3 md:grid-cols-[180px_auto_160px_160px]">
-          <label className="field-label">
+        <div className="flex flex-wrap items-end justify-start gap-3">
+          <label className="field-label w-44 max-w-full min-w-0">
             CEP
             <input
-              className="input mt-1"
+              className="input mt-1 w-full min-w-0"
               placeholder="00000-000"
               maxLength={9}
               value={cep}
@@ -152,10 +169,10 @@ export function ShippingSimulatorPanel() {
             />
           </label>
           <span className="pb-2 text-center text-sm font-semibold text-muted-foreground">ou</span>
-          <label className="field-label">
+          <label className="field-label w-40 max-w-full min-w-0">
             Latitude
             <input
-              className="input mt-1"
+              className="input mt-1 w-full min-w-0"
               value={latIn}
               onChange={(e) => {
                 setLatIn(e.target.value);
@@ -163,10 +180,10 @@ export function ShippingSimulatorPanel() {
               }}
             />
           </label>
-          <label className="field-label">
+          <label className="field-label w-40 max-w-full min-w-0">
             Longitude
             <input
-              className="input mt-1"
+              className="input mt-1 w-full min-w-0"
               value={lngIn}
               onChange={(e) => {
                 setLngIn(e.target.value);
@@ -178,9 +195,17 @@ export function ShippingSimulatorPanel() {
         <p className="text-xs text-muted-foreground">
           Ou clique em qualquer ponto do mapa abaixo para escolher o local.
         </p>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button className="btn-primary" onClick={calculate} disabled={loading || !live}>
             {loading ? "Calculando…" : "Calcular"}
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+            onClick={reset}
+            disabled={loading}
+          >
+            Nova consulta
           </button>
           {!live ? <span className="text-xs text-muted-foreground">Carregando dados…</span> : null}
           {error ? <span className="text-xs font-medium text-danger">{error}</span> : null}
@@ -198,8 +223,10 @@ export function ShippingSimulatorPanel() {
                 onSelect={() => undefined}
                 onMapClick={(lng, lat) => {
                   setCep("");
-                  void usePoint(lat, lng);
-                  setCalcWeight(Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : 1);
+                  void setPointAndAddress(lat, lng);
+                  setCalcWeight(
+                    Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : 1,
+                  );
                 }}
                 fitKey={`sim|${result?.hits.map((h) => h.id).join(",") ?? ""}`}
                 markerStores={[...new Set(options.map((o) => o.store))]}
@@ -234,11 +261,21 @@ export function ShippingSimulatorPanel() {
             <section className="space-y-2">
               <h3 className="section-title text-lg">Endereço</h3>
               <div className="surface grid grid-cols-2 gap-2 p-4 text-sm">
-                <p className="col-span-2"><strong>CEP:</strong> {address?.cep ?? "—"}</p>
-                <p><strong>Rua:</strong> {address?.street ?? "—"}</p>
-                <p><strong>Bairro:</strong> {address?.district ?? "—"}</p>
-                <p><strong>Cidade:</strong> {address?.city ?? "—"}</p>
-                <p><strong>Estado:</strong> {address?.uf ?? "—"}</p>
+                <p className="col-span-2">
+                  <strong>CEP:</strong> {address?.cep ?? "—"}
+                </p>
+                <p>
+                  <strong>Rua:</strong> {address?.street ?? "—"}
+                </p>
+                <p>
+                  <strong>Bairro:</strong> {address?.district ?? "—"}
+                </p>
+                <p>
+                  <strong>Cidade:</strong> {address?.city ?? "—"}
+                </p>
+                <p>
+                  <strong>Estado:</strong> {address?.uf ?? "—"}
+                </p>
                 <p className="col-span-2 text-xs text-muted-foreground">
                   {point.lat.toFixed(6)}, {point.lng.toFixed(6)} · Peso {kg(calcWeight)}
                 </p>
@@ -247,7 +284,9 @@ export function ShippingSimulatorPanel() {
           </div>
 
           <section className="surface space-y-2 p-4">
-            <h3 className="text-sm font-semibold">Melhores opções de envio segundo custo-benefício</h3>
+            <h3 className="text-sm font-semibold">
+              Melhores opções de envio segundo custo-benefício
+            </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-left text-xs text-muted-foreground">
@@ -309,10 +348,14 @@ function OptionRow({
           </span>
         </td>
         <td className="p-2">{o.kind}</td>
-        <td className="p-2 tabular-nums">{p.ok ? brl(p.total) : <span className="text-danger">{p.message}</span>}</td>
+        <td className="p-2 tabular-nums">
+          {p.ok ? brl(p.total) : <span className="text-danger">{p.message}</span>}
+        </td>
         <td className="p-2">
           {formatTimeCost(o.time)}
-          {o.time ? <span className="block text-[11px] text-muted-foreground">{o.time}</span> : null}
+          {o.time ? (
+            <span className="block text-[11px] text-muted-foreground">{o.time}</span>
+          ) : null}
         </td>
         <td className="p-2">{kg(weight)}</td>
         <td className="p-2">
@@ -324,8 +367,12 @@ function OptionRow({
       {open ? (
         <tr className="border-b border-border bg-muted/30 text-xs">
           <td colSpan={6} className="space-y-1 p-3">
-            <p><strong>Tabela:</strong> {o.table}</p>
-            <p><strong>Polígono:</strong> {o.polygon}</p>
+            <p>
+              <strong>Tabela:</strong> {o.table}
+            </p>
+            <p>
+              <strong>Polígono:</strong> {o.polygon}
+            </p>
             {p.ok && p.band ? (
               o.kind === "Retira" ? (
                 <p>Valor único da retira (sem adicional por peso excedente): {brl(p.total)}</p>
@@ -335,8 +382,9 @@ function OptionRow({
                     <strong>Faixa:</strong> {p.band.ws} – {p.band.we} kg
                   </p>
                   <p>
-                    Valor base {brl(p.basePrice)} + {p.extraWeight.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg excedente ×{" "}
-                    {brl(p.extraRate)}/kg = <strong>{brl(p.total)}</strong>
+                    Valor base {brl(p.basePrice)} +{" "}
+                    {p.extraWeight.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg
+                    excedente × {brl(p.extraRate)}/kg = <strong>{brl(p.total)}</strong>
                   </p>
                 </>
               )

@@ -1487,7 +1487,7 @@ export default function Dashboard({
                   )}
                 </div>
 
-                {selectedBands ? (
+                {/* {selectedBands ? (
                   <RuleSimulator
                     rec={selected}
                     bands={selectedBands}
@@ -1496,7 +1496,7 @@ export default function Dashboard({
                     overrides={overrides}
                     setOverrides={setOverrides}
                   />
-                ) : null}
+                ) : null} */}
 
                 {isPickup ? null : (
                   <p className="text-xs text-muted-foreground">
