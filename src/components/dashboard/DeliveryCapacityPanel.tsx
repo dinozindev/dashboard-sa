@@ -7,6 +7,7 @@ import {
   expectedDay,
   formatBr,
   isoDate,
+  nextScheduledDays,
   type Holiday,
 } from "@/lib/freight/delivery-capacity";
 
@@ -57,12 +58,6 @@ export function DeliveryCapacityPanel({
   }, []);
 
   const store = stores.find((s) => s.id === storeId);
-  const end = addDays(start, horizon - 1);
-  const days = useMemo(
-    () => Array.from({ length: horizon }, (_, i) => addDays(start, i)),
-    [start, horizon],
-  );
-
   const storePolicies = useMemo(() => {
     const map = new Map<string, ShippingPolicyDraft>();
     if (!store) return map;
@@ -74,6 +69,25 @@ export function DeliveryCapacityPanel({
     }
     return map;
   }, [drafts, store]);
+
+  const scheduledDays = useMemo(
+    () =>
+      nextScheduledDays(
+        start,
+        horizon,
+        modality === "todas" ? SCHEDULED_MODALITIES : [modality],
+        storePolicies,
+        store?.region ?? "",
+        holidays,
+      ),
+    [start, horizon, modality, storePolicies, store?.region, holidays],
+  );
+  const end = scheduledDays.at(-1) ?? addDays(start, horizon - 1);
+  const days = useMemo(() => {
+    const range: string[] = [];
+    for (let day = start; day <= end; day = addDays(day, 1)) range.push(day);
+    return range;
+  }, [start, end]);
 
   /** Sincroniza o banco: só hoje em diante é criado/atualizado; o passado fica como histórico. */
   const load = useCallback(async () => {
@@ -125,8 +139,7 @@ export function DeliveryCapacityPanel({
       await supabase
         .from("delivery_capacity_days")
         .upsert(upserts as never, { onConflict: "store_id,modality,day" });
-    if (removals.length)
-      await supabase.from("delivery_capacity_days").delete().in("id", removals);
+    if (removals.length) await supabase.from("delivery_capacity_days").delete().in("id", removals);
     if (upserts.length || removals.length) {
       const again = await fetchRows();
       setRows((again.data ?? []) as DbRow[]);
@@ -140,7 +153,7 @@ export function DeliveryCapacityPanel({
 
   const display = useMemo(() => {
     const filtered = rows.filter((r) => modality === "todas" || r.modality === modality);
-    return days
+    return scheduledDays
       .map((d) => {
         const list = filtered.filter((r) => r.day === d);
         if (!list.length) return null;
@@ -156,7 +169,7 @@ export function DeliveryCapacityPanel({
       reserved: number;
       single: DbRow | null;
     }>;
-  }, [rows, days, modality]);
+  }, [rows, scheduledDays, modality]);
 
   const saveReserved = async (row: DbRow, value: number) => {
     const v = Math.max(0, Math.floor(value || 0));

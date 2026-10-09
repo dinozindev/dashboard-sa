@@ -77,3 +77,48 @@ export function expectedDay(
   if (!w) return null;
   return { day: iso, modality, deliveryTime: `${w.start} - ${w.end}`, capacity: w.capacity };
 }
+
+export function nextScheduledDays(
+  start: string,
+  count: number,
+  modalities: readonly string[],
+  policies: ReadonlyMap<string, ShippingPolicyDraft>,
+  region: string,
+  holidays: Holiday[],
+): string[] {
+  const hasSchedule = modalities.some((modality) => {
+    const scheduled = policies.get(modality)?.scheduledDelivery;
+    return (
+      scheduled?.enabled &&
+      scheduled.capacityEnabled &&
+      scheduled.windows.some((window) => normalizeDaySelection(window.days).length > 0)
+    );
+  });
+  if (!hasSchedule || count <= 0) return [];
+
+  const lastHoliday = holidays
+    .filter(
+      (holiday) =>
+        holiday.scope === "nacional" ||
+        (holiday.state ?? "").toUpperCase() === region.toUpperCase(),
+    )
+    .reduce((last, holiday) => {
+      const end = holiday.end_date || holiday.start_date;
+      return end > last ? end : last;
+    }, start);
+  const searchEnd = addDays(lastHoliday, count * 7);
+  const result: string[] = [];
+
+  for (let day = start; day <= searchEnd && result.length < count; day = addDays(day, 1)) {
+    if (
+      modalities.some((modality) => {
+        const policy = policies.get(modality);
+        return policy && expectedDay(policy, modality, day, region, holidays);
+      })
+    ) {
+      result.push(day);
+    }
+  }
+
+  return result;
+}
