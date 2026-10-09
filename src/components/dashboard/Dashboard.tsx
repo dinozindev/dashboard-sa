@@ -71,6 +71,7 @@ import { PolygonSubmissionPanel } from "./PolygonSubmissionPanel";
 import { AuditHistoryPanel } from "./AuditHistoryPanel";
 import { setAuditActor } from "@/lib/freight/audit-log";
 import { PickupPointsPanel } from "./PickupPointsPanel";
+import { ShippingSimulatorPanel } from "./ShippingSimulatorPanel";
 import type { ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 
 // Lazy load do mapa (pesado, carrega sob demanda)
@@ -89,7 +90,7 @@ const TABS = [
 ] as const;
 
 /** Aba ainda não finalizada, exibida com selo "Em Construção" */
-const UNDER_CONSTRUCTION_TABS: readonly string[] = ["simulador"];
+const UNDER_CONSTRUCTION_TABS: readonly string[] = [];
 
 type TabKey = (typeof TABS)[number][0];
 
@@ -949,22 +950,7 @@ export default function Dashboard({
             )}
           </div>
         ) : null}
-        {tab === "simulador" ? (
-          <div className="surface flex min-h-[420px] flex-col items-center justify-center gap-4 p-10 text-center">
-            <span className="inline-flex items-center rounded-full border border-warning/30 bg-warning/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-warning-foreground">
-              Em Construção
-            </span>
-            <div className="space-y-2">
-              <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
-                Simulador de Envio
-              </h2>
-              <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-                Esta funcionalidade está sendo desenvolvida e será liberada em breve com simulação de frete,
-                regras de política e previsão de capacidade.
-              </p>
-            </div>
-          </div>
-        ) : null}
+        {tab === "simulador" ? <ShippingSimulatorPanel /> : null}
         {tab === "cadastro" ? (
           <PolicyFormPanel
             initialPolicy={editingPolicy}
