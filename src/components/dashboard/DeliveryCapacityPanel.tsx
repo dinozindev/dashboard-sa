@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { HolidaysPanel } from "./HolidaysPanel";
 import { usePolicyDrafts, type ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 import {
   SCHEDULED_MODALITIES,
@@ -34,6 +35,7 @@ export function DeliveryCapacityPanel({
   onEditPolicy: (p: ShippingPolicyDraft) => void;
 }) {
   const drafts = usePolicyDrafts();
+  const [view, setView] = useState<"capacidade" | "feriados">("capacidade");
   const today = isoDate(new Date());
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
