@@ -6,6 +6,7 @@ import {
   addDays,
   expectedDay,
   formatBr,
+  holidayOn,
   isoDate,
   nextScheduledDays,
   type Holiday,
