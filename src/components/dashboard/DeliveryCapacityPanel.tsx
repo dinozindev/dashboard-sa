@@ -303,6 +303,21 @@ export function DeliveryCapacityPanel({
           </thead>
           <tbody>
             {display.map((r) => {
+              if (r.blocked) {
+                return (
+                  <tr key={r.day} className="border-t border-border bg-muted/40">
+                    <td className="px-3 py-3 text-muted-foreground">{formatBr(r.day)}</td>
+                    <td colSpan={4} className="px-3 py-3 text-xs text-muted-foreground">
+                      Não opera neste dia por conta do feriado <strong>{r.blocked}</strong>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning-foreground">
+                        Bloqueado
+                      </span>
+                    </td>
+                  </tr>
+                );
+              }
               const available = r.capacity - r.reserved;
               const past = r.day < today;
               return (
