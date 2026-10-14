@@ -174,13 +174,16 @@ export function DeliveryCapacityPanel({
         if (!list.length) return null;
         const capacity = list.reduce((a, r) => a + r.capacity, 0);
         const reserved = list.reduce((a, r) => a + r.reserved, 0);
-        const times = Array.from(new Set(list.map((r) => r.delivery_time))).join(" · ");
+        const times =
+          modality === "todas"
+            ? list.map((r) => `${r.modality}: ${r.delivery_time}`).join(" · ")
+            : Array.from(new Set(list.map((r) => r.delivery_time))).join(" · ");
         return {
           day: d,
           times,
           capacity,
           reserved,
-          single: list.length === 1 ? list[0] : null,
+          single: modality !== "todas" && list.length === 1 ? list[0] : null,
           blocked: null,
         };
       })
