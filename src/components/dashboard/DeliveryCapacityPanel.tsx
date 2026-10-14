@@ -212,8 +212,8 @@ export function DeliveryCapacityPanel({
         <div>
           <h2 className="section-title text-lg">Capacidade de Entrega</h2>
           <p className="text-xs text-muted-foreground">
-            Entrega Agendada, Conforto Manhã, Conforto Tarde e Retira Televendas. Feriados e dias
-            não configurados não aparecem.
+            Entrega Agendada, Conforto Manhã, Conforto Tarde e Retira Televendas. Feriados
+            aparecem como bloqueados; dias não configurados não aparecem.
           </p>
         </div>
         {editablePolicy && canEdit ? (
