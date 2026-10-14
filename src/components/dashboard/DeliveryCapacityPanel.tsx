@@ -154,14 +154,35 @@ export function DeliveryCapacityPanel({
 
   const display = useMemo(() => {
     const filtered = rows.filter((r) => modality === "todas" || r.modality === modality);
-    return scheduledDays
+    const region = store?.region ?? "";
+    const scheduled = new Set(scheduledDays);
+    return days
       .map((d) => {
+        const holiday = holidayOn(d, region, holidays);
+        if (holiday) {
+          return {
+            day: d,
+            times: "",
+            capacity: 0,
+            reserved: 0,
+            single: null,
+            blocked: holiday.name,
+          };
+        }
+        if (!scheduled.has(d)) return null;
         const list = filtered.filter((r) => r.day === d);
         if (!list.length) return null;
         const capacity = list.reduce((a, r) => a + r.capacity, 0);
         const reserved = list.reduce((a, r) => a + r.reserved, 0);
         const times = Array.from(new Set(list.map((r) => r.delivery_time))).join(" · ");
-        return { day: d, times, capacity, reserved, single: list.length === 1 ? list[0] : null };
+        return {
+          day: d,
+          times,
+          capacity,
+          reserved,
+          single: list.length === 1 ? list[0] : null,
+          blocked: null,
+        };
       })
       .filter(Boolean) as Array<{
       day: string;
@@ -169,8 +190,9 @@ export function DeliveryCapacityPanel({
       capacity: number;
       reserved: number;
       single: DbRow | null;
+      blocked: string | null;
     }>;
-  }, [rows, scheduledDays, modality]);
+  }, [rows, days, scheduledDays, modality, store?.region, holidays]);
 
   const saveReserved = async (row: DbRow, value: number) => {
     const v = Math.max(0, Math.floor(value || 0));
