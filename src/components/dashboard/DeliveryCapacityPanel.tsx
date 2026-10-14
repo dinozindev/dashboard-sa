@@ -213,6 +213,34 @@ export function DeliveryCapacityPanel({
 
   return (
     <section className="surface space-y-4 p-4">
+      <div role="tablist" className="flex gap-1 border-b border-border">
+        {(
+          [
+            ["capacidade", "Capacidade de Entrega"],
+            ["feriados", "Feriados"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={view === key}
+            onClick={() => setView(key)}
+            className={
+              "-mb-px border-b-2 px-3 py-2 text-xs font-semibold transition " +
+              (view === key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === "feriados" ? (
+        <HolidaysPanel canEdit={canEdit} />
+      ) : (
+      <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="section-title text-lg">Capacidade de Entrega</h2>
