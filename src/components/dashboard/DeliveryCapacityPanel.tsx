@@ -422,6 +422,8 @@ export function DeliveryCapacityPanel({
           Para alterar o reservado, escolha uma política de envio específica.
         </p>
       ) : null}
+      </>
+      )}
     </section>
   );
 }
