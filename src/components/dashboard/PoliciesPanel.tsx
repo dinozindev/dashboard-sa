@@ -38,7 +38,6 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StandardsDialog } from "./StandardsDialog";
-import { HolidaysPanel } from "./HolidaysPanel";
 
 /** Agrupa cada campo padrão na coluna correspondente da tabela de visualização. */
 const FIELD_GROUP: Record<string, string> = {
@@ -521,7 +520,7 @@ export function PoliciesPanel({
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [newModality, setNewModality] = useState("");
   const [selectedModality, setSelectedModality] = useState<string | null>(null);
-  const [view, setView] = useState<"matriz" | "justificativas" | "feriados">("matriz");
+  const [view, setView] = useState<"matriz" | "justificativas">("matriz");
   const selectedPolicyDrafts = selectedModality
     ? drafts.filter((policy) => policy.modalities.includes(selectedModality))
     : [];
@@ -615,7 +614,6 @@ export function PoliciesPanel({
           [
             ["matriz", "Políticas por loja"],
             ["justificativas", "Histórico de justificativas"],
-            ["feriados", "Feriados"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -1272,11 +1270,7 @@ export function PoliciesPanel({
       />
       </>
       ) : (
-        view === "feriados" ? (
-          <HolidaysPanel canEdit={canEdit} />
-        ) : (
-          <JustificationHistory drafts={drafts} canEdit={canEdit} />
-        )
+        <JustificationHistory drafts={drafts} canEdit={canEdit} />
       )}
     </div>
   );

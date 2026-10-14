@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { HolidaysPanel } from "./HolidaysPanel";
 import { usePolicyDrafts, type ShippingPolicyDraft } from "@/lib/freight/policy-registry";
 import {
   SCHEDULED_MODALITIES,
@@ -34,6 +35,7 @@ export function DeliveryCapacityPanel({
   onEditPolicy: (p: ShippingPolicyDraft) => void;
 }) {
   const drafts = usePolicyDrafts();
+  const [view, setView] = useState<"capacidade" | "feriados">("capacidade");
   const today = isoDate(new Date());
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -211,6 +213,34 @@ export function DeliveryCapacityPanel({
 
   return (
     <section className="surface space-y-4 p-4">
+      <div role="tablist" className="flex gap-1 border-b border-border">
+        {(
+          [
+            ["capacidade", "Capacidade de Entrega"],
+            ["feriados", "Feriados"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={view === key}
+            onClick={() => setView(key)}
+            className={
+              "-mb-px border-b-2 px-3 py-2 text-xs font-semibold transition " +
+              (view === key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === "feriados" ? (
+        <HolidaysPanel canEdit={canEdit} />
+      ) : (
+      <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="section-title text-lg">Capacidade de Entrega</h2>
@@ -392,6 +422,8 @@ export function DeliveryCapacityPanel({
           Para alterar o reservado, escolha uma política de envio específica.
         </p>
       ) : null}
+      </>
+      )}
     </section>
   );
 }
