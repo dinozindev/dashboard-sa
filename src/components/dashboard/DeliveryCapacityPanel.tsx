@@ -80,10 +80,8 @@ export function DeliveryCapacityPanel({
         horizon,
         modality === "todas" ? SCHEDULED_MODALITIES : [modality],
         storePolicies,
-        store?.region ?? "",
-        holidays,
       ),
-    [start, horizon, modality, storePolicies, store?.region, holidays],
+    [start, horizon, modality, storePolicies],
   );
   const end = scheduledDays.at(-1) ?? addDays(start, horizon - 1);
   const days = useMemo(() => {
@@ -119,7 +117,7 @@ export function DeliveryCapacityPanel({
       const p = storePolicies.get(m);
       for (const d of days) {
         if (d < today) continue;
-        const exp = p ? expectedDay(p, m, d, store.region, holidays) : null;
+        const exp = p ? expectedDay(p, m, d, store.region, holidays, store.id) : null;
         const cur = byKey.get(key(m, d));
         if (!exp) {
           if (cur) removals.push(cur.id);
@@ -160,7 +158,8 @@ export function DeliveryCapacityPanel({
     const scheduled = new Set(scheduledDays);
     return days
       .map((d) => {
-        const holiday = holidayOn(d, region, holidays);
+        if (!scheduled.has(d)) return null;
+        const holiday = holidayOn(d, region, holidays, store?.id);
         if (holiday) {
           return {
             day: d,
@@ -168,10 +167,9 @@ export function DeliveryCapacityPanel({
             capacity: 0,
             reserved: 0,
             single: null,
-            blocked: holiday.name,
+            blocked: holiday,
           };
         }
-        if (!scheduled.has(d)) return null;
         const list = filtered.filter((r) => r.day === d);
         if (!list.length) return null;
         const capacity = list.reduce((a, r) => a + r.capacity, 0);
@@ -195,9 +193,9 @@ export function DeliveryCapacityPanel({
       capacity: number;
       reserved: number;
       single: DbRow | null;
-      blocked: string | null;
+      blocked: Holiday | null;
     }>;
-  }, [rows, days, scheduledDays, modality, store?.region, holidays]);
+  }, [rows, days, scheduledDays, modality, store?.region, store?.id, holidays]);
 
   const saveReserved = async (row: DbRow, value: number) => {
     const v = Math.max(0, Math.floor(value || 0));
@@ -217,7 +215,7 @@ export function DeliveryCapacityPanel({
         {(
           [
             ["capacidade", "Capacidade de Entrega"],
-            ["feriados", "Feriados"],
+            ["feriados", "Feriados e Inventários"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -341,7 +339,9 @@ export function DeliveryCapacityPanel({
                   <tr key={r.day} className="border-t border-border bg-muted/40">
                     <td className="px-3 py-3 text-muted-foreground">{formatBr(r.day)}</td>
                     <td colSpan={4} className="px-3 py-3 text-xs text-muted-foreground">
-                      Não opera neste dia por conta do feriado <strong>{r.blocked}</strong>
+                      Não opera neste dia por conta do{" "}
+                      {r.blocked.kind === "inventario" ? "inventário" : "feriado"}{" "}
+                      <strong>{r.blocked.name}</strong>
                     </td>
                     <td className="px-3 py-3 text-right">
                       <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning-foreground">

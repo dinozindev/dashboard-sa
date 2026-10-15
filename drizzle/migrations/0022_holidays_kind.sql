@@ -1,0 +1,1 @@
+ALTER TABLE public.holidays ADD COLUMN kind text NOT NULL DEFAULT 'feriado' CHECK (kind IN ('feriado','inventario'));

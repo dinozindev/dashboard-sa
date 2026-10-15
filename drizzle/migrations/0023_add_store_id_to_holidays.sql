@@ -1,0 +1,1 @@
+ALTER TABLE public.holidays ADD COLUMN store_id uuid REFERENCES public.stores(id) ON DELETE CASCADE; COMMENT ON COLUMN public.holidays.store_id IS 'Loja específica para inventários (null para feriados gerais)';

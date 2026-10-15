@@ -155,6 +155,20 @@
       "when": 1791494006917,
       "tag": "0021_holidays_delivery_capacity",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792081048569,
+      "tag": "0022_holidays_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792081658031,
+      "tag": "0023_add_store_id_to_holidays",
+      "breakpoints": true
     }
   ]
 }

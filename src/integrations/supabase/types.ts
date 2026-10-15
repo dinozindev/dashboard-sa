@@ -329,33 +329,47 @@ export type Database = {
           created_at: string
           end_date: string | null
           id: string
+          kind: string
           name: string
           scope: string
           start_date: string
           state: string | null
+          store_id: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           end_date?: string | null
           id?: string
+          kind?: string
           name: string
           scope?: string
           start_date: string
           state?: string | null
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           end_date?: string | null
           id?: string
+          kind?: string
           name?: string
           scope?: string
           start_date?: string
           state?: string | null
+          store_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "holidays_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       modalities: {
         Row: {
@@ -558,7 +572,6 @@ export type Database = {
           client_id: string
           created_at: string
           district: string | null
-          geojson_cache: Json | null
           geom: unknown
           id: string
           kind: string
@@ -577,7 +590,6 @@ export type Database = {
           client_id: string
           created_at?: string
           district?: string | null
-          geojson_cache?: Json | null
           geom: unknown
           id?: string
           kind?: string
@@ -596,7 +608,6 @@ export type Database = {
           client_id?: string
           created_at?: string
           district?: string | null
-          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           kind?: string
@@ -650,7 +661,6 @@ export type Database = {
       }
       state_polygons: {
         Row: {
-          geojson_cache: Json | null
           geom: unknown
           id: string
           name: string
@@ -660,7 +670,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          geojson_cache?: Json | null
           geom: unknown
           id?: string
           name: string
@@ -670,7 +679,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          geojson_cache?: Json | null
           geom?: unknown
           id?: string
           name?: string
@@ -1156,6 +1164,10 @@ export type Database = {
       }
       insert_polygons: { Args: { payload: Json }; Returns: number }
       longtransactionsenabled: { Args: never; Returns: boolean }
+      pickup_point_name: {
+        Args: { p_kind: string; p_store: string }
+        Returns: string
+      }
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
         | { Args: { use_typmod?: boolean }; Returns: string }
