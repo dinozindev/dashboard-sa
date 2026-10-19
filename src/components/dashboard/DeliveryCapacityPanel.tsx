@@ -47,18 +47,27 @@ export function DeliveryCapacityPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadHolidays = useCallback(async () => {
+    const h = await supabase.from("holidays").select("*");
+    setHolidays((h.data ?? []) as Holiday[]);
+  }, []);
+
   useEffect(() => {
     void (async () => {
-      const [s, h] = await Promise.all([
+      const [s] = await Promise.all([
         supabase.from("stores").select("id,name,region").order("name"),
-        supabase.from("holidays").select("*"),
+        loadHolidays(),
       ]);
       const list = (s.data ?? []) as StoreRow[];
       setStores(list);
-      setHolidays((h.data ?? []) as Holiday[]);
       setStoreId((cur) => cur || list[0]?.id || "");
     })();
-  }, []);
+  }, [loadHolidays]);
+
+  // Recarrega feriados ao voltar da aba "Feriados e Inventários" (cadastros novos)
+  useEffect(() => {
+    if (view === "capacidade") void loadHolidays();
+  }, [view, loadHolidays]);
 
   const store = stores.find((s) => s.id === storeId);
   const storePolicies = useMemo(() => {
