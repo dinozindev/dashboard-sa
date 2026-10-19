@@ -18,7 +18,9 @@ export interface Holiday {
   name: string;
   start_date: string;
   end_date: string | null;
-  scope: "nacional" | "estadual";
+  scope: "nacional" | "estadual" | "municipal";
+  /** lojas abrangidas por feriados municipais */
+  store_ids?: string[] | null;
   state: string | null;
   /** feriado: recorre todos os anos; inventario: vale apenas no ano definido */
   kind: "feriado" | "inventario";
@@ -76,6 +78,9 @@ export function holidayOn(
       if (h.store_id) {
         // Inventário por loja: aplica-se apenas à loja selecionada
         if (h.store_id !== storeId) return false;
+      } else if (h.scope === "municipal") {
+        // Feriado municipal: aplica-se apenas às lojas selecionadas
+        if (!storeId || !(h.store_ids ?? []).includes(storeId)) return false;
       } else if (h.scope !== "nacional" && (h.state ?? "").toUpperCase() !== region.toUpperCase()) {
         return false;
       }

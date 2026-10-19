@@ -16,9 +16,10 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [kind, setKind] = useState<"feriado" | "inventario">("feriado");
-  const [scope, setScope] = useState<"nacional" | "estadual">("nacional");
+  const [scope, setScope] = useState<"nacional" | "estadual" | "municipal">("nacional");
   const [state, setState] = useState("SP");
   const [storeId, setStoreId] = useState("");
+  const [storeIds, setStoreIds] = useState<string[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -49,6 +50,11 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
       setMsg({ ok: false, text: "Selecione a loja para o inventário." });
       return;
     }
+    const municipal = kind === "feriado" && scope === "municipal";
+    if (municipal && !storeIds.length) {
+      setMsg({ ok: false, text: "Selecione ao menos uma loja para o feriado municipal." });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("holidays").insert({
       name: name.trim().slice(0, 120),
@@ -58,12 +64,14 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
       scope: kind === "inventario" ? "nacional" : scope,
       state: kind === "inventario" ? null : scope === "estadual" ? state : null,
       store_id: kind === "inventario" ? storeId : null,
+      store_ids: municipal ? storeIds : [],
     });
     setSaving(false);
     if (error) return setMsg({ ok: false, text: error.message });
     setName("");
     setStartDate("");
     setEndDate("");
+    setStoreIds([]);
     setMsg({ ok: true, text: kind === "inventario" ? "Inventário cadastrado." : "Feriado cadastrado." });
     void load();
   };
@@ -80,7 +88,7 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
         <h2 className="section-title text-lg">Feriados e Inventários</h2>
         <p className="text-xs text-muted-foreground">
           Feriados bloqueiam a Capacidade de Entrega e valem todos os anos. Inventário bloqueia
-          apenas no ano definido e é vinculado a uma loja específica. Abrangência estadual vale
+          apenas no ano definido e é vinculado a uma loja específica. Abrangência municipal vale só para as lojas selecionadas. Abrangência estadual vale
           só para lojas do estado enquanto que abrangência nacional vale para todas as lojas.
         </p>
       </div>
@@ -109,9 +117,10 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
             <>
               <label className="text-xs text-muted-foreground">
                 Abrangência
-                <select className="input mt-1 w-full" value={scope} onChange={(e) => setScope(e.target.value as "nacional" | "estadual")}>
+                <select className="input mt-1 w-full" value={scope} onChange={(e) => setScope(e.target.value as "nacional" | "estadual" | "municipal")}>
                   <option value="nacional">Nacional</option>
                   <option value="estadual">Estadual</option>
+                  <option value="municipal">Municipal</option>
                 </select>
               </label>
               {scope === "estadual" ? (
@@ -123,6 +132,24 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
                     ))}
                   </select>
                 </label>
+              ) : scope === "municipal" ? (
+                <div className="text-xs text-muted-foreground">
+                  Lojas* ({storeIds.length})
+                  <div className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-border p-2">
+                    {stores.map((s) => (
+                      <label key={s.id} className="flex items-center gap-2 py-0.5 text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={storeIds.includes(s.id)}
+                          onChange={(e) =>
+                            setStoreIds((cur) => (e.target.checked ? [...cur, s.id] : cur.filter((x) => x !== s.id)))
+                          }
+                        />
+                        {s.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               ) : (
                 <span />
               )}
@@ -186,7 +213,9 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
                   <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
                     {h.store_id
                       ? `Loja · ${stores.find((s) => s.id === h.store_id)?.name ?? "—"}`
-                      : h.scope === "nacional"
+                      : h.scope === "municipal"
+                        ? `Municipal · ${(h.store_ids ?? []).map((id) => stores.find((s) => s.id === id)?.name ?? "—").join(", ")}`
+                        : h.scope === "nacional"
                         ? "Nacional"
                         : `Estadual · ${h.state}`}
                   </span>

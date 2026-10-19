@@ -335,6 +335,7 @@ export type Database = {
           start_date: string
           state: string | null
           store_id: string | null
+          store_ids: string[]
           updated_at: string
         }
         Insert: {
@@ -347,6 +348,7 @@ export type Database = {
           start_date: string
           state?: string | null
           store_id?: string | null
+          store_ids?: string[]
           updated_at?: string
         }
         Update: {
@@ -359,6 +361,7 @@ export type Database = {
           start_date?: string
           state?: string | null
           store_id?: string | null
+          store_ids?: string[]
           updated_at?: string
         }
         Relationships: [
