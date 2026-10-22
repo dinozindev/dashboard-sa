@@ -524,8 +524,24 @@ export function PoliciesPanel({
   const selectedPolicyDrafts = selectedModality
     ? drafts.filter((policy) => policy.modalities.includes(selectedModality))
     : [];
+  const selectedPolicyStores = shownStores.filter((store) =>
+    selectedPolicyDrafts.some((policy) => policy.store === store.nome),
+  );
   const usesScheduledDelivery =
     selectedModality === "Retira Televendas" || selectedModality === "Entrega Agendada";
+  const hasPickupDetails = [
+    "Retira Fácil",
+    "Clique & Retira",
+    "Retira Televendas",
+    "Retira Imediata",
+    "Saldo Borderô",
+  ].includes(selectedModality ?? "");
+  const detailsColumnCount =
+    6 +
+    (usesScheduledDelivery ? 4 : 0) +
+    (selectedModality === "Pequenos Volumes" ? 1 : 0) +
+    (hasPickupDetails ? 1 : 0) +
+    (canEdit ? 1 : 0);
 
   useEffect(() => {
     const updateScrollWidth = () => {
@@ -911,7 +927,7 @@ export function PoliciesPanel({
             <DialogHeader>
               <DialogTitle>Políticas da modalidade</DialogTitle>
               <DialogDescription>
-                {selectedModality} · {shownStores.length} loja(s)
+                {selectedModality} · {selectedPolicyStores.length} loja(s) com política cadastrada
               </DialogDescription>
             </DialogHeader>
             <p className="text-[11px] text-muted-foreground sm:hidden">
@@ -964,13 +980,7 @@ export function PoliciesPanel({
                     <th className="sticky top-0 z-20 bg-muted px-3 py-2">
                       Fim de semana/feriados
                     </th>
-                    {[
-                      "Retira Fácil",
-                      "Clique & Retira",
-                      "Retira Televendas",
-                      "Retira Imediata",
-                      "Saldo Borderô",
-                    ].includes(selectedModality ?? "") ? (
+                    {hasPickupDetails ? (
                       <th className="sticky top-0 z-20 bg-muted px-3 py-2">Retirada</th>
                     ) : null}
                     <th className="sticky top-0 z-20 bg-muted px-3 py-2">Horários</th>
@@ -980,7 +990,7 @@ export function PoliciesPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {shownStores.map((store) => {
+                  {selectedPolicyStores.map((store) => {
                     const policy = selectedPolicyDrafts.find((item) => item.store === store.nome);
                     const tariffLink = policy ? tariffLinks[policy.id] : null;
                     const divergences =
@@ -1243,18 +1253,20 @@ export function PoliciesPanel({
                               </td>
                             ) : null}
                           </>
-                        ) : (
-                          <td
-                            colSpan={usesScheduledDelivery ? (canEdit ? 13 : 12) : canEdit ? 9 : 8}
-                            className="bg-muted/40 px-3 py-2 text-muted-foreground"
-                          >
-                            Sem política cadastrada · Status:{" "}
-                            {store.cells[selectedModality]?.status ?? "—"}
-                          </td>
-                        )}
+                        ) : null}
                       </tr>
                     );
                   })}
+                  {selectedPolicyStores.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={detailsColumnCount}
+                        className="px-3 py-6 text-center text-muted-foreground"
+                      >
+                        Nenhuma política cadastrada para esta modalidade.
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>

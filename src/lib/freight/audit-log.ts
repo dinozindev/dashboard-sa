@@ -2,8 +2,7 @@
  * HISTÓRICO DE AUDITORIA
  * ======================
  *
- * Registra automaticamente as alterações feitas nas abas de
- * "Cadastro de Política de Envio", "Políticas de Envio" e "Envio de Polígonos".
+ * Registra automaticamente as alterações feitas nas abas administrativas.
  * Os registros são gravados no banco: todas as pessoas veem o mesmo histórico.
  */
 
@@ -25,6 +24,7 @@ export type AuditModule =
   | "Políticas de Envio"
   | "Docas"
   | "Pontos de Retirada"
+  | "Feriados e Inventários"
   | "Criação de Polígonos"
   | "Gestão de Acessos";
 

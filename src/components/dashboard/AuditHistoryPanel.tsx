@@ -2,9 +2,7 @@
  * HISTÓRICO DE AUDITORIA
  * ======================
  *
- * Lista as alterações registradas automaticamente nas demais abas
- * (Cadastro de Política de Envio, Políticas de Envio e Envio de Polígonos).
- * Os dados ficam salvos apenas neste navegador.
+ * Lista as alterações registradas automaticamente nas abas administrativas.
  */
 
 import { Fragment, useMemo, useState } from "react";
@@ -32,6 +30,7 @@ const MODULES: AuditModule[] = [
   "Cadastro de Política de Envio",
   "Políticas de Envio",
   "Docas",
+  "Feriados e Inventários",
   "Criação de Polígonos",
 ];
 
@@ -155,9 +154,8 @@ export function AuditHistoryPanel() {
           <div>
             <h2 className="section-title text-lg">Histórico de Auditoria</h2>
             <p className="text-xs text-muted-foreground">
-              Acompanhe aqui todas as alterações feitas nas políticas de envio e nos polígonos das
-              lojas, com data, hora e loja de origem. Os registros ficam salvos apenas neste
-              navegador/dispositivo — não há sincronização com servidor.
+              Acompanhe aqui alterações em políticas de envio, feriados, inventários e polígonos,
+              com data, hora e loja de origem. Os registros são compartilhados pelo servidor.
             </p>
           </div>
           <div className="flex gap-2">

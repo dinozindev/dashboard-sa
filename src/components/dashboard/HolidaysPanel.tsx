@@ -1,12 +1,39 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatBr, type Holiday } from "@/lib/freight/delivery-capacity";
+import { logAudit } from "@/lib/freight/audit-log";
 
 const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
 interface StoreRow {
   id: string;
   name: string;
+}
+
+function holidayDetails(holiday: Holiday, stores: StoreRow[]) {
+  const type = holiday.kind === "inventario" ? "Inventário" : "Feriado";
+  const dates = holiday.end_date
+    ? `${formatBr(holiday.start_date)} a ${formatBr(holiday.end_date)}`
+    : formatBr(holiday.start_date);
+  const scope = holiday.store_id
+    ? `Loja · ${stores.find((store) => store.id === holiday.store_id)?.name ?? "—"}`
+    : holiday.scope === "municipal"
+      ? `Municipal · ${(holiday.store_ids ?? [])
+          .map((id) => stores.find((store) => store.id === id)?.name ?? id)
+          .join(", ")}`
+      : holiday.scope === "nacional"
+        ? "Nacional"
+        : `Estadual · ${holiday.state ?? "—"}`;
+  const store =
+    holiday.store_id
+      ? stores.find((item) => item.id === holiday.store_id)?.name ?? "—"
+      : holiday.scope === "municipal"
+        ? (holiday.store_ids ?? [])
+            .map((id) => stores.find((item) => item.id === id)?.name ?? id)
+            .join(", ")
+        : "Todas as lojas";
+
+  return { type, dates, scope, store };
 }
 
 export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
@@ -55,8 +82,7 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
       setMsg({ ok: false, text: "Selecione ao menos uma loja para o feriado municipal." });
       return;
     }
-    setSaving(true);
-    const { error } = await supabase.from("holidays").insert({
+    const holiday = {
       name: name.trim().slice(0, 120),
       start_date: startDate,
       end_date: endDate || null,
@@ -65,9 +91,21 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
       state: kind === "inventario" ? null : scope === "estadual" ? state : null,
       store_id: kind === "inventario" ? storeId : null,
       store_ids: municipal ? storeIds : [],
-    });
+    };
+    setSaving(true);
+    const { error } = await supabase.from("holidays").insert(holiday);
     setSaving(false);
     if (error) return setMsg({ ok: false, text: error.message });
+    const details = holidayDetails({ ...holiday, id: "" }, stores);
+    logAudit({
+      store: details.store,
+      module: "Feriados e Inventários",
+      field: details.type,
+      before: "—",
+      after: `${holiday.name} · ${details.dates} · ${details.scope}`,
+      action: "Criação",
+      description: `${details.type} "${holiday.name}" cadastrado para ${details.scope} (${details.dates})`,
+    });
     setName("");
     setStartDate("");
     setEndDate("");
@@ -77,8 +115,23 @@ export function HolidaysPanel({ canEdit }: { canEdit: boolean }) {
   };
 
   const remove = async (h: Holiday) => {
-    if (!window.confirm(`Remover o feriado "${h.name}"?`)) return;
-    await supabase.from("holidays").delete().eq("id", h.id);
+    const details = holidayDetails(h, stores);
+    if (!window.confirm(`Remover ${details.type.toLowerCase()} "${h.name}"?`)) return;
+    const { error } = await supabase.from("holidays").delete().eq("id", h.id);
+    if (error) {
+      setMsg({ ok: false, text: error.message });
+      return;
+    }
+    logAudit({
+      store: details.store,
+      module: "Feriados e Inventários",
+      field: details.type,
+      before: `${h.name} · ${details.dates} · ${details.scope}`,
+      after: "—",
+      action: "Remoção",
+      description: `${details.type} "${h.name}" removido de ${details.scope} (${details.dates})`,
+    });
+    setMsg({ ok: true, text: `${details.type} removido.` });
     void load();
   };
 
