@@ -101,6 +101,8 @@ const uid = () => `row-${++seq}`;
 
 const onOff = (v: boolean) => (v ? "Ativa" : "Inativa");
 
+const withoutPolygonSuffix = (name: string) => name.replace(/\s+·\s+.+$/, "");
+
 const describeDeliveryWindows = (d: ShippingPolicyDraft) =>
   d.scheduledDelivery.windows
     .map(
@@ -437,11 +439,82 @@ export function PolicyFormPanel({
   const [uploadedGroups, setUploadedGroups] = useState<FreightSheetGroup[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [exportingTariff, setExportingTariff] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   /** Tabelas de frete já carregadas no projeto para a loja escolhida */
   const tariffOptions = useMemo(() => (store ? tariffTablesForStore(store) : []), [store]);
   const selectedTariff = tariffOptions.find((t) => t.index === tariffIndex) ?? null;
-  const tariffLabel = tariffSource === "upload" ? tariffFileName : selectedTariff?.label ?? "";
+  const tariffLabel = withoutPolygonSuffix(
+    tariffSource === "upload" ? tariffFileName : selectedTariff?.label ?? existingTariffName ?? "",
+  );
+  const tableIndexById = live?.tableIndexById;
+  const selectedTariffData = live?.snapshot.freightTables.find(
+    (table) =>
+      (tariffIndex !== null && tableIndexById?.get(table.id) === tariffIndex) ||
+      (tariffIndex === null && table.policyClientId === initialPolicy?.id),
+  );
+  const selectedTariffTables = selectedTariffData
+    ? (live?.snapshot.freightTables ?? []).filter(
+        (table) =>
+          table.store === selectedTariffData.store &&
+          table.policyClientId === selectedTariffData.policyClientId &&
+          (selectedTariffData.fileName
+            ? table.fileName === selectedTariffData.fileName
+            : table.id === selectedTariffData.id),
+      )
+    : [];
+
+  const downloadTariffXlsx = async () => {
+    const groups =
+      tariffSource === "upload" && uploadedGroups.length
+        ? uploadedGroups
+        : tariffSource === "upload" && uploadedBands
+          ? [{ polygonName: uploadedPolygonName, bands: uploadedBands }]
+          : selectedTariffTables.length
+            ? selectedTariffTables.map((table) => ({
+                polygonName: table.polygonName ?? null,
+                bands: table.bands,
+              }))
+            : [];
+    if (!groups.length) return;
+
+    setExportingTariff(true);
+    setExportError(null);
+    try {
+      const XLSX = await import("xlsx");
+      const rows = groups.flatMap(({ polygonName, bands }) =>
+        bands.map((band) => ({
+          ...(polygonName ? { PolygonName: polygonName } : {}),
+          Weight_Start: band.ws,
+          Weight_End: band.we,
+          AbsoluteMoneyCost: band.amc,
+          PriceByExtraWeight: band.pew,
+          PricePercent: band.pct ?? null,
+          MaxVolume: band.maxVol ?? null,
+          TimeCost: band.time ?? null,
+          Country: band.country ?? null,
+          MinimumValueInsurance: band.minIns ?? null,
+        })),
+      );
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Tabela de Frete");
+      const downloadName =
+        (tariffSource === "upload" ? tariffFileName : selectedTariffData?.fileName) ||
+        tariffLabel.split(" · ")[0] ||
+        "tabela-de-frete";
+      const fileName = `${withoutPolygonSuffix(downloadName)
+        .replace(/\.(xlsx|xls)$/i, "")
+        .replace(/[<>:"/\\|?*]/g, "-")}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+    } catch (err) {
+      console.error("Falha ao exportar tabela de frete", err);
+      setExportError("Não foi possível baixar a tabela de frete. Tente novamente.");
+    } finally {
+      setExportingTariff(false);
+    }
+  };
 
 
   const [saturday, setSaturday] = useState(true);
@@ -1088,18 +1161,36 @@ export function PolicyFormPanel({
             {existingTariffName ? (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-success/40 bg-success/10 p-2 text-xs text-success">
                 <p>
-                  Esta política já possui a tabela <strong>{existingTariffName}</strong> enviada e
+                  Esta política já possui a tabela{" "}
+                  <strong>{withoutPolygonSuffix(existingTariffName)}</strong> enviada e
                   associada no banco. Você pode selecionar outra tabela, enviar uma nova para
                   substituir a atual ou removê-la do banco.
                 </p>
-                <button
-                  type="button"
-                  className="btn-ghost shrink-0 text-xs font-semibold text-danger disabled:opacity-40"
-                  disabled={removingTariff}
-                  onClick={() => void removeCurrentTariff()}
-                >
-                  {removingTariff ? "Removendo tabela…" : "Remover tabela de frete atual"}
-                </button>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {selectedTariffTables.some((table) => table.bands.length) ? (
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs"
+                      disabled={exportingTariff}
+                      onClick={() => void downloadTariffXlsx()}
+                    >
+                      {exportingTariff ? "Preparando planilha…" : "Baixar tabela (.xlsx)"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-ghost text-xs font-semibold text-danger disabled:opacity-40"
+                    disabled={removingTariff}
+                    onClick={() => void removeCurrentTariff()}
+                  >
+                    {removingTariff ? "Removendo tabela…" : "Remover tabela de frete atual"}
+                  </button>
+                </div>
+                {exportError ? (
+                  <p role="alert" className="basis-full text-[11px] font-medium text-danger">
+                    {exportError}
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
@@ -1207,6 +1298,24 @@ export function PolicyFormPanel({
                   {selectedTariff.bandCount} faixas de peso carregadas ·{" "}
                   {selectedTariff.polygonIds.length} polígonos de {store}.
                 </p>
+              ) : null}
+              {!existingTariffName &&
+              (uploadedBands?.length || selectedTariffData?.bands.length) ? (
+                <div>
+                  <button
+                    type="button"
+                    className="btn-ghost text-xs"
+                    disabled={exportingTariff}
+                    onClick={() => void downloadTariffXlsx()}
+                  >
+                    {exportingTariff ? "Preparando planilha…" : "Baixar tabela de frete (.xlsx)"}
+                  </button>
+                  {exportError ? (
+                    <p role="alert" className="mt-1 text-[11px] font-medium text-danger">
+                      {exportError}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </Section>
