@@ -368,26 +368,11 @@ export default function Dashboard({
 
   const mapMarkers = useMemo(
     () =>
-      liveStores(live).map((store) => {
-        const storePolygons = (live?.polygons ?? []).filter((polygon) => polygon.store === store.name);
-        const radii = storePolygons
-          .map((polygon) => polygon.radius)
-          .filter((radius): radius is number => Number.isFinite(radius));
-        const smallestRadius = radii.length ? Math.min(...radii) : null;
-        const basePolygons =
-          smallestRadius === null
-            ? storePolygons
-            : storePolygons.filter((polygon) => polygon.radius === smallestRadius);
-        const center = basePolygons.length
-          ? [
-            basePolygons.reduce((total, polygon) => total + polygon.center[0], 0) /
-            basePolygons.length,
-            basePolygons.reduce((total, polygon) => total + polygon.center[1], 0) /
-            basePolygons.length,
-          ] as [number, number]
-          : ((store.center ?? [0, 0]) as [number, number]);
-        return { name: store.name, note: store.note ?? "", center };
-      }),
+      liveStores(live).flatMap((store) =>
+        store.center
+          ? [{ name: store.name, note: store.note ?? "", center: store.center }]
+          : [],
+      ),
     [live],
   );
 
