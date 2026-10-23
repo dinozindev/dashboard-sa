@@ -48,6 +48,13 @@ import {
 } from "@/lib/freight/remote.functions";
 import { parseFreightSheet, type FreightSheetGroup } from "@/lib/freight/xlsx-bands";
 import type { WeightBand } from "@/lib/freight/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { updateCell, usePolicyMatrix } from "@/lib/freight/policy-status-store";
 
@@ -441,6 +448,7 @@ export function PolicyFormPanel({
   const [uploading, setUploading] = useState(false);
   const [exportingTariff, setExportingTariff] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [tariffPreviewOpen, setTariffPreviewOpen] = useState(false);
 
   /** Tabelas de frete já carregadas no projeto para a loja escolhida */
   const tariffOptions = useMemo(() => (store ? tariffTablesForStore(store) : []), [store]);
@@ -464,19 +472,20 @@ export function PolicyFormPanel({
             : table.id === selectedTariffData.id),
       )
     : [];
+  const tariffPreviewGroups =
+    tariffSource === "upload" && uploadedGroups.length
+      ? uploadedGroups
+      : tariffSource === "upload" && uploadedBands
+        ? [{ polygonName: uploadedPolygonName, bands: uploadedBands }]
+        : selectedTariffTables.length
+          ? selectedTariffTables.map((table) => ({
+              polygonName: table.polygonName ?? null,
+              bands: table.bands,
+            }))
+          : [];
 
   const downloadTariffXlsx = async () => {
-    const groups =
-      tariffSource === "upload" && uploadedGroups.length
-        ? uploadedGroups
-        : tariffSource === "upload" && uploadedBands
-          ? [{ polygonName: uploadedPolygonName, bands: uploadedBands }]
-          : selectedTariffTables.length
-            ? selectedTariffTables.map((table) => ({
-                polygonName: table.polygonName ?? null,
-                bands: table.bands,
-              }))
-            : [];
+    const groups = tariffPreviewGroups;
     if (!groups.length) return;
 
     setExportingTariff(true);
@@ -1167,7 +1176,16 @@ export function PolicyFormPanel({
                   substituir a atual ou removê-la do banco.
                 </p>
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  {selectedTariffTables.some((table) => table.bands.length) ? (
+                  {tariffPreviewGroups.some((group) => group.bands.length) ? (
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs"
+                      onClick={() => setTariffPreviewOpen(true)}
+                    >
+                      Visualizar tabela
+                    </button>
+                  ) : null}
+                  {tariffPreviewGroups.some((group) => group.bands.length) ? (
                     <button
                       type="button"
                       className="btn-ghost text-xs"
@@ -1299,17 +1317,25 @@ export function PolicyFormPanel({
                   {selectedTariff.polygonIds.length} polígonos de {store}.
                 </p>
               ) : null}
-              {!existingTariffName &&
-              (uploadedBands?.length || selectedTariffData?.bands.length) ? (
+              {!existingTariffName && tariffPreviewGroups.some((group) => group.bands.length) ? (
                 <div>
-                  <button
-                    type="button"
-                    className="btn-ghost text-xs"
-                    disabled={exportingTariff}
-                    onClick={() => void downloadTariffXlsx()}
-                  >
-                    {exportingTariff ? "Preparando planilha…" : "Baixar tabela de frete (.xlsx)"}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs"
+                      onClick={() => setTariffPreviewOpen(true)}
+                    >
+                      Visualizar tabela
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs"
+                      disabled={exportingTariff}
+                      onClick={() => void downloadTariffXlsx()}
+                    >
+                      {exportingTariff ? "Preparando planilha…" : "Baixar tabela de frete (.xlsx)"}
+                    </button>
+                  </div>
                   {exportError ? (
                     <p role="alert" className="mt-1 text-[11px] font-medium text-danger">
                       {exportError}
@@ -2055,6 +2081,56 @@ export function PolicyFormPanel({
         </>
       ) : null}
 
+      <Dialog open={tariffPreviewOpen} onOpenChange={setTariffPreviewOpen}>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-7xl flex-col overflow-hidden p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Tabela de frete: {tariffLabel || "Tabela selecionada"}</DialogTitle>
+            <DialogDescription>
+              {tariffPreviewGroups.reduce((count, group) => count + group.bands.length, 0)} faixas
+              {store ? ` · ${store}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
+            <table className="w-full min-w-[1200px] text-xs">
+              <thead className="sticky top-0 bg-muted text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Polígono</th>
+                  <th className="px-3 py-2 text-right">Peso inicial (kg)</th>
+                  <th className="px-3 py-2 text-right">Peso final (kg)</th>
+                  <th className="px-3 py-2 text-right">Preço base (R$)</th>
+                  <th className="px-3 py-2 text-right">Adicional/kg (R$)</th>
+                  <th className="px-3 py-2 text-right">Percentual</th>
+                  <th className="px-3 py-2 text-right">Volume máximo</th>
+                  <th className="px-3 py-2">Prazo</th>
+                  <th className="px-3 py-2">País</th>
+                  <th className="px-3 py-2 text-right">Seguro mínimo (R$)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tariffPreviewGroups.flatMap(({ polygonName, bands }, groupIndex) =>
+                  bands.map((band, bandIndex) => (
+                    <tr
+                      key={`${groupIndex}-${bandIndex}`}
+                      className="border-t border-border"
+                    >
+                      <td className="px-3 py-2">{polygonName ?? "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{band.ws ?? "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{band.we ?? "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{band.amc ?? "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{band.pew ?? "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{band.pct ?? "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{band.maxVol ?? "—"}</td>
+                      <td className="px-3 py-2">{band.time ?? "—"}</td>
+                      <td className="px-3 py-2">{band.country ?? "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{band.minIns ?? "—"}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* <Section
         title="Políticas cadastradas"
