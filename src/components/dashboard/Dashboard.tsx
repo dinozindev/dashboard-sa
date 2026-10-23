@@ -16,6 +16,7 @@
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ClientOnly } from "@tanstack/react-router";
+import { Slider } from "@/components/ui/slider";
 import { AccessManagementPanel } from "./AccessManagementPanel";
 import {
   dataset,
@@ -1195,17 +1196,42 @@ export default function Dashboard({
               </FilterMenu>
             )}
 
-            <label className="field-label">
-              Peso simulado (kg)
-              <input
-                type="number"
+            <div className="field-label w-56">
+              <div className="flex items-center justify-between gap-3">
+                <span>Peso simulado</span>
+                <div className="relative">
+                  <input
+                    aria-label="Digitar peso simulado em kg"
+                    type="number"
+                    className="input w-28 pr-9 text-right"
+                    min={0}
+                    max={20000}
+                    step={0.5}
+                    value={weight}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (Number.isFinite(value)) {
+                        setWeight(Math.min(20000, Math.max(0, value)));
+                      }
+                    }}
+                  />
+                  <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">
+                    kg
+                  </span>
+                </div>
+              </div>
+              <Slider
+                aria-label="Peso simulado (kg)"
+                className="mt-3"
                 min={0}
+                max={20000}
                 step={0.5}
-                className="input mt-1 w-28"
-                value={weight}
-                onChange={(e) => setWeight(Math.max(0, Number(e.target.value)))}
+                value={[weight]}
+                onValueChange={([value]) => {
+                  if (value !== undefined) setWeight(value);
+                }}
               />
-            </label>
+            </div>
 
             <label className="field-label min-w-52 flex-1">
               Buscar polígono / município
