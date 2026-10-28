@@ -520,6 +520,10 @@ export function PoliciesPanel({
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [newModality, setNewModality] = useState("");
   const [selectedModality, setSelectedModality] = useState<string | null>(null);
+  const [replicationPolicy, setReplicationPolicy] = useState<ShippingPolicyDraft | null>(null);
+  const [replicationTargets, setReplicationTargets] = useState<string[]>([]);
+  const [replicating, setReplicating] = useState(false);
+  const [replicationMessage, setReplicationMessage] = useState<string | null>(null);
   const [view, setView] = useState<"matriz" | "justificativas">("matriz");
   const selectedPolicyDrafts = selectedModality
     ? drafts.filter((policy) => policy.modalities.includes(selectedModality))
@@ -608,6 +612,106 @@ export function PoliciesPanel({
       description: `Modalidade "${modality}" removida da matriz de políticas`,
     });
     setMessage({ kind: "ok", text: `Modalidade "${modality}" removida.` });
+  };
+
+  const toggleReplicationTarget = (store: string) => {
+    setReplicationTargets((current) =>
+      current.includes(store)
+        ? current.filter((target) => target !== store)
+        : [...current, store],
+    );
+    setReplicationMessage(null);
+  };
+
+  const pickupSellerForStore = (source: ShippingPolicyDraft, target: string) => {
+    if (!source.pickup.enabled) return "";
+    const sourcePoint = live?.snapshot.pickupPoints.find(
+      (point) => point.store === source.store && point.name === source.pickup.seller,
+    );
+    const pickupKind = sourcePoint?.kind ?? (
+      source.modalities.includes("Saldo Borderô") ? "bordero" : "facil"
+    );
+    return (
+      live?.snapshot.pickupPoints.find(
+        (point) =>
+          point.store === target && point.kind === pickupKind,
+      )?.name ?? ""
+    );
+  };
+
+  const replicatePolicy = async () => {
+    if (!replicationPolicy || !replicationTargets.length || replicating) return;
+
+    setReplicating(true);
+    setReplicationMessage(null);
+    const created: string[] = [];
+    const skipped: string[] = [];
+    const failed: string[] = [];
+
+    try {
+      for (const target of replicationTargets) {
+        const alreadyExists = drafts.some(
+          (draft) =>
+            draft.store === target &&
+            replicationPolicy.modalities.some((modality) => draft.modalities.includes(modality)),
+        );
+        if (alreadyExists) {
+          skipped.push(target);
+          continue;
+        }
+        const targetPickupSeller = pickupSellerForStore(replicationPolicy, target);
+        if (replicationPolicy.pickup.enabled && !targetPickupSeller) {
+          console.error(`Ponto de retirada não encontrado para a loja ${target}`);
+          failed.push(target);
+          continue;
+        }
+
+        const replicated: ShippingPolicyDraft = {
+          ...replicationPolicy,
+          id: `pol-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          createdAt: new Date().toISOString(),
+          store: target,
+          pickup: replicationPolicy.pickup.enabled
+            ? {
+                ...replicationPolicy.pickup,
+                seller: targetPickupSeller,
+              }
+            : { ...replicationPolicy.pickup, seller: "" },
+          justifications: replicationPolicy.justifications
+            ? [...replicationPolicy.justifications]
+            : [],
+        };
+
+        try {
+          await upsertPolicyDraftAndWait(replicated);
+          created.push(target);
+          logAudit({
+            store: target,
+            module: "Políticas de Envio",
+            field: `Política replicada — ${replicationPolicy.modalities.join(" · ")}`,
+            before: replicationPolicy.store,
+            after: target,
+            action: "Criação",
+            description: `Política de envio replicada da loja ${replicationPolicy.store} para a loja ${target}, sem revisão individual.`,
+          });
+        } catch (err) {
+          console.error(`Falha ao replicar política para a loja ${target}`, err);
+          failed.push(target);
+        }
+      }
+
+      const summary = [
+        created.length ? `${created.length} criada(s)` : "",
+        skipped.length ? `${skipped.length} ignorada(s) por já existir` : "",
+        failed.length ? `${failed.length} com falha` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      setReplicationMessage(summary || "Nenhuma loja foi replicada.");
+      setReplicationTargets(failed);
+    } finally {
+      setReplicating(false);
+    }
   };
 
   const onImport = async (file: File | undefined) => {
@@ -1233,6 +1337,17 @@ export function PoliciesPanel({
                                   </button>
                                   <button
                                     type="button"
+                                    className="rounded-md border border-primary px-2 py-1 font-semibold text-primary hover:bg-primary/10"
+                                    onClick={() => {
+                                      setReplicationPolicy(policy);
+                                      setReplicationTargets([]);
+                                      setReplicationMessage(null);
+                                    }}
+                                  >
+                                    Replicar
+                                  </button>
+                                  <button
+                                    type="button"
                                     className="rounded-md border border-danger/50 px-2 py-1 font-semibold text-danger hover:bg-danger/10"
                                     onClick={() => {
                                       if (
@@ -1269,6 +1384,83 @@ export function PoliciesPanel({
                   ) : null}
                 </tbody>
               </table>
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
+      <Dialog
+        open={Boolean(replicationPolicy)}
+        onOpenChange={(open) => {
+          if (!open && !replicating) setReplicationPolicy(null);
+        }}
+      >
+        {replicationPolicy ? (
+          <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle>Replicar política para múltiplas lojas</DialogTitle>
+              <DialogDescription>
+                Selecione as lojas que receberão as modalidades "
+                {replicationPolicy.modalities.join(" · ")}" da loja {replicationPolicy.store}.
+                Lojas que já possuem uma dessas modalidades não podem ser selecionadas.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {availableStores
+                .map((availableStore) => availableStore.nome)
+                .filter((target) => target !== replicationPolicy.store)
+                .map((target) => {
+                  const hasPolicy = drafts.some(
+                    (draft) =>
+                      draft.store === target &&
+                      replicationPolicy.modalities.some((modality) =>
+                        draft.modalities.includes(modality),
+                      ),
+                  );
+                  const selected = replicationTargets.includes(target);
+                  return (
+                    <label
+                      key={target}
+                      className={
+                        "flex items-center gap-2 rounded-lg border p-2 text-xs " +
+                        (hasPolicy
+                          ? "cursor-not-allowed border-border bg-muted/40 text-muted-foreground"
+                          : "cursor-pointer border-border hover:bg-muted/60")
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={hasPolicy || replicating}
+                        onChange={() => toggleReplicationTarget(target)}
+                      />
+                      <span>
+                        {target}
+                        {hasPolicy ? " · política já cadastrada" : ""}
+                      </span>
+                    </label>
+                  );
+                })}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {replicationMessage ? (
+                <span className="mr-auto text-xs text-muted-foreground">{replicationMessage}</span>
+              ) : null}
+              <button
+                type="button"
+                className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
+                disabled={replicating}
+                onClick={() => setReplicationPolicy(null)}
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                disabled={!replicationTargets.length || replicating}
+                onClick={() => void replicatePolicy()}
+              >
+                {replicating ? "Replicando…" : "Replicar lojas selecionadas"}
+              </button>
             </div>
           </DialogContent>
         ) : null}

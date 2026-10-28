@@ -550,6 +550,10 @@ export function PolicyFormPanel({
   const [replicaTarget, setReplicaTarget] = useState("");
   /** Modalidade travada durante a replicação: só a política original pode ser mantida. */
   const [replicaModality, setReplicaModality] = useState("");
+  const [bulkReplicaTargets, setBulkReplicaTargets] = useState<string[]>([]);
+  const [bulkReplicating, setBulkReplicating] = useState(false);
+  const [bulkReplicaMessage, setBulkReplicaMessage] = useState<string | null>(null);
+  const [bulkReplicaOpen, setBulkReplicaOpen] = useState(false);
 
   const editingLocked = Boolean(initialPolicy) && !replicating;
 
@@ -661,6 +665,14 @@ export function PolicyFormPanel({
     );
   }, [tariffOptions]);
 
+  const isExistingPolicyForCurrentRegistration = () =>
+    getPolicyDrafts().some(
+      (draft) =>
+        draft.store === store &&
+        draft.modalities.includes(modality) &&
+        (!initialPolicy || replicating || draft.id !== initialPolicy.id),
+    );
+
   const validateStep = (key: StepKey): string[] => {
     const errs: string[] = [];
     if (key === "loja") {
@@ -673,6 +685,9 @@ export function PolicyFormPanel({
             ? "Para Entrega, selecione uma das modalidades permitidas para entrega."
             : "Para Retira, selecione uma das modalidades permitidas para retirada.",
         );
+      }
+      if (store && modality && isExistingPolicyForCurrentRegistration()) {
+        errs.push(`A loja "${store}" já possui uma política cadastrada para "${modality}".`);
       }
     }
     if (key === "dimensoes" && modality === "Pequenos Volumes") {
@@ -776,6 +791,12 @@ export function PolicyFormPanel({
     const errs = steps
       .filter((s) => s.key !== "revisao")
       .flatMap((s) => validateStep(s.key));
+    if (
+      isExistingPolicyForCurrentRegistration() &&
+      !errs.some((error) => error.includes("já possui uma política cadastrada"))
+    ) {
+      errs.push(`A loja "${store}" já possui uma política cadastrada para "${modality}".`);
+    }
     const existingDraft = findExisting();
     const pending = unjustifiedDivergences(buildDraft(existingDraft), modality);
     const reasons: Record<string, string> = {};
@@ -1010,11 +1031,31 @@ export function PolicyFormPanel({
     }
   };
 
+  const pickupSellerForStore = (source: ShippingPolicyDraft, target: string) => {
+    if (!source.pickup.enabled) return "";
+    const sourcePoint = live?.snapshot.pickupPoints.find(
+      (point) => point.store === source.store && point.name === source.pickup.seller,
+    );
+    const pickupKind = sourcePoint?.kind ?? (
+      source.modalities.includes("Saldo Borderô") ? "bordero" : "facil"
+    );
+    return (
+      live?.snapshot.pickupPoints.find(
+        (point) =>
+          point.store === target && point.kind === pickupKind,
+      )?.name ?? ""
+    );
+  };
+
   /** Abre o mesmo fluxo de criação já preenchido, apenas trocando a loja. */
   const startReplication = () => {
     if (!replicaTarget) return;
     setReplicaFrom(store);
     setStore(replicaTarget);
+    if (pickupEnabled) {
+      const source = buildDraft(findExisting());
+      setPickupSeller(pickupSellerForStore(source, replicaTarget));
+    }
     setReplicating(true);
     setReplicaModality(modality);
     setTariffIndex(null);
@@ -1024,6 +1065,90 @@ export function PolicyFormPanel({
     setErrors([]);
     setStep(0);
     setMaxVisited(steps.length - 1);
+  };
+
+  const toggleBulkReplicaTarget = (target: string) => {
+    setBulkReplicaTargets((current) =>
+      current.includes(target) ? current.filter((storeName) => storeName !== target) : [...current, target],
+    );
+    setBulkReplicaMessage(null);
+  };
+
+  const replicateToMultipleStores = async () => {
+    if (!saved || !bulkReplicaTargets.length || bulkReplicating) return;
+
+    const source = getPolicyDrafts().find((draft) => draft.id === saved);
+    if (!source) {
+      setBulkReplicaMessage("A política de origem não está mais disponível. Atualize a página e tente novamente.");
+      return;
+    }
+
+    setBulkReplicating(true);
+    setBulkReplicaMessage(null);
+    const created: string[] = [];
+    const skipped: string[] = [];
+    const failed: string[] = [];
+
+    try {
+      for (const target of bulkReplicaTargets) {
+        const alreadyExists = getPolicyDrafts().some(
+          (draft) => draft.store === target && draft.modalities.includes(modality),
+        );
+        if (alreadyExists) {
+          skipped.push(target);
+          continue;
+        }
+        const targetPickupSeller = pickupSellerForStore(source, target);
+        if (source.pickup.enabled && !targetPickupSeller) {
+          console.error(`Ponto de retirada não encontrado para a loja ${target}`);
+          failed.push(target);
+          continue;
+        }
+
+        const draft: ShippingPolicyDraft = {
+          ...source,
+          id: `pol-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          createdAt: new Date().toISOString(),
+          store: target,
+          pickup: source.pickup.enabled
+            ? {
+                ...source.pickup,
+                seller: targetPickupSeller,
+              }
+            : { ...source.pickup, seller: "" },
+          justifications: source.justifications ? [...source.justifications] : [],
+        };
+
+        try {
+          await upsertPolicyDraftAndWait(draft);
+          created.push(target);
+          logAudit({
+            store: target,
+            module: "Cadastro de Política de Envio",
+            field: `Política replicada — ${modality}`,
+            before: source.store,
+            after: target,
+            action: "Criação",
+            description: `Política de envio da modalidade "${modality}" replicada da loja ${source.store} para a loja ${target}, sem revisão individual.`,
+          });
+        } catch (err) {
+          console.error(`Falha ao replicar política para a loja ${target}`, err);
+          failed.push(target);
+        }
+      }
+
+      const summary = [
+        created.length ? `${created.length} criada(s)` : "",
+        skipped.length ? `${skipped.length} ignorada(s) por já existir` : "",
+        failed.length ? `${failed.length} com falha` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      setBulkReplicaMessage(summary || "Nenhuma loja foi replicada.");
+      setBulkReplicaTargets(failed);
+    } finally {
+      setBulkReplicating(false);
+    }
   };
 
 
@@ -2078,6 +2203,88 @@ export function PolicyFormPanel({
               na revisão.
             </p>
           </Section>
+
+          <Section
+            title="Replicar para múltiplas lojas"
+            hint="Selecione as lojas em um pop-up para criar a mesma política sem reabrir o fluxo de revisão."
+          >
+            <button
+              type="button"
+              className="rounded-lg border border-primary px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10"
+              onClick={() => setBulkReplicaOpen(true)}
+            >
+              Selecionar lojas para replicar
+            </button>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Lojas que já possuem a modalidade “{modality}” ficam indisponíveis. Tabelas de frete
+              não são copiadas porque pertencem à loja.
+            </p>
+          </Section>
+
+          <Dialog open={bulkReplicaOpen} onOpenChange={setBulkReplicaOpen}>
+            <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto p-4 sm:p-6">
+              <DialogHeader>
+                <DialogTitle>Replicar política para múltiplas lojas</DialogTitle>
+                <DialogDescription>
+                  Selecione as lojas que receberão a política “{modality}” da loja {store}.
+                  Lojas que já possuem essa modalidade não podem ser selecionadas.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {stores
+                  .filter((target) => target !== store)
+                  .map((target) => {
+                    const hasPolicy = getPolicyDrafts().some(
+                      (draft) => draft.store === target && draft.modalities.includes(modality),
+                    );
+                    const selected = bulkReplicaTargets.includes(target);
+                    return (
+                      <label
+                        key={target}
+                        className={
+                          "flex items-center gap-2 rounded-lg border p-2 text-xs " +
+                          (hasPolicy
+                            ? "cursor-not-allowed border-border bg-muted/40 text-muted-foreground"
+                            : "cursor-pointer border-border hover:bg-muted/60")
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          disabled={hasPolicy || bulkReplicating}
+                          onChange={() => toggleBulkReplicaTarget(target)}
+                        />
+                        <span>
+                          {target}
+                          {hasPolicy ? " · política já cadastrada" : ""}
+                        </span>
+                      </label>
+                    );
+                  })}
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                {bulkReplicaMessage ? (
+                  <span className="mr-auto text-xs text-muted-foreground">{bulkReplicaMessage}</span>
+                ) : null}
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
+                  disabled={bulkReplicating}
+                  onClick={() => setBulkReplicaOpen(false)}
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                  disabled={!bulkReplicaTargets.length || bulkReplicating}
+                  onClick={() => void replicateToMultipleStores()}
+                >
+                  {bulkReplicating ? "Replicando…" : "Replicar lojas selecionadas"}
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       ) : null}
 
