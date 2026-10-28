@@ -91,48 +91,55 @@ export function ComparePanel({
       : null;
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
+    <div className="space-y-2">
+      <p className="truncate text-[11px] text-muted-foreground">
         Ponto clicado: {point.lat.toFixed(5)}, {point.lng.toFixed(5)} ·{" "}
-        {entries.length > 1 ? "Área de sobreposição entre as duas lojas" : "Cobertura por uma loja"}
+        {entries.length > 1
+          ? `Área de sobreposição entre ${entries.length} lojas`
+          : "Cobertura por uma loja"}
       </p>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div
+        className="grid min-w-0 gap-2"
+        style={{ gridTemplateColumns: `repeat(${entries.length}, minmax(0, 1fr))` }}
+      >
         {entries.map(({ store, rec, price }) => (
           <div
             key={store}
             className={
-              "space-y-2 rounded-xl border p-3 " +
+              "min-w-0 space-y-1 rounded-lg border p-2 " +
               (cheapest?.store === store
                 ? "border-success bg-success/10"
                 : "border-border bg-card")
             }
           >
-            <div className="flex flex-col items-start gap-1">
-              <h4 className="font-display text-base font-semibold">{store}</h4>
+            <div className="flex min-w-0 items-center justify-between gap-1">
+              <h4 className="truncate font-display text-sm font-semibold" title={store}>
+                {store}
+              </h4>
               {cheapest?.store === store ? (
-                <span className="badge-open whitespace-nowrap">Menor preço</span>
+                <span className="badge-open shrink-0 whitespace-nowrap text-[10px]">Menor preço</span>
               ) : null}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Faixa de {rec.band} · {rec.district}
+            <p className="truncate text-[11px] text-muted-foreground" title={`${rec.band} · ${rec.district}`}>
+              Faixa {rec.band} · {rec.district}
             </p>
             {isPickup ? null : (
-              <p className="font-display text-2xl font-bold text-accent-strong">
+              <p className="truncate font-display text-xl font-bold text-accent-strong">
                 {price.ok ? brl(price.total) : "Regra de frete não encontrada"}
               </p>
             )}
-            <div className="flex flex-col gap-1">
+            <div className="min-w-0 text-[11px]">
               <StatusBadge store={rec.store} modality={modality} now={now} holidays={holidays} showStore={false} />
             </div>
           </div>
         ))}
       </div>
-      {entries.length > 1 && !isPickup ? (
-        <p className="text-[11px] text-muted-foreground">
+      {/* {entries.length > 1 && !isPickup ? (
+        <p className="text-[10px] text-muted-foreground">
           Sugestão informativa baseada no preço calculado e no horário vigente — não altera os dados
           originais.
         </p>
-      ) : null}
+      ) : null} */}
     </div>
   );
 }

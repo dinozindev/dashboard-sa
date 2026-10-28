@@ -1043,7 +1043,7 @@ export default function Dashboard({
               ) : null}
             </div>
 
-            <div className="field-label relative" ref={bandsFilterRef}> {/* <-- Adicionado */}
+            <div className="field-label relative" ref={bandsFilterRef}>
               Faixas de raio
               <button
                 className="input mt-1 flex w-56 items-center justify-between gap-2 text-left"
@@ -1096,7 +1096,7 @@ export default function Dashboard({
               display={modality}
               open={openFilter === "modality"}
               onToggle={() => toggleFilter("modality")}
-              onClose={() => setOpenFilter(null)} // <-- Adicionar esta linha
+              onClose={() => setOpenFilter(null)}
               triggerClass="w-36"
               menuClass="w-44"
             >
@@ -1238,8 +1238,8 @@ export default function Dashboard({
 
           <Kpis items={kpis} />
 
-          <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
-            <div className="overflow-hidden surface">
+          <section className="space-y-4">
+            <div className="relative overflow-hidden surface">
               <ClientOnly
                 fallback={<div className="h-[620px] w-full animate-pulse bg-muted" />}
               >
@@ -1261,21 +1261,50 @@ export default function Dashboard({
                   />
                 </Suspense>
               </ClientOnly>
+              <div className="absolute right-3 top-3 z-[500] w-64 max-w-[calc(100%-1.5rem)]">
+                <Legend stores={shownStores} />
+              </div>
+              {!isPickup && point ? (
+                <div className="absolute inset-x-0 bottom-0 z-[500] max-h-[35%] overflow-y-auto rounded-t-xl border border-border bg-card/95 p-3 shadow-elevated backdrop-blur-sm">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="eyebrow">Comparação no ponto clicado</p>
+                    <button
+                      type="button"
+                      className="btn-ghost h-7 w-7 shrink-0 p-0 text-base"
+                      aria-label="Fechar comparação"
+                      onClick={() => setPoint(null)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <ComparePanel
+                    point={point}
+                    matches={matches}
+                    weight={weight}
+                    overrides={overrides}
+                    modality={modality}
+                    now={now}
+                    holidays={HOLIDAYS}
+                    bandsFor={(rec) => bandsOf(rec)}
+                  />
+                </div>
+              ) : null}
             </div>
 
-            <div className="space-y-4">
-              <Legend stores={shownStores} />
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
               {mounted ? (
-                <PolicySchedulePanel
-                  drafts={live?.drafts ?? []}
-                  stores={isPickup ? pickupStores : shownStores}
-                  policyType={modality}
-                  modalityFilter={modalityFilter}
-                />
+                <div className="min-w-0 lg:col-span-2">
+                  <PolicySchedulePanel
+                    drafts={live?.drafts ?? []}
+                    stores={isPickup ? pickupStores : shownStores}
+                    policyType={modality}
+                    modalityFilter={modalityFilter}
+                  />
+                </div>
               ) : null}
 
               {isPickup ? (
-                <>
+                <div className="min-w-0 space-y-4">
                   {activeStatePolygons.length === 0 ? (
                     <p className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs font-medium text-danger">
                       Polígono estadual não carregado. Adicione o contorno oficial de SP/RJ em
@@ -1363,29 +1392,8 @@ export default function Dashboard({
                       </p>
                     )}
                   </div>
-                </>
-              ) : point ? (
-                <div className="surface p-3">
-                  <p className="eyebrow mb-2">
-                    Comparação no ponto clicado
-                  </p>
-                  <ComparePanel
-                    point={point}
-                    matches={matches}
-                    weight={weight}
-                    overrides={overrides}
-                    modality={modality}
-                    now={now}
-                    holidays={HOLIDAYS}
-                    bandsFor={(rec) => bandsOf(rec)}
-                  />
                 </div>
-              ) : (
-                <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
-                  Clique em qualquer ponto do mapa para comparar o preço entre as lojas em áreas de
-                  sobreposição.
-                </p>
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -1397,8 +1405,7 @@ export default function Dashboard({
                   <div>
                     <h2 className="section-title text-lg">{polygonLabel(selected)}</h2>
                     <p className="text-xs text-muted-foreground">
-                      {selected.store} · Faixa {selected.band} ·
-                      {" "}
+                      {selected.store} · Faixa {selected.band} ·{" "}
                       {selected.areaKm2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km²
                       {selected.district ? ` · ${selected.district}` : ""}
                       {selected.uf ? `/${selected.uf}` : ""}
@@ -1441,17 +1448,6 @@ export default function Dashboard({
                     />
                   )}
                 </div>
-
-                {/* {selectedBands ? (
-                  <RuleSimulator
-                    rec={selected}
-                    bands={selectedBands}
-                    index={bandIndex}
-                    onIndex={setBandIndex}
-                    overrides={overrides}
-                    setOverrides={setOverrides}
-                  />
-                ) : null} */}
 
                 {isPickup ? null : (
                   <p className="text-xs text-muted-foreground">
