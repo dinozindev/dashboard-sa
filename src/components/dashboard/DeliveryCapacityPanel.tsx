@@ -89,8 +89,11 @@ export function DeliveryCapacityPanel({
         horizon,
         modality === "todas" ? SCHEDULED_MODALITIES : [modality],
         storePolicies,
+        store?.region ?? "",
+        holidays,
+        store?.id,
       ),
-    [start, horizon, modality, storePolicies],
+    [start, horizon, modality, storePolicies, store?.region, holidays, store?.id],
   );
   const end = scheduledDays.at(-1) ?? addDays(start, horizon - 1);
   const days = useMemo(() => {
@@ -169,7 +172,8 @@ export function DeliveryCapacityPanel({
       .map((d) => {
         if (!scheduled.has(d)) return null;
         const holiday = holidayOn(d, region, holidays, store?.id);
-        if (holiday) {
+        const list = filtered.filter((r) => r.day === d);
+        if (holiday && !list.length) {
           return {
             day: d,
             times: "",
@@ -177,9 +181,9 @@ export function DeliveryCapacityPanel({
             reserved: 0,
             single: null,
             blocked: holiday,
+            holiday: null,
           };
         }
-        const list = filtered.filter((r) => r.day === d);
         if (!list.length) return null;
         const capacity = list.reduce((a, r) => a + r.capacity, 0);
         const reserved = list.reduce((a, r) => a + r.reserved, 0);
@@ -194,6 +198,7 @@ export function DeliveryCapacityPanel({
           reserved,
           single: modality !== "todas" && list.length === 1 ? list[0] : null,
           blocked: null,
+          holiday,
         };
       })
       .filter(Boolean) as Array<{
@@ -203,6 +208,7 @@ export function DeliveryCapacityPanel({
       reserved: number;
       single: DbRow | null;
       blocked: Holiday | null;
+      holiday: Holiday | null;
     }>;
   }, [rows, days, scheduledDays, modality, store?.region, store?.id, holidays]);
 
@@ -366,6 +372,11 @@ export function DeliveryCapacityPanel({
                 <tr key={r.day} className="border-t border-border">
                   <td className="px-3 py-3">
                     {formatBr(r.day)}
+                    {r.holiday ? (
+                      <span className="ml-2 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning-foreground">
+                        Feriado: {r.holiday.name}
+                      </span>
+                    ) : null}
                     {past ? (
                       <span className="ml-2 text-[10px] text-muted-foreground">histórico</span>
                     ) : null}

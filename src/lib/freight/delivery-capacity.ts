@@ -58,10 +58,15 @@ function groupOf(iso: string): DayGroup {
   return wd === 0 ? "Domingo" : wd === 6 ? "Sábado" : "Segunda a sexta-feira";
 }
 
-function scheduledWindow(policy: ShippingPolicyDraft, iso: string) {
+function scheduledWindow(
+  policy: ShippingPolicyDraft,
+  iso: string,
+  holiday?: Holiday | null,
+) {
   const scheduled = policy.scheduledDelivery;
   if (!scheduled?.enabled || !scheduled.capacityEnabled) return null;
-  const group = groupOf(iso);
+  if (holiday?.kind === "inventario") return null;
+  const group = holiday ? "Feriado" : groupOf(iso);
   return (
     scheduled.windows.find((window) => normalizeDaySelection(window.days).includes(group)) ?? null
   );
@@ -107,8 +112,8 @@ export function expectedDay(
   holidays: Holiday[],
   storeId?: string,
 ): CapacityDay | null {
-  if (holidayOn(iso, region, holidays, storeId)) return null;
-  const w = scheduledWindow(policy, iso);
+  const holiday = holidayOn(iso, region, holidays, storeId);
+  const w = scheduledWindow(policy, iso, holiday);
   if (!w) return null;
   return { day: iso, modality, deliveryTime: `${w.start} - ${w.end}`, capacity: w.capacity };
 }
@@ -118,6 +123,9 @@ export function nextScheduledDays(
   count: number,
   modalities: readonly string[],
   policies: ReadonlyMap<string, ShippingPolicyDraft>,
+  region = "",
+  holidays: readonly Holiday[] = [],
+  storeId?: string,
 ): string[] {
   const hasSchedule = modalities.some((modality) => {
     const scheduled = policies.get(modality)?.scheduledDelivery;
@@ -135,7 +143,12 @@ export function nextScheduledDays(
     if (
       modalities.some((modality) => {
         const policy = policies.get(modality);
-        return policy && scheduledWindow(policy, day);
+        const holiday = holidayOn(day, region, holidays as Holiday[], storeId);
+        return (
+          policy &&
+          (scheduledWindow(policy, day, null) ||
+            (holiday?.kind === "feriado" && scheduledWindow(policy, day, holiday)))
+        );
       })
     ) {
       result.push(day);

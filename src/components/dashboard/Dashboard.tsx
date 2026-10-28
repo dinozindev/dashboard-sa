@@ -573,30 +573,6 @@ export default function Dashboard({
     return fromDb.length ? fromDb : statePolygonsFor(pickupUfs);
   }, [isPickup, pickupUfs, live]);
 
-  /**
-   * Tabelas de frete de Retira: cada tabela traz o nome do polígono estadual
-   * (ex.: SAO_PAULO_RETIRA) e um valor fixo, sem adicional por peso excedente.
-   * A associação respeita a modalidade escolhida no filtro.
-   */
-  const pickupTariffByPolygon = useMemo(() => {
-    const map = new Map<string, { price: number | null; table: string; store: string }>();
-    if (!live) return map;
-    for (const table of live.snapshot.freightTables) {
-      const name = table.polygonName;
-      if (!name) continue;
-      const draft = live.drafts.find((d) => d.id === table.policyClientId);
-      if (!draft || draft.policyType !== "Retira") continue;
-      if (modalityFilter !== "todas" && !draft.modalities.includes(modalityFilter)) continue;
-      const first = table.bands?.[0];
-      map.set(name, {
-        price: first?.amc ?? null,
-        table: table.name,
-        store: table.store,
-      });
-    }
-    return map;
-  }, [live, modalityFilter]);
-
   /** Todas as tabelas de retira enviadas (uma linha por loja × modalidade). */
   const pickupTablesList = useMemo(() => {
     if (!live) return [];
@@ -668,11 +644,11 @@ export default function Dashboard({
         value: num(isPickup ? activeStatePolygons.length : visible.length),
         ...(pickupHint ? { hint: pickupHint } : {}),
       },
-      {
-        label: "Área coberta",
-        value: `${num(area, 1)} km²`,
-        ...(areaHint ? { hint: areaHint } : {}),
-      },
+      // {
+      //   label: "Área coberta",
+      //   value: `${num(area, 1)} km²`,
+      //   ...(areaHint ? { hint: areaHint } : {}),
+      // },
       ...(isPickup
         ? [
             {
@@ -680,11 +656,11 @@ export default function Dashboard({
               value: `${pickupStores.length} ${pickupStores.length === 1 ? "loja" : "lojas"}`,
               hint: "Pontos de coleta na região",
             },
-            {
-              label: "Tabelas cadastradas",
-              value: num(pickupTablesList.length),
-              hint: "Regras de retira enviadas",
-            },
+            // {
+            //   label: "Tabelas cadastradas",
+            //   value: num(pickupTablesList.length),
+            //   hint: "Regras de retira enviadas",
+            // },
           ]
         : [
             { label: "Peso simulado", value: kg(weight) },
@@ -842,21 +818,21 @@ export default function Dashboard({
             ) : null}
           </div>
         </div>
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-6">
-          <div className="flex items-center gap-4">
-            <span className="bg-accent-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-display text-lg font-bold text-white shadow-brand">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="bg-accent-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-base font-bold text-white shadow-brand">
               OX
             </span>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/70">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">
                 Obramax · Supply Chain
               </p>
-              <h1 className="font-display text-2xl font-bold tracking-tight text-white">
+              <h1 className="font-display text-xl font-bold tracking-tight text-white">
                 Painel OMS
               </h1>
-              <p className="mt-0.5 text-sm text-white/75">
+              {/* <p className="mt-0.5 text-xs text-white/75">
                 Áreas de entrega, tarifas por faixa de peso e capacidade operacional
-              </p>
+              </p> */}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1306,38 +1282,6 @@ export default function Dashboard({
                       <code className="mx-1">src/data/state-polygons.json</code>
                       para exibir a área de retira — nenhum contorno é desenhado por aproximação.
                     </p>
-                  ) : null}
-                  {activeStatePolygons.length > 0 ? (
-                    <div className="surface p-3">
-                      <p className="eyebrow mb-2">
-                        Frete da retira
-                        {modalityFilter === "todas" ? "" : ` · ${modalityFilter}`}
-                      </p>
-                      <ul className="space-y-1">
-                        {activeStatePolygons.map((s) => {
-                          const link = s.polygonName
-                            ? pickupTariffByPolygon.get(s.polygonName)
-                            : undefined;
-                          return (
-                            <li
-                              key={s.uf}
-                              className="flex items-center justify-between gap-2 text-xs"
-                            >
-                              <span className="text-muted-foreground">
-                                {s.polygonName ?? s.name}
-                              </span>
-                              <span className="tabular-nums font-medium">
-                                {link ? (link.price != null ? brl(link.price) : "—") : "Sem tabela"}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
-                        Valor único por estado, sem adicional por peso excedente. A tabela é enviada no
-                        cadastro da política de Retira.
-                      </p>
-                    </div>
                   ) : null}
                   {nearestPickupStore ? (
                     <div className="surface p-3">

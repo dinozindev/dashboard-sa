@@ -40,7 +40,7 @@ export interface PickupTime {
 /** Tipo da política: entrega no endereço do cliente ou retirada em loja. */
 export type PolicyType = "Entrega" | "Retira";
 
-export const DAY_GROUPS = ["Segunda a sexta-feira", "Sábado", "Domingo"] as const;
+export const DAY_GROUPS = ["Segunda a sexta-feira", "Sábado", "Domingo", "Feriado"] as const;
 export type DayGroup = (typeof DAY_GROUPS)[number];
 export type DaySelection = DayGroup | DayGroup[];
 
