@@ -554,6 +554,8 @@ export function PolicyFormPanel({
   const [bulkReplicating, setBulkReplicating] = useState(false);
   const [bulkReplicaMessage, setBulkReplicaMessage] = useState<string | null>(null);
   const [bulkReplicaOpen, setBulkReplicaOpen] = useState(false);
+  const [replicaConfirmationTarget, setReplicaConfirmationTarget] = useState<string | null>(null);
+  const [bulkReplicaConfirmation, setBulkReplicaConfirmation] = useState<string[] | null>(null);
 
   const editingLocked = Boolean(initialPolicy) && !replicating;
 
@@ -786,6 +788,8 @@ export function PolicyFormPanel({
     ? findDivergences(previewDraft, modality).filter((d) => JUSTIFIABLE_FIELDS.has(d.label))
     : [];
   const pendingDivergences = allDivergences.filter((d) => !d.justification);
+  const weekendDivergence = (label: string) =>
+    allDivergences.find((divergence) => divergence.label === label);
 
   const save = async () => {
     const errs = steps
@@ -1048,8 +1052,16 @@ export function PolicyFormPanel({
   };
 
   /** Abre o mesmo fluxo de criação já preenchido, apenas trocando a loja. */
-  const startReplication = () => {
+  const startReplication = (confirmed = false) => {
     if (!replicaTarget) return;
+    const existingTarget = getPolicyDrafts().find(
+      (draft) => draft.store === replicaTarget && draft.modalities.includes(modality),
+    );
+    if (existingTarget && !confirmed) {
+      setReplicaConfirmationTarget(replicaTarget);
+      return;
+    }
+    setReplicaConfirmationTarget(null);
     setReplicaFrom(store);
     setStore(replicaTarget);
     if (pickupEnabled) {
@@ -1074,7 +1086,7 @@ export function PolicyFormPanel({
     setBulkReplicaMessage(null);
   };
 
-  const replicateToMultipleStores = async () => {
+  const replicateToMultipleStores = async (confirmed = false) => {
     if (!saved || !bulkReplicaTargets.length || bulkReplicating) return;
 
     const source = getPolicyDrafts().find((draft) => draft.id === saved);
@@ -1086,18 +1098,23 @@ export function PolicyFormPanel({
     setBulkReplicating(true);
     setBulkReplicaMessage(null);
     const created: string[] = [];
-    const skipped: string[] = [];
+    const overwritten: string[] = [];
     const failed: string[] = [];
 
     try {
+      const existingTargets = bulkReplicaTargets.filter((target) =>
+        getPolicyDrafts().some(
+          (draft) => draft.store === target && draft.modalities.includes(modality),
+        ),
+      );
+      if (existingTargets.length && !confirmed) {
+        setBulkReplicaConfirmation(existingTargets);
+        return;
+      }
       for (const target of bulkReplicaTargets) {
-        const alreadyExists = getPolicyDrafts().some(
+        const existingTarget = getPolicyDrafts().find(
           (draft) => draft.store === target && draft.modalities.includes(modality),
         );
-        if (alreadyExists) {
-          skipped.push(target);
-          continue;
-        }
         const targetPickupSeller = pickupSellerForStore(source, target);
         if (source.pickup.enabled && !targetPickupSeller) {
           console.error(`Ponto de retirada não encontrado para a loja ${target}`);
@@ -1107,8 +1124,8 @@ export function PolicyFormPanel({
 
         const draft: ShippingPolicyDraft = {
           ...source,
-          id: `pol-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          createdAt: new Date().toISOString(),
+          id: existingTarget?.id ?? `pol-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          createdAt: existingTarget?.createdAt ?? new Date().toISOString(),
           store: target,
           pickup: source.pickup.enabled
             ? {
@@ -1121,15 +1138,16 @@ export function PolicyFormPanel({
 
         try {
           await upsertPolicyDraftAndWait(draft);
-          created.push(target);
+          if (existingTarget) overwritten.push(target);
+          else created.push(target);
           logAudit({
             store: target,
             module: "Cadastro de Política de Envio",
             field: `Política replicada — ${modality}`,
             before: source.store,
             after: target,
-            action: "Criação",
-            description: `Política de envio da modalidade "${modality}" replicada da loja ${source.store} para a loja ${target}, sem revisão individual.`,
+            action: existingTarget ? "Edição" : "Criação",
+            description: `Política de envio da modalidade "${modality}" replicada da loja ${source.store} para a loja ${target}${existingTarget ? ", sobrepondo os dados anteriores" : ""}, sem revisão individual.`,
           });
         } catch (err) {
           console.error(`Falha ao replicar política para a loja ${target}`, err);
@@ -1139,13 +1157,14 @@ export function PolicyFormPanel({
 
       const summary = [
         created.length ? `${created.length} criada(s)` : "",
-        skipped.length ? `${skipped.length} ignorada(s) por já existir` : "",
+        overwritten.length ? `${overwritten.length} sobreposta(s)` : "",
         failed.length ? `${failed.length} com falha` : "",
       ]
         .filter(Boolean)
         .join(" · ");
       setBulkReplicaMessage(summary || "Nenhuma loja foi replicada.");
       setBulkReplicaTargets(failed);
+      setBulkReplicaConfirmation(null);
     } finally {
       setBulkReplicating(false);
     }
@@ -1537,9 +1556,29 @@ export function PolicyFormPanel({
         <>
           <Section title="Finais de semana e feriados" hint="Escolha se há entregas nesses dias.">
             <div className="space-y-2">
-              <Toggle checked={saturday} onChange={setSaturday} label="Entrega aos sábados" />
-              <Toggle checked={sunday} onChange={setSunday} label="Entrega aos domingos" />
-              <Toggle checked={holidays} onChange={setHolidays} label="Entregas em feriados" />
+              {(
+                [
+                  ["Entrega aos sábados", saturday, setSaturday],
+                  ["Entrega aos domingos", sunday, setSunday],
+                  ["Entrega em feriados", holidays, setHolidays],
+                ] as const
+              ).map(([label, checked, onChange]) => {
+                const divergence = weekendDivergence(label);
+                return (
+                  <div key={label} className="space-y-1">
+                    <Toggle checked={checked} onChange={onChange} label={label} />
+                    {divergence ? (
+                      <p className="ml-12 max-w-xl rounded-md border border-warning/60 bg-warning/15 px-2 py-1 text-[11px] text-warning-foreground">
+                        <strong aria-hidden>⚠️ </strong>
+                        Fora do padrão: esperado{" "}
+                        <strong>{divergence.expected}</strong>, atual{" "}
+                        <strong>{divergence.actual}</strong>. Será necessária uma justificativa
+                        na etapa de revisão.
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </Section>
 
@@ -2227,7 +2266,7 @@ export function PolicyFormPanel({
                 <DialogTitle>Replicar política para múltiplas lojas</DialogTitle>
                 <DialogDescription>
                   Selecione as lojas que receberão a política “{modality}” da loja {store}.
-                  Lojas que já possuem essa modalidade não podem ser selecionadas.
+                  Lojas que já possuem essa modalidade podem ser selecionadas, mas seus dados atuais serão sobrepostos.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -2244,19 +2283,19 @@ export function PolicyFormPanel({
                         className={
                           "flex items-center gap-2 rounded-lg border p-2 text-xs " +
                           (hasPolicy
-                            ? "cursor-not-allowed border-border bg-muted/40 text-muted-foreground"
+                            ? "cursor-pointer border-warning/50 bg-warning/10 text-warning-foreground"
                             : "cursor-pointer border-border hover:bg-muted/60")
                         }
                       >
                         <input
                           type="checkbox"
                           checked={selected}
-                          disabled={hasPolicy || bulkReplicating}
+                          disabled={bulkReplicating}
                           onChange={() => toggleBulkReplicaTarget(target)}
                         />
                         <span>
                           {target}
-                          {hasPolicy ? " · política já cadastrada" : ""}
+                          {hasPolicy ? " · será sobreposta" : ""}
                         </span>
                       </label>
                     );
@@ -2281,6 +2320,72 @@ export function PolicyFormPanel({
                   onClick={() => void replicateToMultipleStores()}
                 >
                   {bulkReplicating ? "Replicando…" : "Replicar lojas selecionadas"}
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={Boolean(replicaConfirmationTarget)}
+            onOpenChange={(open) => {
+              if (!open) setReplicaConfirmationTarget(null);
+            }}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Sobrepor política existente?</DialogTitle>
+                <DialogDescription>
+                  A política atual da loja <strong>{replicaConfirmationTarget}</strong> para{" "}
+                  <strong>{modality}</strong> será substituída pelos dados de{" "}
+                  <strong>{store}</strong>.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
+                  onClick={() => setReplicaConfirmationTarget(null)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-danger-foreground hover:opacity-90"
+                  onClick={() => startReplication(true)}
+                >
+                  Confirmar sobreposição
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={Boolean(bulkReplicaConfirmation)}
+            onOpenChange={(open) => {
+              if (!open && !bulkReplicating) setBulkReplicaConfirmation(null);
+            }}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Sobrepor políticas existentes?</DialogTitle>
+                <DialogDescription>
+                  As políticas atuais de{" "}
+                  <strong>{bulkReplicaConfirmation?.join(", ")}</strong> serão substituídas pelos
+                  dados de <strong>{store}</strong>.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
+                  onClick={() => setBulkReplicaConfirmation(null)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-danger-foreground hover:opacity-90"
+                  onClick={() => void replicateToMultipleStores(true)}
+                >
+                  Confirmar sobreposição
                 </button>
               </div>
             </DialogContent>

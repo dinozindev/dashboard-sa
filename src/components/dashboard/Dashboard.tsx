@@ -644,11 +644,11 @@ export default function Dashboard({
         value: num(isPickup ? activeStatePolygons.length : visible.length),
         ...(pickupHint ? { hint: pickupHint } : {}),
       },
-      // {
-      //   label: "Área coberta",
-      //   value: `${num(area, 1)} km²`,
-      //   ...(areaHint ? { hint: areaHint } : {}),
-      // },
+      {
+         label: "Área coberta",
+         value: `${num(area, 1)} km²`,
+         ...(areaHint ? { hint: areaHint } : {}),
+      },
       ...(isPickup
         ? [
             {
@@ -1181,13 +1181,13 @@ export default function Dashboard({
                     type="number"
                     className="input w-28 pr-9 text-right"
                     min={0}
-                    max={20000}
+                    max={99999}
                     step={0.5}
                     value={weight}
                     onChange={(e) => {
                       const value = Number(e.target.value);
                       if (Number.isFinite(value)) {
-                        setWeight(Math.min(20000, Math.max(0, value)));
+                        setWeight(Math.min(99999, Math.max(0, value)));
                       }
                     }}
                   />
@@ -1200,7 +1200,7 @@ export default function Dashboard({
                 aria-label="Peso simulado (kg)"
                 className="mt-3"
                 min={0}
-                max={20000}
+                max={99999}
                 step={0.5}
                 value={[weight]}
                 onValueChange={([value]) => {
@@ -1261,13 +1261,17 @@ export default function Dashboard({
                   />
                 </Suspense>
               </ClientOnly>
-              <div className="absolute right-3 top-3 z-[500] w-64 max-w-[calc(100%-1.5rem)]">
-                <Legend stores={shownStores} />
-              </div>
-              {!isPickup && point ? (
+              {!isPickup ? (
+                <div className="absolute right-3 top-3 z-[500] w-64 max-w-[calc(100%-1.5rem)]">
+                  <Legend stores={shownStores} />
+                </div>
+              ) : null}
+              {point ? (
                 <div className="absolute inset-x-0 bottom-0 z-[500] max-h-[35%] overflow-y-auto rounded-t-xl border border-border bg-card/95 p-3 shadow-elevated backdrop-blur-sm">
                   <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="eyebrow">Comparação no ponto clicado</p>
+                    <p className="eyebrow">
+                      {isPickup ? "Loja de retira mais próxima" : "Comparação no ponto clicado"}
+                    </p>
                     <button
                       type="button"
                       className="btn-ghost h-7 w-7 shrink-0 p-0 text-base"
@@ -1277,16 +1281,67 @@ export default function Dashboard({
                       ×
                     </button>
                   </div>
-                  <ComparePanel
-                    point={point}
-                    matches={matches}
-                    weight={weight}
-                    overrides={overrides}
-                    modality={modality}
-                    now={now}
-                    holidays={HOLIDAYS}
-                    bandsFor={(rec) => bandsOf(rec)}
-                  />
+                  {isPickup ? (
+                    nearestPickupStore ? (
+                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                        <div className="min-w-0 rounded-lg border border-border bg-card p-2">
+                          <p className="font-display text-sm font-bold text-primary">
+                            {nearestPickupStore.name}
+                          </p>
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {nearestPickupStore.note}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Distância:{" "}
+                            <strong className="tabular-nums">
+                              {nearestPickupStore.km.toLocaleString("pt-BR", {
+                                maximumFractionDigits: 1,
+                              })}{" "}
+                              km
+                            </strong>
+                          </p>
+                        </div>
+                        {sameStatePickupStores.length ? (
+                          <div className="min-w-0 rounded-lg border border-border bg-card p-2">
+                            <p className="mb-1 text-[11px] font-semibold text-foreground">
+                              Distância até as lojas deste estado
+                            </p>
+                            <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+                              {sameStatePickupStores.map((s) => (
+                                <div
+                                  key={s.name}
+                                  className="flex min-w-0 items-center justify-between gap-2 text-[11px]"
+                                >
+                                  <span className="truncate text-muted-foreground" title={s.name}>
+                                    {s.name}
+                                  </span>
+                                  <span className="shrink-0 tabular-nums font-medium">
+                                    {s.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="rounded-lg border border-dashed border-border p-2 text-xs text-muted-foreground">
+                        Clique em um ponto dentro de um estado coberto para ver a loja de retirada
+                        mais próxima.
+                      </p>
+                    )
+                  ) : (
+                    <ComparePanel
+                      point={point}
+                      matches={matches}
+                      weight={weight}
+                      overrides={overrides}
+                      modality={modality}
+                      now={now}
+                      holidays={HOLIDAYS}
+                      bandsFor={(rec) => bandsOf(rec)}
+                    />
+                  )}
                 </div>
               ) : null}
             </div>
@@ -1312,52 +1367,6 @@ export default function Dashboard({
                       para exibir a área de retira — nenhum contorno é desenhado por aproximação.
                     </p>
                   ) : null}
-                  {nearestPickupStore ? (
-                    <div className="surface p-3">
-                      <p className="eyebrow mb-2">Loja de retira mais próxima</p>
-                      <p className="font-display text-base font-bold text-primary">
-                        {nearestPickupStore.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{nearestPickupStore.note}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Distância em linha reta do ponto clicado:{" "}
-                        <strong className="tabular-nums">
-                          {nearestPickupStore.km.toLocaleString("pt-BR", {
-                            maximumFractionDigits: 1,
-                          })}{" "}
-                          km
-                        </strong>
-                      </p>
-                      {/* <div className="mt-3">
-                      <ScheduleGrid store={nearestPickupStore.name} modality="Retira" />
-                    </div> */}
-                      {sameStatePickupStores.length ? (
-                        <div className="mt-3 border-t border-border pt-3">
-                          <p className="eyebrow mb-2">Distância até as lojas deste estado</p>
-                          <ul className="space-y-1">
-                            {sameStatePickupStores.map((s) => (
-                              <li
-                                key={s.name}
-                                className="flex items-center justify-between gap-2 text-xs"
-                              >
-                                <span className="text-muted-foreground">
-                                  {s.name} <span className="opacity-60">({s.region})</span>
-                                </span>
-                                <span className="tabular-nums font-medium">
-                                  {s.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
-                      Modalidade <strong>Retira</strong>: clique em qualquer ponto do estado para ver
-                      a loja de retirada mais próxima e seus horários.
-                    </p>
-                  )}
                   <div className="surface p-3">
                     <p className="eyebrow mb-2">
                       {modalityFilter === "todas"

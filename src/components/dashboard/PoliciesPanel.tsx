@@ -522,6 +522,7 @@ export function PoliciesPanel({
   const [selectedModality, setSelectedModality] = useState<string | null>(null);
   const [replicationPolicy, setReplicationPolicy] = useState<ShippingPolicyDraft | null>(null);
   const [replicationTargets, setReplicationTargets] = useState<string[]>([]);
+  const [replicationConfirmation, setReplicationConfirmation] = useState<string[] | null>(null);
   const [replicating, setReplicating] = useState(false);
   const [replicationMessage, setReplicationMessage] = useState<string | null>(null);
   const [view, setView] = useState<"matriz" | "justificativas">("matriz");
@@ -639,26 +640,33 @@ export function PoliciesPanel({
     );
   };
 
-  const replicatePolicy = async () => {
+  const replicatePolicy = async (confirmed = false) => {
     if (!replicationPolicy || !replicationTargets.length || replicating) return;
 
     setReplicating(true);
     setReplicationMessage(null);
     const created: string[] = [];
-    const skipped: string[] = [];
+    const overwritten: string[] = [];
     const failed: string[] = [];
 
     try {
+      const existingTargets = replicationTargets.filter((target) =>
+        drafts.some(
+          (draft) =>
+            draft.store === target &&
+            replicationPolicy.modalities.some((modality) => draft.modalities.includes(modality)),
+        ),
+      );
+      if (existingTargets.length && !confirmed) {
+        setReplicationConfirmation(existingTargets);
+        return;
+      }
       for (const target of replicationTargets) {
-        const alreadyExists = drafts.some(
+        const existingTarget = drafts.find(
           (draft) =>
             draft.store === target &&
             replicationPolicy.modalities.some((modality) => draft.modalities.includes(modality)),
         );
-        if (alreadyExists) {
-          skipped.push(target);
-          continue;
-        }
         const targetPickupSeller = pickupSellerForStore(replicationPolicy, target);
         if (replicationPolicy.pickup.enabled && !targetPickupSeller) {
           console.error(`Ponto de retirada não encontrado para a loja ${target}`);
@@ -668,8 +676,8 @@ export function PoliciesPanel({
 
         const replicated: ShippingPolicyDraft = {
           ...replicationPolicy,
-          id: `pol-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          createdAt: new Date().toISOString(),
+          id: existingTarget?.id ?? `pol-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          createdAt: existingTarget?.createdAt ?? new Date().toISOString(),
           store: target,
           pickup: replicationPolicy.pickup.enabled
             ? {
@@ -684,15 +692,16 @@ export function PoliciesPanel({
 
         try {
           await upsertPolicyDraftAndWait(replicated);
-          created.push(target);
+          if (existingTarget) overwritten.push(target);
+          else created.push(target);
           logAudit({
             store: target,
             module: "Políticas de Envio",
             field: `Política replicada — ${replicationPolicy.modalities.join(" · ")}`,
             before: replicationPolicy.store,
             after: target,
-            action: "Criação",
-            description: `Política de envio replicada da loja ${replicationPolicy.store} para a loja ${target}, sem revisão individual.`,
+            action: existingTarget ? "Edição" : "Criação",
+            description: `Política de envio replicada da loja ${replicationPolicy.store} para a loja ${target}${existingTarget ? ", sobrepondo os dados anteriores" : ""}, sem revisão individual.`,
           });
         } catch (err) {
           console.error(`Falha ao replicar política para a loja ${target}`, err);
@@ -702,13 +711,14 @@ export function PoliciesPanel({
 
       const summary = [
         created.length ? `${created.length} criada(s)` : "",
-        skipped.length ? `${skipped.length} ignorada(s) por já existir` : "",
+        overwritten.length ? `${overwritten.length} sobreposta(s)` : "",
         failed.length ? `${failed.length} com falha` : "",
       ]
         .filter(Boolean)
         .join(" · ");
       setReplicationMessage(summary || "Nenhuma loja foi replicada.");
       setReplicationTargets(failed);
+      setReplicationConfirmation(null);
     } finally {
       setReplicating(false);
     }
@@ -1401,7 +1411,7 @@ export function PoliciesPanel({
               <DialogDescription>
                 Selecione as lojas que receberão as modalidades "
                 {replicationPolicy.modalities.join(" · ")}" da loja {replicationPolicy.store}.
-                Lojas que já possuem uma dessas modalidades não podem ser selecionadas.
+                Lojas que já possuem uma dessas modalidades podem ser selecionadas, mas seus dados atuais serão sobrepostos.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -1423,19 +1433,19 @@ export function PoliciesPanel({
                       className={
                         "flex items-center gap-2 rounded-lg border p-2 text-xs " +
                         (hasPolicy
-                          ? "cursor-not-allowed border-border bg-muted/40 text-muted-foreground"
+                          ? "cursor-pointer border-warning/50 bg-warning/10 text-warning-foreground"
                           : "cursor-pointer border-border hover:bg-muted/60")
                       }
                     >
                       <input
                         type="checkbox"
                         checked={selected}
-                        disabled={hasPolicy || replicating}
+                        disabled={replicating}
                         onChange={() => toggleReplicationTarget(target)}
                       />
                       <span>
                         {target}
-                        {hasPolicy ? " · política já cadastrada" : ""}
+                        {hasPolicy ? " · será sobreposta" : ""}
                       </span>
                     </label>
                   );
@@ -1464,6 +1474,39 @@ export function PoliciesPanel({
             </div>
           </DialogContent>
         ) : null}
+      </Dialog>
+      <Dialog
+        open={Boolean(replicationConfirmation)}
+        onOpenChange={(open) => {
+          if (!open && !replicating) setReplicationConfirmation(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sobrepor políticas existentes?</DialogTitle>
+            <DialogDescription>
+              Os dados atuais das lojas{" "}
+              <strong>{replicationConfirmation?.join(", ")}</strong> serão substituídos pelos
+              dados da loja <strong>{replicationPolicy?.store}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
+              onClick={() => setReplicationConfirmation(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-danger px-3 py-2 text-xs font-semibold text-danger-foreground hover:opacity-90"
+              onClick={() => void replicatePolicy(true)}
+            >
+              Confirmar sobreposição
+            </button>
+          </div>
+        </DialogContent>
       </Dialog>
       <StandardsDialog
         open={standardsOpen}

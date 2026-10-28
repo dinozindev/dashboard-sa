@@ -344,6 +344,9 @@ export const DEFAULT_RULES: Record<string, StandardRules> = {
     cubicWeightFactor: null,
     minimumWeightFactor: null,
     schedule: coleta15,
+    saturday: false,
+    sunday: false,
+    holidays: false,
     minItems: 1,
   },
   "Retira Fácil (Clique & Retira)": { schedule: coleta15, saturday: true, minItems: 1 },
@@ -453,14 +456,21 @@ export function resolveRules(
   store?: string | null,
   rows: StandardRow[] | null = activeRows,
 ): { rules: StandardRules | null; origin: RulesOrigin } {
+  const factoryRules = DEFAULT_RULES[modality];
+  const withFactoryDefaults = (rules: StandardRules): StandardRules =>
+    modality === "Pequenos Volumes" && factoryRules
+      ? { ...factoryRules, ...rules }
+      : rules;
+
   if (store && rows) {
     const own = rows.find((r) => r.store === store && r.modality === modality);
-    if (own) return { rules: own.rules, origin: "loja" };
+    if (own) return { rules: withFactoryDefaults(own.rules), origin: "loja" };
   }
   const general = rows?.find((r) => r.store === null && r.modality === modality);
-  if (general) return { rules: general.rules, origin: "geral" };
-  const def = DEFAULT_RULES[modality];
-  return def ? { rules: def, origin: "fabrica" } : { rules: null, origin: "nenhum" };
+  if (general) return { rules: withFactoryDefaults(general.rules), origin: "geral" };
+  return factoryRules
+    ? { rules: factoryRules, origin: "fabrica" }
+    : { rules: null, origin: "nenhum" };
 }
 
 export function standardForModality(
@@ -486,6 +496,9 @@ export const JUSTIFIABLE_FIELDS = new Set([
   "Janela de envio",
   "Tempo máximo de entrega",
   "Janela da entrega agendada",
+  "Entrega aos sábados",
+  "Entrega aos domingos",
+  "Entrega em feriados",
 ]);
 
 export interface PolicyJustification {
